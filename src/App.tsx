@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import { useApp } from './context/AppContext';
-import { Header } from './components/common/Header';
-import { BottomNavigation } from './components/common/BottomNavigation';
 import { ToastNotification } from './components/common/ToastNotification';
 import { LocationLoadingScreen } from './screens/LocationLoadingScreen';
 import { LoginScreen } from './screens/LoginScreen';
@@ -74,7 +72,6 @@ export const App: React.FC = () => {
   }
 
   const isLoading = currentScreen === 'location-loading';
-  const showMobileBottomNav = !isLoading && !isDriverMode;
 
   return (
     <div className="min-h-screen bg-[#FBFBF9] text-[#141518] flex flex-col select-none font-sans">
@@ -199,18 +196,9 @@ export const App: React.FC = () => {
 
       {/* Main Responsive Body */}
       <div className="flex-1 w-full bg-[#FBFBF9] flex flex-col">
-        {!isLoading && <Header />}
-
         <main className="flex-1">
           {renderScreen()}
         </main>
-
-        {/* Bottom Navigation for mobile viewports */}
-        {showMobileBottomNav && (
-          <div className="lg:hidden">
-            <BottomNavigation />
-          </div>
-        )}
       </div>
     </div>
   );

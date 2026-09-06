@@ -49,20 +49,14 @@ export const HomeScreen: React.FC = () => {
   }, [shuttleLocations, trips, shuttles]);
 
   return (
-    <div className="min-h-full bg-[#FBFBF9] pb-24 lg:pb-12 select-none">
+    <div className="min-h-full bg-[#FBFBF9] pb-10 select-none">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 lg:pt-8 space-y-6">
         {/* Top Greeting & Operational Summary Bar */}
         <section className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-stone-200/80 pb-5">
-          <div className="space-y-1">
-            <span className="font-editorial font-bold text-xs tracking-widest text-jklu-orange uppercase">
-              JKLU SHUTTLE // CAMPUS MOBILITY
-            </span>
+          <div>
             <h1 className="font-editorial font-extrabold text-3xl sm:text-4xl text-[#121316] tracking-tight leading-tight">
               Good morning, {student.name.split(' ')[0]}.
             </h1>
-            <p className="text-xs sm:text-sm text-stone-500 font-medium tracking-wide uppercase">
-              Find the fastest way to your next ride.
-            </p>
           </div>
 
           {/* Quick Metrics (Desktop Enhanced) */}

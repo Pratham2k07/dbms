@@ -59,7 +59,7 @@ export const LiveTrackingScreen: React.FC = () => {
   }, [route.route_id]);
 
   return (
-    <div className="min-h-full bg-[#FBFBF9] pb-24 lg:pb-12 select-none">
+    <div className="min-h-full bg-[#FBFBF9] pb-10 select-none">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 lg:pt-8 space-y-5">
         {/* Top Header Bar */}
         <div className="flex items-center justify-between border-b border-stone-200/80 pb-4">
