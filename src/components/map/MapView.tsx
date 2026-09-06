@@ -373,16 +373,6 @@ export const MapView: React.FC<MapViewProps> = ({
           <ZoomOut className="w-4 h-4" />
         </button>
       </div>
-
-      {/* Bottom Left: Live GPS Status Badge */}
-      <div className="absolute bottom-3 left-3 z-[400] pointer-events-none">
-        <div className="px-2.5 py-1 rounded-xl bg-[#141518]/90 backdrop-blur-md text-white border border-stone-700/80 shadow-md flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-[10px] font-mono font-bold tracking-tight">
-            HIGH-ACCURACY TELEMETRY
-          </span>
-        </div>
-      </div>
     </div>
   );
 };
