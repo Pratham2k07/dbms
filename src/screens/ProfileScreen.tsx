@@ -8,7 +8,8 @@ import {
   Sparkles,
   ChevronRight,
   Phone,
-  Shield
+  Shield,
+  LogOut
 } from 'lucide-react';
 
 export const ProfileScreen: React.FC = () => {
@@ -17,7 +18,8 @@ export const ProfileScreen: React.FC = () => {
     setIsDriverMode,
     setCurrentScreen,
     resetSimulation,
-    triggerNotification
+    triggerNotification,
+    logoutUser
   } = useApp();
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -145,6 +147,21 @@ export const ProfileScreen: React.FC = () => {
                     </div>
                   </div>
                   <ChevronRight className="w-5 h-5 text-stone-400" />
+                </div>
+
+                {/* Sign Out to Login Screen */}
+                <div
+                  onClick={logoutUser}
+                  className="p-4 sm:p-5 flex items-center justify-between cursor-pointer hover:bg-red-50/60 transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <LogOut className="w-5 h-5 text-red-500 group-hover:scale-110 transition-transform" />
+                    <div>
+                      <span className="font-medium text-red-600 block">Sign Out of University Portal</span>
+                      <p className="text-xs text-stone-400">Return to Login Screen to switch accounts</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-stone-400 group-hover:text-red-500 transition-colors" />
                 </div>
               </div>
             </div>

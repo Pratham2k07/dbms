@@ -18,9 +18,9 @@ export const SplashScreen: React.FC = () => {
       });
     }, 60);
 
-    // Transition automatically to Location Loading after completion
+    // Transition automatically to Login Portal after completion
     const timer = setTimeout(() => {
-      setCurrentScreen('location-loading');
+      setCurrentScreen('login');
     }, 2800);
 
     return () => {
@@ -127,10 +127,10 @@ export const SplashScreen: React.FC = () => {
       {/* Bottom Footer Actions */}
       <div className="relative z-10 pb-4 max-w-sm mx-auto w-full space-y-3 text-center">
         <button
-          onClick={() => setCurrentScreen('location-loading')}
+          onClick={() => setCurrentScreen('login')}
           className="w-full py-4 px-6 rounded-2xl bg-[#121316] text-[#FBFBF9] hover:bg-black font-editorial font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 shadow-float transition-transform active:scale-[0.99]"
         >
-          <span>ENTER SERVICE</span>
+          <span>SIGN IN TO PORTAL</span>
           <ArrowRight className="w-4 h-4 text-jklu-orange" />
         </button>
 

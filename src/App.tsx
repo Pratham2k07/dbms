@@ -5,13 +5,14 @@ import { BottomNavigation } from './components/common/BottomNavigation';
 import { ToastNotification } from './components/common/ToastNotification';
 import { SplashScreen } from './screens/SplashScreen';
 import { LocationLoadingScreen } from './screens/LocationLoadingScreen';
+import { LoginScreen } from './screens/LoginScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { StopDetailsScreen } from './screens/StopDetailsScreen';
 import { LiveTrackingScreen } from './screens/LiveTrackingScreen';
 import { RouteDetailsScreen } from './screens/RouteDetailsScreen';
 import { DriverDashboardScreen } from './screens/DriverDashboardScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
-import { Radio, Shield, User } from 'lucide-react';
+import { Shield, User, LogOut } from 'lucide-react';
 
 export const App: React.FC = () => {
   const {
@@ -19,7 +20,8 @@ export const App: React.FC = () => {
     setCurrentScreen,
     isDriverMode,
     setIsDriverMode,
-    isSimulating
+    logoutUser,
+    currentUserRole
   } = useApp();
 
   // Screen router
@@ -27,6 +29,8 @@ export const App: React.FC = () => {
     switch (currentScreen) {
       case 'splash':
         return <SplashScreen />;
+      case 'login':
+        return <LoginScreen />;
       case 'location-loading':
         return <LocationLoadingScreen />;
       case 'home':
@@ -46,18 +50,19 @@ export const App: React.FC = () => {
     }
   };
 
-  const isSplashOrLoading = currentScreen === 'splash' || currentScreen === 'location-loading';
-  const showMobileBottomNav = !isSplashOrLoading && !isDriverMode;
+  const isSplashOrAuth = currentScreen === 'splash' || currentScreen === 'location-loading' || currentScreen === 'login';
+  const showMobileBottomNav = !isSplashOrAuth && !isDriverMode;
 
   const screenItems = [
     { id: 'splash', label: '1. Splash' },
-    { id: 'location-loading', label: '2. Location' },
-    { id: 'home', label: '3. Home & Stops' },
-    { id: 'stop-details', label: '4. Stop Details' },
-    { id: 'live-tracking', label: '5. Live Tracking' },
-    { id: 'route-details', label: '6. Route Details' },
-    { id: 'driver-dashboard', label: '7. Driver Mode' },
-    { id: 'profile', label: '8. Profile' }
+    { id: 'login', label: '2. Login Portal' },
+    { id: 'location-loading', label: '3. Location' },
+    { id: 'home', label: '4. Student Portal' },
+    { id: 'stop-details', label: '5. Stop Details' },
+    { id: 'live-tracking', label: '6. Live Tracking' },
+    { id: 'route-details', label: '7. Route Details' },
+    { id: 'driver-dashboard', label: '8. Driver Portal' },
+    { id: 'profile', label: '9. Profile' }
   ];
 
   return (
@@ -120,7 +125,7 @@ export const App: React.FC = () => {
           </div>
 
           {/* Right: Mode & System Status */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Mode Switcher: Student vs Driver */}
             <button
               onClick={() => {
@@ -150,6 +155,18 @@ export const App: React.FC = () => {
                 </>
               )}
             </button>
+
+            {/* Logout / Switch User Button */}
+            {currentScreen !== 'login' && currentScreen !== 'splash' && (
+              <button
+                onClick={logoutUser}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-editorial font-semibold bg-[#243B66]/60 hover:bg-white/20 text-white border border-white/25 transition-all"
+                title="Sign out to Login Portal"
+              >
+                <LogOut className="w-3.5 h-3.5 text-orange-300" />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -186,7 +203,7 @@ export const App: React.FC = () => {
 
       {/* Main Responsive Body */}
       <div className="flex-1 w-full bg-[#FBFBF9] flex flex-col">
-        {!isSplashOrLoading && <Header />}
+        {!isSplashOrAuth && <Header />}
 
         <main className="flex-1">
           {renderScreen()}

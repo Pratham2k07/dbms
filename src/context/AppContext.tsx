@@ -34,6 +34,12 @@ interface AppContextType {
   isDriverMode: boolean;
   setIsDriverMode: (val: boolean) => void;
 
+  // Authentication State
+  isAuthenticated: boolean;
+  currentUserRole: 'student' | 'driver';
+  loginUser: (email: string, password?: string, forceRole?: 'student' | 'driver') => boolean;
+  logoutUser: () => void;
+
   // Selected Entities
   selectedStopId: string;
   setSelectedStopId: (id: string) => void;
@@ -80,6 +86,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('splash');
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const [isDriverMode, setIsDriverMode] = useState<boolean>(false);
+
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  const [currentUserRole, setCurrentUserRole] = useState<'student' | 'driver'>('student');
 
   // Selected entities
   const [selectedStopId, setSelectedStopId] = useState<string>('STOP-MANSAROVAR');
@@ -283,6 +293,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearInterval(interval);
   }, [isSimulating, simSpeed, trips]);
 
+  const loginUser = (email: string, _password?: string, forceRole?: 'student' | 'driver'): boolean => {
+    let role: 'student' | 'driver' = 'student';
+    if (forceRole) {
+      role = forceRole;
+    } else if (email.toLowerCase().includes('driver') || email.toLowerCase().includes('ramesh')) {
+      role = 'driver';
+    } else {
+      role = 'student';
+    }
+
+    setIsAuthenticated(true);
+    setCurrentUserRole(role);
+
+    if (role === 'driver') {
+      setIsDriverMode(true);
+      setCurrentScreen('driver-dashboard');
+      triggerNotification('DRIVER AUTHENTICATED', 'Welcome Captain Ramesh Kumar! Driver Dashboard Active.', 'info');
+    } else {
+      setIsDriverMode(false);
+      setCurrentScreen('home');
+      triggerNotification('STUDENT AUTHENTICATED', 'Welcome Pratham Lalwani! Student Portal Active.', 'info');
+    }
+    return true;
+  };
+
+  const logoutUser = () => {
+    setIsAuthenticated(false);
+    setIsDriverMode(false);
+    setCurrentScreen('login');
+    triggerNotification('LOGGED OUT', 'You have signed out of JKLU Shuttle.', 'info');
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -292,6 +334,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveTab,
         isDriverMode,
         setIsDriverMode,
+        isAuthenticated,
+        currentUserRole,
+        loginUser,
+        logoutUser,
         selectedStopId,
         setSelectedStopId,
         selectedTripId,
