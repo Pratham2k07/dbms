@@ -11,7 +11,7 @@ export type ScreenType =
   | 'driver-dashboard'
   | 'profile';
 
-export type TabType = 'home' | 'stops' | 'track' | 'profile';
+export type TabType = 'home' | 'track' | 'profile';
 
 export interface NearbyStopInfo {
   stop: Stop;

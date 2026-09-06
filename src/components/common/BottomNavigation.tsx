@@ -1,7 +1,7 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { TabType } from '../../types/ui';
-import { Compass, MapPin, Navigation, User } from 'lucide-react';
+import { Compass, Navigation, User } from 'lucide-react';
 
 export const BottomNavigation: React.FC = () => {
   const { activeTab, setActiveTab, setCurrentScreen, isDriverMode } = useApp();
@@ -12,9 +12,6 @@ export const BottomNavigation: React.FC = () => {
     switch (tab) {
       case 'home':
         setCurrentScreen('home');
-        break;
-      case 'stops':
-        setCurrentScreen('home'); // Scrolls/focuses to stops list or opens stop details
         break;
       case 'track':
         setCurrentScreen('live-tracking');
@@ -27,7 +24,6 @@ export const BottomNavigation: React.FC = () => {
 
   const navItems: { tab: TabType; label: string; icon: React.FC<{ className?: string }> }[] = [
     { tab: 'home', label: 'HOME', icon: Compass },
-    { tab: 'stops', label: 'STOPS', icon: MapPin },
     { tab: 'track', label: 'TRACK', icon: Navigation },
     { tab: 'profile', label: 'PROFILE', icon: User }
   ];

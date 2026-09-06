@@ -148,7 +148,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const navigateToStopDetails = useCallback((stopId: string) => {
     setSelectedStopId(stopId);
     setCurrentScreen('stop-details');
-    setActiveTab('stops');
+    setActiveTab('home');
   }, []);
 
   const navigateToLiveTracking = useCallback((tripId: string) => {
