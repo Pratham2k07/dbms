@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from './context/AppContext';
 import { Header } from './components/common/Header';
 import { BottomNavigation } from './components/common/BottomNavigation';
@@ -11,7 +11,7 @@ import { LiveTrackingScreen } from './screens/LiveTrackingScreen';
 import { RouteDetailsScreen } from './screens/RouteDetailsScreen';
 import { DriverDashboardScreen } from './screens/DriverDashboardScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
-import { Shield, User, LogOut } from 'lucide-react';
+import { Shield, User, LogOut, Menu, X } from 'lucide-react';
 
 export const App: React.FC = () => {
   const {
@@ -22,6 +22,8 @@ export const App: React.FC = () => {
     logoutUser,
     currentUserRole
   } = useApp();
+
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Screen router
   const renderScreen = () => {
@@ -119,40 +121,77 @@ export const App: React.FC = () => {
             </nav>
           </div>
 
-          {/* Right: Authenticated User Status & Logout */}
+          {/* Right: Authenticated User Status & Logout (Desktop) + 3-Lines Menu (Mobile) */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Desktop Logout */}
             <button
               onClick={logoutUser}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-editorial font-semibold bg-white/15 hover:bg-white/25 text-white border border-white/25 transition-all shadow-sm"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-editorial font-semibold bg-white/15 hover:bg-white/25 text-white border border-white/25 transition-all shadow-sm"
               title="Sign out to Login Portal"
             >
               <LogOut className="w-3.5 h-3.5 text-orange-300" />
               <span>Logout</span>
             </button>
+
+            {/* Mobile 3-Lines Hamburger Menu Button */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="md:hidden p-2 rounded-xl bg-white/15 hover:bg-white/25 active:bg-white/30 text-white border border-white/25 transition-all shadow-sm flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-white/40"
+              aria-label="Toggle Navigation Menu"
+            >
+              {isMobileMenuOpen ? (
+                <X className="w-5 h-5 text-white transition-transform duration-200" />
+              ) : (
+                <Menu className="w-5 h-5 text-white transition-transform duration-200" />
+              )}
+            </button>
           </div>
         </div>
 
-        {/* Mobile Screen Selector Bar (for small phone screens) */}
-        <div className="md:hidden overflow-x-auto no-scrollbar px-3 py-1.5 bg-[#2B4A7E]/95 border-t border-white/15 flex items-center gap-1">
-          {screenItems.map((s) => {
-            const isActive = currentScreen === s.id;
-            return (
+        {/* Mobile Dropdown Menu (revealed when 3-lines hamburger is clicked) */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden border-t border-white/20 bg-[#243B66]/95 backdrop-blur-xl px-4 py-3 space-y-1.5 shadow-2xl transition-all">
+            <div className="text-[10px] uppercase font-bold tracking-wider text-blue-200 px-2 pb-1">
+              Navigation Menu
+            </div>
+            {screenItems.map((s) => {
+              const isActive = currentScreen === s.id;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => {
+                    setCurrentScreen(s.id as any);
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-editorial font-bold transition-all flex items-center justify-between ${
+                    isActive
+                      ? 'bg-jklu-orange text-white shadow-md ring-1 ring-white/30'
+                      : 'text-white/85 hover:bg-white/15 hover:text-white'
+                  }`}
+                >
+                  <span>{s.label}</span>
+                  {isActive && (
+                    <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                  )}
+                </button>
+              );
+            })}
+
+            {/* Mobile Logout inside Dropdown */}
+            <div className="pt-2 mt-2 border-t border-white/15">
               <button
-                key={s.id}
                 onClick={() => {
-                  setCurrentScreen(s.id as any);
+                  setIsMobileMenuOpen(false);
+                  logoutUser();
                 }}
-                className={`whitespace-nowrap px-2.5 py-1 rounded-md text-[11px] font-editorial transition-all ${
-                  isActive
-                    ? 'bg-jklu-orange text-white font-bold shadow-sm'
-                    : 'text-blue-100 hover:text-white hover:bg-white/10'
-                }`}
+                className="w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-editorial font-bold text-orange-200 hover:bg-white/15 hover:text-white flex items-center gap-2 transition-all"
               >
-                {s.label}
+                <LogOut className="w-4 h-4 text-orange-400" />
+                <span>Sign Out ({currentUserRole === 'driver' ? 'Driver' : 'Student'})</span>
               </button>
-            );
-          })}
-        </div>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Floating Active Alerts */}
