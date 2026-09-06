@@ -1,7 +1,6 @@
 import { Stop, Shuttle, Trip, Route, TripStop, ShuttleLocation } from './database';
 
 export type ScreenType = 
-  | 'splash'
   | 'login'
   | 'location-loading'
   | 'home'

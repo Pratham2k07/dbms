@@ -83,12 +83,12 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Navigation state
-  const [currentScreen, setCurrentScreen] = useState<ScreenType>('splash');
+  const [currentScreen, setCurrentScreen] = useState<ScreenType>('login');
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const [isDriverMode, setIsDriverMode] = useState<boolean>(false);
 
   // Authentication state
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentUserRole, setCurrentUserRole] = useState<'student' | 'driver'>('student');
 
   // Selected entities

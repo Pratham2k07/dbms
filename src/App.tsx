@@ -3,7 +3,6 @@ import { useApp } from './context/AppContext';
 import { Header } from './components/common/Header';
 import { BottomNavigation } from './components/common/BottomNavigation';
 import { ToastNotification } from './components/common/ToastNotification';
-import { SplashScreen } from './screens/SplashScreen';
 import { LocationLoadingScreen } from './screens/LocationLoadingScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { HomeScreen } from './screens/HomeScreen';
@@ -27,8 +26,6 @@ export const App: React.FC = () => {
   // Screen router
   const renderScreen = () => {
     switch (currentScreen) {
-      case 'splash':
-        return <SplashScreen />;
       case 'login':
         return <LoginScreen />;
       case 'location-loading':
@@ -50,23 +47,21 @@ export const App: React.FC = () => {
     }
   };
 
-  const isSplashOrAuth = currentScreen === 'splash' || currentScreen === 'location-loading' || currentScreen === 'login';
-  const showMobileBottomNav = !isSplashOrAuth && !isDriverMode;
+  const isAuthOrLoading = currentScreen === 'login' || currentScreen === 'location-loading';
+  const showMobileBottomNav = !isAuthOrLoading && !isDriverMode;
 
   const screenItems = isDriverMode
     ? [
-        { id: 'splash', label: '1. Splash' },
-        { id: 'login', label: '2. Login Portal' },
-        { id: 'driver-dashboard', label: '3. Driver Dashboard' }
+        { id: 'login', label: '1. Login Portal' },
+        { id: 'driver-dashboard', label: '2. Driver Dashboard' }
       ]
     : [
-        { id: 'splash', label: '1. Splash' },
-        { id: 'login', label: '2. Login Portal' },
-        { id: 'home', label: '3. Student Home' },
-        { id: 'stop-details', label: '4. Stop Details' },
-        { id: 'live-tracking', label: '5. Live Tracking' },
-        { id: 'route-details', label: '6. Route Details' },
-        { id: 'profile', label: '7. Profile' }
+        { id: 'login', label: '1. Login Portal' },
+        { id: 'home', label: '2. Student Home' },
+        { id: 'stop-details', label: '3. Stop Details' },
+        { id: 'live-tracking', label: '4. Live Tracking' },
+        { id: 'route-details', label: '5. Route Details' },
+        { id: 'profile', label: '6. Profile' }
       ];
 
   return (
@@ -119,7 +114,7 @@ export const App: React.FC = () => {
 
           {/* Right: Authenticated User Status & Logout */}
           <div className="flex items-center gap-2 shrink-0">
-            {currentScreen !== 'login' && currentScreen !== 'splash' ? (
+            {currentScreen !== 'login' ? (
               <>
                 {/* Read-only Portal Identity Badge */}
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-editorial font-semibold bg-white/15 text-white border border-white/20">
@@ -182,7 +177,7 @@ export const App: React.FC = () => {
 
       {/* Main Responsive Body */}
       <div className="flex-1 w-full bg-[#FBFBF9] flex flex-col">
-        {!isSplashOrAuth && <Header />}
+        {!isAuthOrLoading && <Header />}
 
         <main className="flex-1">
           {renderScreen()}

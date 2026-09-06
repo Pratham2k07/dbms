@@ -205,14 +205,6 @@ export const ProfileScreen: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => setCurrentScreen('splash')}
-                  className="py-3 px-4 rounded-2xl bg-white hover:bg-stone-50 border border-stone-300 text-stone-800 text-xs font-editorial font-bold tracking-wider uppercase transition-all shadow-subtle flex items-center justify-between"
-                >
-                  <span>Replay Splash Intro</span>
-                  <Sparkles className="w-3.5 h-3.5 text-jklu-orange" />
-                </button>
-
-                <button
                   onClick={() => {
                     setIsDriverMode(true);
                     setCurrentScreen('driver-dashboard');
