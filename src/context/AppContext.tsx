@@ -117,19 +117,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     'TRIP-102_STOP-JKLU': 32
   });
 
-  // Notification queue
-  const [notifications, setNotifications] = useState<AppNotification[]>([
-    {
-      id: 'notif-1',
-      title: 'JKLU SHUTTLE',
-      message: 'Shuttle 01 is approaching Mansarovar Metro Station. Arriving in approximately 5 minutes.',
-      type: 'approaching',
-      timestamp: 'Just now',
-      read: false,
-      shuttle_number: 'SHUTTLE 01',
-      stop_name: 'MANSAROVAR METRO'
-    }
-  ]);
+  // Notification queue (empty by default, populated dynamically on transit events or alerts)
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   // Simulation settings
   const [isSimulating, setIsSimulating] = useState<boolean>(true);
