@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Mail, Lock, Eye, EyeOff, Shield, User, ArrowRight, CheckCircle2, Sparkles } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Shield, User, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 export const LoginScreen: React.FC = () => {
   const { loginUser } = useApp();
@@ -44,19 +44,6 @@ export const LoginScreen: React.FC = () => {
       setIsLoading(false);
       loginUser(email, password, selectedRole);
     }, 600);
-  };
-
-  const handleQuickDemo = (role: 'student' | 'driver') => {
-    handleRoleChange(role);
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      if (role === 'student') {
-        loginUser('pratham.lalwani@jklu.edu.in', 'jklu@2024', 'student');
-      } else {
-        loginUser('ramesh.kumar@jklu.edu.in', 'driver@8821', 'driver');
-      }
-    }, 450);
   };
 
   return (
@@ -215,51 +202,6 @@ export const LoginScreen: React.FC = () => {
               )}
             </button>
           </form>
-
-          {/* Quick Demo Access Bar */}
-          <div className="pt-3 border-t border-stone-100 space-y-2">
-            <div className="flex items-center justify-between text-[11px] font-mono text-stone-400">
-              <span className="flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-jklu-orange" />
-                <span>1-CLICK DEMO ACCESS:</span>
-              </span>
-              <span>TEST PORTALS</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickDemo('student')}
-                className="p-2.5 rounded-xl bg-[#EDF3FC] hover:bg-blue-100/70 border border-blue-200/80 text-left transition-colors group"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-editorial font-bold text-[#2B4A7E]">
-                    Student Portal
-                  </span>
-                  <ArrowRight className="w-3 h-3 text-[#4F70B0] group-hover:translate-x-0.5 transition-transform" />
-                </div>
-                <p className="text-[10px] text-stone-500 truncate mt-0.5">
-                  Pratham (B.Tech CSE)
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickDemo('driver')}
-                className="p-2.5 rounded-xl bg-orange-50 hover:bg-orange-100/70 border border-orange-200/80 text-left transition-colors group"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-editorial font-bold text-[#E8590C]">
-                    Driver Portal
-                  </span>
-                  <ArrowRight className="w-3 h-3 text-[#E8590C] group-hover:translate-x-0.5 transition-transform" />
-                </div>
-                <p className="text-[10px] text-stone-500 truncate mt-0.5">
-                  Ramesh (RJ-14-PA-8821)
-                </p>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Security & Official Footer */}
