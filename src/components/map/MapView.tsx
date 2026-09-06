@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from 'react';
-import { Stop, Route, ShuttleLocation } from '../../types/database';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { Stop, ShuttleLocation } from '../../types/database';
 import { ROUTE_PATH_COORDINATES } from '../../data/mockDatabase';
-import { Building2, Navigation, ZoomIn, ZoomOut, Compass } from 'lucide-react';
+import { ZoomIn, ZoomOut, Compass } from 'lucide-react';
 
 interface MapViewProps {
   stops?: Stop[];
@@ -9,6 +11,7 @@ interface MapViewProps {
   activeShuttles?: { location: ShuttleLocation; number: string; routeId: string }[];
   highlightRouteId?: string;
   selectedStopId?: string;
+  destinationCoords?: { latitude: number; longitude: number; name?: string };
   onSelectStop?: (stopId: string) => void;
   onSelectShuttle?: (tripId: string) => void;
   heightClass?: string;
@@ -17,420 +20,368 @@ interface MapViewProps {
   zoomLevel?: number;
 }
 
+type MapLayerType = 'streets' | 'satellite' | 'terrain';
+
+const GOOGLE_TILE_SERVERS: Record<MapLayerType, { url: string; maxZoom: number; subdomains: string[] }> = {
+  streets: {
+    // Google Maps Roadmap / Streets
+    url: 'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+    maxZoom: 20,
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+  },
+  satellite: {
+    // Google Maps Hybrid (Satellite Imagery + Street Overlays)
+    url: 'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+    maxZoom: 20,
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+  },
+  terrain: {
+    // Google Maps Terrain
+    url: 'https://{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
+    maxZoom: 20,
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+  }
+};
+
 export const MapView: React.FC<MapViewProps> = ({
   stops = [],
   studentLocation,
   activeShuttles = [],
-  highlightRouteId,
+  highlightRouteId = 'ROUTE-01',
   selectedStopId,
+  destinationCoords,
   onSelectStop,
   onSelectShuttle,
   heightClass = 'h-72',
   interactive = true,
   centerCoords,
-  zoomLevel = 1
+  zoomLevel = 13
 }) => {
-  const [zoom, setZoom] = useState<number>(zoomLevel);
-  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const markersLayerRef = useRef<L.LayerGroup | null>(null);
+  const routesLayerRef = useRef<L.LayerGroup | null>(null);
 
-  // Geo bounds around Jaipur City & JKLU Campus Terminus
-  const bounds = useMemo(() => {
-    return {
-      minLat: 26.810,
-      maxLat: 26.935,
-      minLng: 75.630,
-      maxLng: 75.830
+  const [mapType, setMapType] = useState<MapLayerType>('streets');
+  const [currentZoom, setCurrentZoom] = useState(zoomLevel);
+
+  // Initialize Leaflet map with Google Maps Tile Layer
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+
+    // Default center around Jaipur / JKLU corridor (lat: 26.868, lng: 75.720)
+    const initialCenter: [number, number] = centerCoords || [26.8680, 75.7200];
+
+    const map = L.map(mapContainerRef.current, {
+      center: initialCenter,
+      zoom: zoomLevel,
+      zoomControl: false,
+      attributionControl: false,
+      dragging: interactive,
+      touchZoom: interactive,
+      scrollWheelZoom: interactive,
+      doubleClickZoom: interactive,
+      boxZoom: interactive
+    });
+
+    // Create Google tile layer
+    const tileConfig = GOOGLE_TILE_SERVERS[mapType];
+    const tileLayer = L.tileLayer(tileConfig.url, {
+      maxZoom: tileConfig.maxZoom,
+      subdomains: tileConfig.subdomains
+    }).addTo(map);
+
+    tileLayerRef.current = tileLayer;
+
+    // Create Layer Groups for markers & polylines
+    routesLayerRef.current = L.layerGroup().addTo(map);
+    markersLayerRef.current = L.layerGroup().addTo(map);
+
+    map.on('zoomend', () => {
+      setCurrentZoom(map.getZoom());
+    });
+
+    mapInstanceRef.current = map;
+
+    // Fix map sizing in case parent container renders with animation
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 200);
+
+    return () => {
+      clearTimeout(timer);
+      map.remove();
+      mapInstanceRef.current = null;
     };
   }, []);
 
-  // Project geographic lat/lng to SVG ViewBox coords (width: 800, height: 600)
-  const project = (lat: number, lng: number): [number, number] => {
-    const svgWidth = 800;
-    const svgHeight = 600;
+  // Update Tile Layer when user toggles map type (Streets vs Satellite)
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
 
-    const x = ((lng - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * svgWidth;
-    // Invert Y because SVG coordinates increase downwards
-    const y = ((bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat)) * svgHeight;
+    if (tileLayerRef.current) {
+      map.removeLayer(tileLayerRef.current);
+    }
 
-    return [x, y];
-  };
+    const tileConfig = GOOGLE_TILE_SERVERS[mapType];
+    const newTileLayer = L.tileLayer(tileConfig.url, {
+      maxZoom: tileConfig.maxZoom,
+      subdomains: tileConfig.subdomains
+    }).addTo(map);
 
-  // Convert polyline array into SVG path 'd' attribute
-  const getPathD = (coords: [number, number][]): string => {
-    if (!coords || coords.length === 0) return '';
-    return coords
-      .map((c, i) => {
-        const [x, y] = project(c[0], c[1]);
-        return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
-      })
-      .join(' ');
-  };
+    // Ensure tile layer stays beneath routes and markers
+    newTileLayer.bringToBack();
+    tileLayerRef.current = newTileLayer;
+  }, [mapType]);
 
-  // Pan interaction
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!interactive) return;
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-  };
+  // Update Route Polylines
+  useEffect(() => {
+    if (!routesLayerRef.current) return;
+    routesLayerRef.current.clearLayers();
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
-    setPan({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y
+    // Draw non-highlighted routes with subtle gray/orange
+    Object.entries(ROUTE_PATH_COORDINATES).forEach(([rId, coords]) => {
+      if (rId !== highlightRouteId) {
+        L.polyline(coords, {
+          color: '#B0B5C0',
+          weight: 3,
+          opacity: 0.45,
+          dashArray: '6, 8',
+          lineCap: 'round'
+        }).addTo(routesLayerRef.current!);
+      }
     });
+
+    // Draw active highlighted route with vibrant JKLU Orange
+    const activeCoords = ROUTE_PATH_COORDINATES[highlightRouteId] || ROUTE_PATH_COORDINATES['ROUTE-01'];
+    if (activeCoords && activeCoords.length > 0) {
+      // Glow underlayer
+      L.polyline(activeCoords, {
+        color: '#FF8833',
+        weight: 8,
+        opacity: 0.35,
+        lineCap: 'round'
+      }).addTo(routesLayerRef.current);
+
+      // Main corridor line
+      L.polyline(activeCoords, {
+        color: '#E8590C',
+        weight: 4.5,
+        opacity: 0.95,
+        lineCap: 'round'
+      }).addTo(routesLayerRef.current);
+    }
+  }, [highlightRouteId]);
+
+  // Update Markers (Stops, Active Shuttles, Student Location)
+  useEffect(() => {
+    if (!markersLayerRef.current || !mapInstanceRef.current) return;
+    markersLayerRef.current.clearLayers();
+
+    // 1. Render Stops
+    stops.forEach((stop) => {
+      const isSelected = stop.stop_id === selectedStopId;
+      const isOrigin = stop.stop_name.includes('ORIGIN') || stop.stop_name.includes('CAMPUS');
+
+      const stopIcon = L.divIcon({
+        className: 'custom-stop-marker',
+        html: `
+          <div style="transform: translate(-50%, -50%);" class="flex flex-col items-center cursor-pointer group pointer-events-auto">
+            <div class="px-2 py-0.5 mb-1 rounded-md text-[9px] font-sans font-extrabold uppercase whitespace-nowrap shadow-md transition-all ${
+              isSelected
+                ? 'bg-jklu-orange text-white ring-2 ring-white scale-110'
+                : isOrigin
+                ? 'bg-[#243B66] text-white border border-white/60'
+                : 'bg-white/95 text-stone-800 border border-stone-300 group-hover:bg-jklu-orange group-hover:text-white'
+            }">
+              ${stop.stop_name.replace(' (ORIGIN)', '').replace(' (TERMINUS)', '')}
+            </div>
+            <div class="relative flex items-center justify-center">
+              ${
+                isSelected
+                  ? '<div class="absolute w-7 h-7 rounded-full bg-orange-400/40 animate-ping"></div>'
+                  : ''
+              }
+              <div class="w-4 h-4 rounded-full border-2 border-white shadow-md flex items-center justify-center ${
+                isOrigin
+                  ? 'bg-[#243B66]'
+                  : isSelected
+                  ? 'bg-jklu-orange'
+                  : 'bg-stone-700'
+              }">
+                <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
+              </div>
+            </div>
+          </div>
+        `,
+        iconSize: [120, 40],
+        iconAnchor: [60, 35]
+      });
+
+      const marker = L.marker([stop.latitude, stop.longitude], { icon: stopIcon })
+        .addTo(markersLayerRef.current!);
+
+      marker.on('click', () => {
+        if (onSelectStop) onSelectStop(stop.stop_id);
+      });
+    });
+
+    // 2. Render Student Location ("YOU ARE HERE")
+    if (studentLocation) {
+      const studentIcon = L.divIcon({
+        className: 'custom-student-marker',
+        html: `
+          <div style="transform: translate(-50%, -50%);" class="flex flex-col items-center pointer-events-none">
+            <div class="px-2 py-0.5 mb-1 rounded-full text-[9px] font-sans font-black uppercase tracking-wider bg-[#2B4A7E] text-white shadow-lg border border-white/80 animate-bounce">
+              YOU ARE HERE
+            </div>
+            <div class="relative flex items-center justify-center">
+              <div class="absolute w-8 h-8 rounded-full bg-blue-500/35 animate-ping"></div>
+              <div class="w-5 h-5 rounded-full bg-[#2B4A7E] border-2 border-white shadow-xl flex items-center justify-center">
+                <div class="w-2 h-2 rounded-full bg-white"></div>
+              </div>
+            </div>
+          </div>
+        `,
+        iconSize: [120, 40],
+        iconAnchor: [60, 35]
+      });
+
+      L.marker([studentLocation.latitude, studentLocation.longitude], {
+        icon: studentIcon,
+        zIndexOffset: 1000
+      }).addTo(markersLayerRef.current);
+    }
+
+    // 3. Render Active Shuttles with dynamic bearing and pulse
+    activeShuttles.forEach((shuttle) => {
+      const shuttleIcon = L.divIcon({
+        className: 'custom-shuttle-marker',
+        html: `
+          <div style="transform: translate(-50%, -50%);" class="flex flex-col items-center cursor-pointer group pointer-events-auto">
+            <div class="px-2 py-0.5 mb-1 rounded-lg text-[9px] font-sans font-black tracking-wider uppercase bg-jklu-orange text-white shadow-lg ring-1 ring-white/60 flex items-center gap-1 group-hover:scale-105 transition-transform">
+              <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+              <span>${shuttle.number}</span>
+            </div>
+            <div class="relative flex items-center justify-center">
+              <div class="absolute w-9 h-9 rounded-full bg-orange-500/30 animate-ping"></div>
+              <div class="w-7 h-7 rounded-2xl bg-[#141518] text-white border-2 border-white shadow-2xl flex items-center justify-center transform transition-transform group-hover:rotate-12">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M8 6v6" />
+                  <path d="M15 6v6" />
+                  <path d="M2 12h19.6" />
+                  <path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5c-.3-1-1.1-1.8-2.1-1.8H5.7c-1 0-1.8.8-2.1 1.8l-1.4 5c-.1.4-.2.8-.2 1.2 0 .4.1.8.2 1.2.3 1.1.8 2.8.8 2.8h3" />
+                  <circle cx="7" cy="18" r="2" />
+                  <circle cx="17" cy="18" r="2" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        `,
+        iconSize: [110, 48],
+        iconAnchor: [55, 42]
+      });
+
+      const marker = L.marker([shuttle.location.latitude, shuttle.location.longitude], {
+        icon: shuttleIcon,
+        zIndexOffset: 900
+      }).addTo(markersLayerRef.current!);
+
+      marker.on('click', () => {
+        if (onSelectShuttle) onSelectShuttle(shuttle.location.trip_id);
+      });
+    });
+  }, [stops, studentLocation, activeShuttles, selectedStopId]);
+
+  // Zoom controls
+  const handleZoomIn = () => {
+    if (mapInstanceRef.current) mapInstanceRef.current.zoomIn();
   };
 
-  const handleMouseUp = () => setIsDragging(false);
-
-  const resetView = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
+  const handleZoomOut = () => {
+    if (mapInstanceRef.current) mapInstanceRef.current.zoomOut();
   };
+
+  // Recenter to JKLU Campus / Corridor
+  const handleRecenter = () => {
+    if (mapInstanceRef.current) {
+      const center: [number, number] = centerCoords || [26.8680, 75.7200];
+      mapInstanceRef.current.flyTo(center, 13, { duration: 1.2 });
+    }
+  };
+
+
 
   return (
-    <div
-      className={`relative w-full ${heightClass} bg-[#F4F3EE] rounded-2xl overflow-hidden border border-stone-200/90 select-none shadow-inner group`}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-    >
-      {/* Editorial Minimal Map SVG */}
-      <svg
-        viewBox="0 0 800 600"
-        className="w-full h-full cursor-grab active:cursor-grabbing transition-transform duration-75"
-        style={{
-          transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
-          transformOrigin: 'center center'
-        }}
-      >
-        <defs>
-          {/* Subtle Grid Pattern for cartographic precision */}
-          <pattern id="cartoGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#E5E3DB" strokeWidth="0.75" />
-          </pattern>
-        </defs>
+    <div className={`relative w-full ${heightClass} bg-stone-100 rounded-3xl overflow-hidden border border-stone-200 shadow-subtle group select-none`}>
+      {/* Map Container */}
+      <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-        {/* Base Cartographic Plane */}
-        <rect width="800" height="600" fill="#F4F3EE" />
-        <rect width="800" height="600" fill="url(#cartoGrid)" />
-
-        {/* Major Jaipur Arterials & Expressways (Cartographic Base) */}
-        {/* Ajmer Road (NH 48 Expressway towards JKLU) */}
-        <path
-          d="M 520 220 L 450 250 L 360 300 L 220 420 L 80 470"
-          fill="none"
-          stroke="#DFDBD0"
-          strokeWidth="8"
-          strokeLinecap="round"
-        />
-        <text x="210" y="405" fill="#B3AEA3" fontSize="9" fontFamily="Outfit, sans-serif" fontWeight="700" letterSpacing="1.2">
-          AJMER ROAD EXPRESSWAY (NH 48)
-        </text>
-
-        {/* 200 Feet Bypass / Ring Road */}
-        <path
-          d="M 640 100 L 520 220 L 420 380 L 320 520"
-          fill="none"
-          stroke="#E4E0D7"
-          strokeWidth="6"
-          strokeLinecap="round"
-        />
-        <text x="490" y="340" fill="#B3AEA3" fontSize="9" fontFamily="Outfit, sans-serif" fontWeight="700" letterSpacing="1.2">
-          200 FT BYPASS
-        </text>
-
-        {/* JLN Marg / Airport Corridor */}
-        <path
-          d="M 720 380 L 680 450 L 560 520"
-          fill="none"
-          stroke="#E4E0D7"
-          strokeWidth="5"
-          strokeLinecap="round"
-        />
-
-        {/* Render Route Paths */}
-        {Object.entries(ROUTE_PATH_COORDINATES).map(([routeId, coords]) => {
-          const isHighlighted = highlightRouteId === routeId;
-          const isDimmed = highlightRouteId && highlightRouteId !== routeId;
-          const strokeColor =
-            routeId === 'ROUTE-01'
-              ? '#E8590C'
-              : routeId === 'ROUTE-02'
-              ? '#2B4C7E'
-              : '#D97706';
-
-          return (
-            <g key={routeId}>
-              {/* Route Shadow / Casing */}
-              <path
-                d={getPathD(coords)}
-                fill="none"
-                stroke={isHighlighted ? '#FFFFFF' : '#EAE8E2'}
-                strokeWidth={isHighlighted ? 6 : 3}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                opacity={isDimmed ? 0.3 : 1}
-              />
-              {/* Main Route Line */}
-              <path
-                d={getPathD(coords)}
-                fill="none"
-                stroke={strokeColor}
-                strokeWidth={isHighlighted ? 3.5 : 2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeDasharray={isHighlighted ? '8 4' : 'none'}
-                opacity={isDimmed ? 0.25 : 0.85}
-              />
-            </g>
-          );
-        })}
-
-        {/* Render Shuttle Stops */}
-        {stops.map((stop) => {
-          const [cx, cy] = project(stop.latitude, stop.longitude);
-          const isSelected = selectedStopId === stop.stop_id;
-          const isDestination = stop.is_destination;
-
-          if (isDestination) {
-            // JKLU University Final Stop - Official Architectural Crest Icon
-            return (
-              <g
-                key={stop.stop_id}
-                transform={`translate(${cx}, ${cy})`}
-                onClick={() => onSelectStop && onSelectStop(stop.stop_id)}
-                className="cursor-pointer"
-              >
-                {/* Destination Halo */}
-                <circle r="18" fill="#121316" fillOpacity="0.08" />
-                <rect
-                  x="-12"
-                  y="-12"
-                  width="24"
-                  height="24"
-                  rx="6"
-                  fill="#121316"
-                  stroke="#E8590C"
-                  strokeWidth="1.5"
-                  className="shadow-md"
-                />
-                <path
-                  d="M -6 4 L 0 -6 L 6 4 Z M -4 4 L 4 4"
-                  fill="none"
-                  stroke="#FBFBF9"
-                  strokeWidth="1.2"
-                />
-                {/* Label */}
-                <g transform="translate(0, 22)">
-                  <rect
-                    x="-40"
-                    y="-8"
-                    width="80"
-                    height="17"
-                    rx="4"
-                    fill="#121316"
-                  />
-                  <text
-                    x="0"
-                    y="4"
-                    textAnchor="middle"
-                    fill="#FBFBF9"
-                    fontSize="9.5"
-                    fontFamily="Outfit, sans-serif"
-                    fontWeight="700"
-                    letterSpacing="0.8"
-                  >
-                    JKLU CAMPUS
-                  </text>
-                </g>
-              </g>
-            );
-          }
-
-          return (
-            <g
-              key={stop.stop_id}
-              transform={`translate(${cx}, ${cy})`}
-              onClick={() => onSelectStop && onSelectStop(stop.stop_id)}
-              className="cursor-pointer group/stop transition-transform hover:scale-110"
+      {/* Top Left: Map Layer Switcher (Streets vs Satellite) */}
+      <div className="absolute top-3 left-3 z-[400]">
+        <div className="flex items-center bg-white/95 backdrop-blur-md rounded-xl p-0.5 border border-stone-200/90 shadow-sm">
+            <button
+              onClick={() => setMapType('streets')}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-sans font-bold transition-all ${
+                mapType === 'streets'
+                  ? 'bg-[#2B4A7E] text-white shadow-sm'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+              title="Google Maps Streets View"
             >
-              {isSelected ? (
-                <>
-                  <circle r="14" fill="#E8590C" fillOpacity="0.15" />
-                  <circle r="6" fill="#E8590C" stroke="#FFFFFF" strokeWidth="2" />
-                </>
-              ) : (
-                <>
-                  <circle r="8" fill="#FFFFFF" stroke="#8E95A2" strokeWidth="1.5" />
-                  <circle r="3.5" fill="#141518" />
-                </>
-              )}
-
-              {/* Stop Name Label */}
-              <g transform="translate(0, -14)">
-                <rect
-                  x="-36"
-                  y="-8"
-                  width="72"
-                  height="16"
-                  rx="4"
-                  fill={isSelected ? '#121316' : '#FFFFFF'}
-                  stroke={isSelected ? '#121316' : '#D4D2CD'}
-                  strokeWidth="1"
-                />
-                <text
-                  x="0"
-                  y="3.5"
-                  textAnchor="middle"
-                  fill={isSelected ? '#FBFBF9' : '#141518'}
-                  fontSize="8.5"
-                  fontFamily="Plus Jakarta Sans, sans-serif"
-                  fontWeight="600"
-                >
-                  {stop.stop_name}
-                </text>
-              </g>
-            </g>
-          );
-        })}
-
-        {/* Render Student Location Pulsing Marker */}
-        {studentLocation && (
-          (() => {
-            const [sx, sy] = project(studentLocation.latitude, studentLocation.longitude);
-            return (
-              <g key="student-loc" transform={`translate(${sx}, ${sy})`}>
-                {/* Outer animated pulse ring */}
-                <circle r="22" fill="#2B4C7E" fillOpacity="0.15" className="animate-pulse" />
-                <circle r="12" fill="#2B4C7E" fillOpacity="0.3" />
-                <circle r="6.5" fill="#2B4C7E" stroke="#FFFFFF" strokeWidth="2.5" />
-
-                {/* You Are Here Pill */}
-                <g transform="translate(0, 18)">
-                  <rect
-                    x="-32"
-                    y="-7"
-                    width="64"
-                    height="14"
-                    rx="7"
-                    fill="#2B4C7E"
-                  />
-                  <text
-                    x="0"
-                    y="3"
-                    textAnchor="middle"
-                    fill="#FFFFFF"
-                    fontSize="7.5"
-                    fontFamily="Plus Jakarta Sans, sans-serif"
-                    fontWeight="700"
-                    letterSpacing="0.5"
-                  >
-                    YOU ARE HERE
-                  </text>
-                </g>
-              </g>
-            );
-          })()
-        )}
-
-        {/* Render Active Shuttles Moving along the Polyline */}
-        {activeShuttles.map(({ location, number, routeId }) => {
-          const [bx, by] = project(location.latitude, location.longitude);
-          const isSelected = highlightRouteId === routeId;
-
-          return (
-            <g
-              key={location.shuttle_id}
-              transform={`translate(${bx}, ${by})`}
-              onClick={() => onSelectShuttle && onSelectShuttle(location.trip_id)}
-              className="cursor-pointer transition-all duration-700 ease-linear"
+              Map
+            </button>
+            <button
+              onClick={() => setMapType('satellite')}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-sans font-bold transition-all ${
+                mapType === 'satellite'
+                  ? 'bg-[#2B4A7E] text-white shadow-sm'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+              title="Google Maps Satellite Hybrid View"
             >
-              {/* Subtle halo */}
-              <circle r="16" fill="#E8590C" fillOpacity="0.2" className="animate-ping" />
-
-              {/* Shuttle Icon Body */}
-              <g transform={`rotate(${location.bearing || 0})`}>
-                <rect
-                  x="-10"
-                  y="-7"
-                  width="20"
-                  height="14"
-                  rx="3.5"
-                  fill="#121316"
-                  stroke="#E8590C"
-                  strokeWidth="1.5"
-                />
-                {/* Windshield */}
-                <rect x="4" y="-5" width="4" height="10" rx="1.5" fill="#FBFBF9" />
-                {/* Headlights */}
-                <circle cx="8" cy="-5" r="1" fill="#F7B731" />
-                <circle cx="8" cy="5" r="1" fill="#F7B731" />
-              </g>
-
-              {/* Shuttle Badge Label */}
-              <g transform="translate(0, -18)">
-                <rect
-                  x="-30"
-                  y="-8"
-                  width="60"
-                  height="15"
-                  rx="4"
-                  fill="#E8590C"
-                  stroke="#FFFFFF"
-                  strokeWidth="1"
-                />
-                <text
-                  x="0"
-                  y="3"
-                  textAnchor="middle"
-                  fill="#FFFFFF"
-                  fontSize="8"
-                  fontFamily="JetBrains Mono, monospace"
-                  fontWeight="700"
-                >
-                  {number}
-                </text>
-              </g>
-            </g>
-          );
-        })}
-      </svg>
-
-      {/* Map Interactive Overlay Controls */}
-      {interactive && (
-        <div className="absolute right-3 bottom-3 flex flex-col gap-1.5 z-10">
-          <button
-            onClick={() => setZoom((z) => Math.min(2.5, z + 0.3))}
-            className="w-7 h-7 rounded-lg bg-white/90 backdrop-blur text-stone-700 hover:bg-white shadow-subtle border border-stone-200 flex items-center justify-center transition-transform active:scale-95"
-            title="Zoom In"
-          >
-            <ZoomIn className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => setZoom((z) => Math.max(0.8, z - 0.3))}
-            className="w-7 h-7 rounded-lg bg-white/90 backdrop-blur text-stone-700 hover:bg-white shadow-subtle border border-stone-200 flex items-center justify-center transition-transform active:scale-95"
-            title="Zoom Out"
-          >
-            <ZoomOut className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={resetView}
-            className="w-7 h-7 rounded-lg bg-white/90 backdrop-blur text-stone-700 hover:bg-white shadow-subtle border border-stone-200 flex items-center justify-center transition-transform active:scale-95"
-            title="Reset Map View"
-          >
-            <Compass className="w-3.5 h-3.5" />
-          </button>
+              Satellite
+            </button>
+          </div>
         </div>
-      )}
 
-      {/* Map Header Overlay: Map Status */}
-      <div className="absolute top-3 left-3 pointer-events-none flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/90 backdrop-blur border border-stone-200/80 shadow-subtle text-[10px] font-mono font-medium text-stone-700">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-        <span>JKLU CARTOGRAPHY // REALTIME</span>
+
+
+      {/* Bottom Right: Clean Controls */}
+      <div className="absolute bottom-4 right-4 z-[400] flex flex-col gap-1.5">
+        <button
+          onClick={handleRecenter}
+          className="w-9 h-9 rounded-xl bg-white/95 backdrop-blur-md hover:bg-white text-stone-700 hover:text-[#2B4A7E] border border-stone-200 shadow-md flex items-center justify-center transition-all active:scale-95"
+          title="Recenter to JKLU Corridor"
+        >
+          <Compass className="w-4 h-4" />
+        </button>
+        <button
+          onClick={handleZoomIn}
+          className="w-9 h-9 rounded-xl bg-white/95 backdrop-blur-md hover:bg-white text-stone-700 hover:text-[#2B4A7E] border border-stone-200 shadow-md flex items-center justify-center transition-all active:scale-95"
+          title="Zoom In"
+        >
+          <ZoomIn className="w-4 h-4" />
+        </button>
+        <button
+          onClick={handleZoomOut}
+          className="w-9 h-9 rounded-xl bg-white/95 backdrop-blur-md hover:bg-white text-stone-700 hover:text-[#2B4A7E] border border-stone-200 shadow-md flex items-center justify-center transition-all active:scale-95"
+          title="Zoom Out"
+        >
+          <ZoomOut className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Bottom Left: Live GPS Status Badge */}
+      <div className="absolute bottom-3 left-3 z-[400] pointer-events-none">
+        <div className="px-2.5 py-1 rounded-xl bg-[#141518]/90 backdrop-blur-md text-white border border-stone-700/80 shadow-md flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-[10px] font-mono font-bold tracking-tight">
+            HIGH-ACCURACY TELEMETRY
+          </span>
+        </div>
       </div>
     </div>
   );

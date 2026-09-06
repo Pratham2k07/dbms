@@ -123,12 +123,6 @@ export const ToastNotification: React.FC = () => {
             <p className="text-xs text-white/95 mt-0.5 leading-snug font-medium">
               {activeNotice.message}
             </p>
-
-            {/* Slide / Cross Hint for user */}
-            <div className="flex items-center justify-between pt-2 text-[9px] font-mono text-blue-200/70">
-              <span>← Swipe to dismiss →</span>
-              <span>Tap ✕ to close</span>
-            </div>
           </div>
 
           {/* Prominent Tap/Click Cross Button */}

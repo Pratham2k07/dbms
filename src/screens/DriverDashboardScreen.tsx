@@ -11,9 +11,7 @@ export const DriverDashboardScreen: React.FC = () => {
     routes,
     handleStartTrip,
     handleEndTrip,
-    handleToggleCapacity,
-    setCurrentScreen,
-    setIsDriverMode
+    handleToggleCapacity
   } = useApp();
 
   // Ramesh Kumar is assigned to Shuttle 01 / Trip 101
@@ -37,16 +35,6 @@ export const DriverDashboardScreen: React.FC = () => {
               DRIVER DASHBOARD
             </h1>
           </div>
-
-          <button
-            onClick={() => {
-              setIsDriverMode(false);
-              setCurrentScreen('home');
-            }}
-            className="text-xs font-editorial font-bold tracking-wider uppercase text-stone-500 hover:text-stone-900 underline"
-          >
-            Switch to Student View →
-          </button>
         </div>
 
         {/* Dual Column Layout on PC / Stacked on Mobile */}

@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { MapView } from '../components/map/MapView';
-import { TripBottomSheet } from '../components/tracking/TripBottomSheet';
 import { RouteTimeline } from '../components/tracking/RouteTimeline';
 import { StatusIndicator } from '../components/common/StatusIndicator';
 import { ETA } from '../components/shuttles/ETA';
@@ -102,18 +101,6 @@ export const LiveTrackingScreen: React.FC = () => {
                 heightClass="h-[55vh] lg:h-[620px]"
                 interactive={true}
               />
-
-              {/* Floating Route Badge overlay on map */}
-              <div className="absolute top-4 left-4 pointer-events-none">
-                <div className="px-3.5 py-2 rounded-2xl bg-[#121316]/95 backdrop-blur text-[#FBFBF9] shadow-float border border-stone-700 space-y-0.5">
-                  <span className="text-[10px] font-mono text-jklu-orange font-bold uppercase tracking-wider block">
-                    ACTIVE CORRIDOR
-                  </span>
-                  <p className="font-editorial font-bold text-sm uppercase tracking-tight">
-                    {route.route_name}
-                  </p>
-                </div>
-              </div>
             </div>
 
             <div className="hidden lg:flex items-center justify-between text-xs font-mono text-stone-500 px-2">
@@ -211,18 +198,6 @@ export const LiveTrackingScreen: React.FC = () => {
               />
             </div>
           </div>
-        </div>
-
-        {/* Mobile bottom sheet only active on small screens */}
-        <div className="lg:hidden">
-          <TripBottomSheet
-            shuttle={shuttle}
-            trip={trip}
-            route={route}
-            tripStops={tripStops}
-            selectedStopId={selectedStopId}
-            etaMinutes={etaMinutes}
-          />
         </div>
       </div>
     </div>
