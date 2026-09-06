@@ -4,23 +4,13 @@ import {
   Bell,
   MapPin,
   HelpCircle,
-  RotateCcw,
-  Sparkles,
   ChevronRight,
   Phone,
-  Shield,
   LogOut
 } from 'lucide-react';
 
 export const ProfileScreen: React.FC = () => {
-  const {
-    student,
-    setIsDriverMode,
-    setCurrentScreen,
-    resetSimulation,
-    triggerNotification,
-    logoutUser
-  } = useApp();
+  const { student, logoutUser } = useApp();
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
@@ -30,10 +20,7 @@ export const ProfileScreen: React.FC = () => {
     <div className="min-h-full bg-[#FBFBF9] pb-24 lg:pb-12 select-none">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 lg:pt-8 space-y-6">
         {/* Editorial Heading */}
-        <section className="space-y-1 border-b border-stone-200/80 pb-4">
-          <span className="font-editorial font-bold text-xs tracking-widest text-jklu-orange uppercase">
-            JKLU DIGITAL SERVICES
-          </span>
+        <section className="border-b border-stone-200/80 pb-4">
           <h1 className="font-editorial font-black text-3xl sm:text-4xl text-[#121316] tracking-tight leading-none uppercase">
             STUDENT PROFILE & SETTINGS
           </h1>
@@ -41,8 +28,8 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Dual-Column Grid on PC / Stacked on Mobile */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-          {/* Left Column (PC: 6 cols) - Identity & Preferences */}
-          <div className="lg:col-span-6 space-y-5">
+          {/* Left Column (PC: 7 cols) - Identity & Preferences */}
+          <div className="lg:col-span-7 space-y-5">
             {/* Student Identity Card */}
             <div className="p-6 rounded-3xl bg-white border border-stone-200 shadow-subtle space-y-4">
               <div className="flex items-start justify-between">
@@ -50,12 +37,12 @@ export const ProfileScreen: React.FC = () => {
                   <h2 className="font-editorial font-bold text-2xl text-[#121316] tracking-tight">
                     {student.name}
                   </h2>
-                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase bg-[#121316] text-[#FBFBF9]">
+                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase bg-[#2B4A7E] text-white">
                     AUTHENTICATED STUDENT
                   </span>
                 </div>
 
-                <div className="w-14 h-14 rounded-2xl bg-stone-100 border border-stone-200 flex items-center justify-center font-editorial font-bold text-lg text-stone-700">
+                <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center font-editorial font-bold text-lg text-[#2B4A7E]">
                   PL
                 </div>
               </div>
@@ -167,68 +154,43 @@ export const ProfileScreen: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column (PC: 6 cols) - Viva / Faculty Demonstration Panel */}
-          <div className="lg:col-span-6 space-y-5">
-            <div className="p-6 rounded-3xl bg-stone-100/90 border border-stone-200 shadow-subtle space-y-4">
+          {/* Right Column (PC: 5 cols) - Campus Control Room & Transport Support */}
+          <div className="lg:col-span-5 space-y-5">
+            {/* Campus Control Room Card */}
+            <div className="p-6 rounded-3xl bg-white border border-stone-200 shadow-subtle space-y-4">
               <div className="space-y-1">
-                <span className="font-editorial font-bold text-xs tracking-widest text-jklu-orange uppercase block">
-                  FACULTY & VIVA EVALUATION CONTROLS
+                <span className="font-editorial font-bold text-xs tracking-widest text-[#2B4A7E] uppercase block">
+                  CENTRAL TRANSPORT DESK
                 </span>
                 <h3 className="font-editorial font-bold text-lg text-[#121316]">
-                  Simulation & State Controls
+                  Campus Operations & Helpline
                 </h3>
-                <p className="text-xs text-stone-600 leading-relaxed">
-                  Test and showcase real-time database synchronization, driver actions, alert broadcasting, and multi-route tracking.
-                </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                <button
-                  onClick={() => {
-                    triggerNotification(
-                      'JKLU SHUTTLE',
-                      'Shuttle 01 has arrived at Main Gate bus bay.',
-                      'approaching'
-                    );
-                  }}
-                  className="py-3 px-4 rounded-2xl bg-white hover:bg-stone-50 border border-stone-300 text-stone-800 text-xs font-editorial font-bold tracking-wider uppercase transition-all shadow-subtle text-left"
-                >
-                  Trigger Arrival Notice
-                </button>
-
-                <button
-                  onClick={resetSimulation}
-                  className="py-3 px-4 rounded-2xl bg-white hover:bg-stone-50 border border-stone-300 text-stone-800 text-xs font-editorial font-bold tracking-wider uppercase transition-all shadow-subtle flex items-center justify-between"
-                >
-                  <span>Reset All Telemetry</span>
-                  <RotateCcw className="w-3.5 h-3.5 text-stone-500" />
-                </button>
-
-                <button
-                  onClick={() => {
-                    setIsDriverMode(true);
-                    setCurrentScreen('driver-dashboard');
-                  }}
-                  className="py-3 px-4 rounded-2xl bg-[#121316] text-white text-xs font-editorial font-bold tracking-wider uppercase transition-all shadow-subtle flex items-center justify-between"
-                >
-                  <span>Driver Interface</span>
-                  <Shield className="w-3.5 h-3.5 text-jklu-orange" />
-                </button>
-              </div>
-            </div>
-
-            {/* Campus Control Room Card */}
-            <div className="p-6 rounded-3xl bg-white border border-stone-200 shadow-subtle space-y-3">
-              <span className="font-editorial font-bold text-xs tracking-widest text-stone-400 uppercase block">
-                CENTRAL CONTROL ROOM
-              </span>
               <p className="text-xs text-stone-600 leading-relaxed">
                 JK Lakshmipat University, Near Mahindra SEZ, P.O. Mahapura, Ajmer Road, Jaipur, Rajasthan 302026
               </p>
-              <div className="pt-2 flex items-center gap-2 font-mono text-xs text-jklu-orange font-bold">
-                <Phone className="w-4 h-4" />
-                <span>+91 141 710 7500 • transport@jklu.edu.in</span>
+
+              <div className="p-4 rounded-2xl bg-[#EDF3FC] border border-blue-100 space-y-2">
+                <div className="flex items-center gap-2 font-mono text-xs text-[#2B4A7E] font-bold">
+                  <Phone className="w-4 h-4 text-jklu-orange" />
+                  <span>+91 141 710 7500</span>
+                </div>
+                <p className="text-[11px] text-stone-500">
+                  Email: <span className="font-mono text-stone-700">transport@jklu.edu.in</span>
+                </p>
+                <p className="text-[10px] text-stone-400 font-mono">
+                  Operating Hours: 07:30 AM – 08:30 PM (Daily)
+                </p>
               </div>
+
+              <button
+                onClick={() => setShowSupportModal(true)}
+                className="w-full py-3 px-4 rounded-2xl bg-[#2B4A7E] hover:bg-[#20375E] text-white font-editorial font-bold text-xs uppercase tracking-wider transition-all shadow-sm flex items-center justify-center gap-2"
+              >
+                <span>View Full Support Directory</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
         </div>
@@ -279,7 +241,7 @@ export const ProfileScreen: React.FC = () => {
 
               <button
                 onClick={() => setShowSupportModal(false)}
-                className="w-full py-3 rounded-2xl bg-[#121316] text-white font-editorial font-bold text-xs uppercase tracking-wider"
+                className="w-full py-3 rounded-2xl bg-[#2B4A7E] text-white font-editorial font-bold text-xs uppercase tracking-wider"
               >
                 Close Helpline
               </button>

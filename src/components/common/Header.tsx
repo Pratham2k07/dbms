@@ -39,9 +39,6 @@ export const Header: React.FC = () => {
               </span>
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-jklu-orange animate-pulse" />
             </div>
-            <p className="text-[10px] text-[#4F70B0] font-medium tracking-wide uppercase mt-0.5">
-              University Mobility
-            </p>
           </div>
         </div>
 

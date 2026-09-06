@@ -82,9 +82,6 @@ export const App: React.FC = () => {
               <h1 className="font-editorial font-bold text-sm sm:text-base tracking-wide text-white leading-none">
                 JKLU SHUTTLE
               </h1>
-              <p className="text-[10px] text-blue-100/90 font-mono uppercase tracking-wider mt-0.5">
-                University Mobility Service
-              </p>
             </div>
           </div>
 
@@ -114,37 +111,15 @@ export const App: React.FC = () => {
 
           {/* Right: Authenticated User Status & Logout */}
           <div className="flex items-center gap-2 shrink-0">
-            {currentScreen !== 'login' ? (
-              <>
-                {/* Read-only Portal Identity Badge */}
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-editorial font-semibold bg-white/15 text-white border border-white/20">
-                  {isDriverMode ? (
-                    <>
-                      <Shield className="w-3.5 h-3.5 text-orange-300" />
-                      <span>Driver Portal</span>
-                    </>
-                  ) : (
-                    <>
-                      <User className="w-3.5 h-3.5 text-blue-200" />
-                      <span>Student Portal</span>
-                    </>
-                  )}
-                </div>
-
-                {/* Logout / Switch User Button */}
-                <button
-                  onClick={logoutUser}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-editorial font-semibold bg-[#243B66]/60 hover:bg-white/20 text-white border border-white/25 transition-all"
-                  title="Sign out to Login Portal"
-                >
-                  <LogOut className="w-3.5 h-3.5 text-orange-300" />
-                  <span className="hidden sm:inline">Logout</span>
-                </button>
-              </>
-            ) : (
-              <span className="text-xs font-editorial font-semibold px-3 py-1 rounded-xl bg-white/10 text-white border border-white/20">
-                JKLU Net
-              </span>
+            {currentScreen !== 'login' && (
+              <button
+                onClick={logoutUser}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-editorial font-semibold bg-white/15 hover:bg-white/25 text-white border border-white/25 transition-all shadow-sm"
+                title="Sign out to Login Portal"
+              >
+                <LogOut className="w-3.5 h-3.5 text-orange-300" />
+                <span>Logout</span>
+              </button>
             )}
           </div>
         </div>
