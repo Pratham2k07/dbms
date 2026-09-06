@@ -37,8 +37,8 @@ export const SplashScreen: React.FC = () => {
       {/* Top University Branding Bar */}
       <div className="relative z-10 max-w-5xl mx-auto w-full flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-[#121316] text-[#FBFBF9] flex items-center justify-center font-editorial font-bold text-xs shadow-sm">
-            <span className="text-jklu-orange">JK</span>LU
+          <div className="w-10 h-10 rounded-xl bg-white p-1 border border-stone-200 flex items-center justify-center shadow-sm overflow-hidden shrink-0">
+            <img src="/jklu-logo.png" alt="JKLU Logo" className="w-full h-full object-contain" />
           </div>
           <div>
             <span className="text-xs font-editorial font-bold tracking-wider text-stone-700 uppercase block">
@@ -55,25 +55,10 @@ export const SplashScreen: React.FC = () => {
 
       {/* Center Content: Bold Editorial Typography & Animated Route Symbol */}
       <div className="relative z-10 my-auto py-12 max-w-xl mx-auto w-full text-center space-y-8">
-        {/* Modern Minimal Shuttle Geometric Emblem */}
-        <div className="w-24 h-24 mx-auto rounded-3xl bg-[#121316] text-white flex items-center justify-center border-2 border-stone-800 shadow-xl relative group">
-          <svg
-            className="w-12 h-12 text-[#FBFBF9]"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <rect x="3" y="4" width="18" height="15" rx="3.5" />
-            <path d="M7 19v2" />
-            <path d="M17 19v2" />
-            <path d="M3 11h18" stroke="#E8590C" strokeWidth="2" />
-            <circle cx="7.5" cy="15" r="1.25" fill="#E8590C" />
-            <circle cx="16.5" cy="15" r="1.25" fill="#E8590C" />
-          </svg>
-          <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-jklu-orange ring-4 ring-[#FBFBF9] animate-pulse" />
+        {/* Official JKLU University Logo */}
+        <div className="w-28 h-28 mx-auto rounded-3xl bg-white p-3 border-2 border-blue-100 shadow-2xl relative group flex items-center justify-center">
+          <img src="/jklu-logo.png" alt="JKLU University Logo" className="w-full h-full object-contain" />
+          <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-jklu-orange ring-4 ring-[#FBFBF9] animate-pulse" />
         </div>
 
         {/* Brand Headings */}

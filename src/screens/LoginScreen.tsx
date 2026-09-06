@@ -67,9 +67,9 @@ export const LoginScreen: React.FC = () => {
       <div className="relative z-10 w-full max-w-md space-y-6">
         {/* Brand Header */}
         <div className="text-center space-y-2">
-          {/* JKLU Emblem */}
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-[#2B4A7E] text-white border-2 border-white shadow-lg flex items-center justify-center font-editorial font-black text-lg tracking-tight">
-            <span className="text-jklu-orange">JK</span>LU
+          {/* Official JKLU University Logo */}
+          <div className="w-20 h-20 mx-auto rounded-3xl bg-white p-2 border border-blue-100/90 shadow-xl flex items-center justify-center overflow-hidden">
+            <img src="/jklu-logo.png" alt="JKLU University Logo" className="w-full h-full object-contain" />
           </div>
 
           <div className="space-y-1">

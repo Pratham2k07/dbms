@@ -79,9 +79,9 @@ export const App: React.FC = () => {
             onClick={() => setCurrentScreen(isDriverMode ? 'driver-dashboard' : 'home')}
             className="flex items-center gap-3 shrink-0 cursor-pointer group"
           >
-            {/* Crisp White Emblem with Orange & Deep Blue */}
-            <div className="w-9 h-9 rounded-xl bg-white text-[#2B4A7E] border border-white/40 flex items-center justify-center font-editorial font-black text-xs shadow-md group-hover:scale-105 transition-transform">
-              <span className="text-jklu-orange">JK</span>LU
+            {/* Official JKLU University Logo */}
+            <div className="w-10 h-10 rounded-xl bg-white p-1 border border-white/50 flex items-center justify-center shadow-md group-hover:scale-105 transition-transform overflow-hidden shrink-0">
+              <img src="/jklu-logo.png" alt="JKLU Logo" className="w-full h-full object-contain" />
             </div>
             <div>
               <h1 className="font-editorial font-bold text-sm sm:text-base tracking-wide text-white leading-none">

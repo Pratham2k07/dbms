@@ -27,9 +27,9 @@ export const Header: React.FC = () => {
           }}
           className="cursor-pointer group flex items-center gap-2.5"
         >
-          {/* JKLU Geometric Emblem */}
-          <div className="w-8 h-8 rounded-lg bg-[#2B4A7E] text-white flex items-center justify-center font-editorial font-black text-xs tracking-tighter border border-[#6686C6]/30 shadow-sm transition-transform group-hover:scale-105">
-            <span className="text-jklu-orange">JK</span>LU
+          {/* Official JKLU University Logo */}
+          <div className="w-9 h-9 rounded-xl bg-white p-1 border border-blue-100/90 flex items-center justify-center shadow-sm transition-transform group-hover:scale-105 overflow-hidden shrink-0">
+            <img src="/jklu-logo.png" alt="JKLU Logo" className="w-full h-full object-contain" />
           </div>
 
           <div>
