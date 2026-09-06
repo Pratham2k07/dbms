@@ -62,28 +62,29 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FBFBF9] text-[#141518] flex flex-col select-none font-sans">
-      {/* Top Global Navigation Bar */}
-      <header className="sticky top-0 z-50 bg-[#1A1B20] border-b border-stone-800 shadow-xl text-stone-100">
+      {/* Top Global Navigation Bar - Official JKLU Blue, Orange & White Theme */}
+      <header className="sticky top-0 z-50 bg-gradient-to-r from-[#2B4A7E] via-[#486DA8] to-[#6686C6] border-b border-white/20 shadow-lg text-white">
         <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-4">
           {/* Left: Branding */}
           <div
             onClick={() => setCurrentScreen('home')}
             className="flex items-center gap-3 shrink-0 cursor-pointer group"
           >
-            <div className="w-9 h-9 rounded-xl bg-[#121316] text-[#FBFBF9] border border-stone-700 flex items-center justify-center font-editorial font-bold text-xs shadow-sm group-hover:scale-105 transition-transform">
+            {/* Crisp White Emblem with Orange & Deep Blue */}
+            <div className="w-9 h-9 rounded-xl bg-white text-[#2B4A7E] border border-white/40 flex items-center justify-center font-editorial font-black text-xs shadow-md group-hover:scale-105 transition-transform">
               <span className="text-jklu-orange">JK</span>LU
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-editorial font-bold text-sm tracking-wide text-white leading-none">
+                <h1 className="font-editorial font-bold text-sm sm:text-base tracking-wide text-white leading-none">
                   JKLU SHUTTLE
                 </h1>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-mono font-bold tracking-wider uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold tracking-wider uppercase bg-white/20 text-white border border-white/30 backdrop-blur-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   LIVE
                 </span>
               </div>
-              <p className="text-[10px] text-stone-400 font-mono uppercase tracking-wider mt-0.5">
+              <p className="text-[10px] text-blue-100/90 font-mono uppercase tracking-wider mt-0.5">
                 University Mobility Service
               </p>
             </div>
@@ -91,7 +92,7 @@ export const App: React.FC = () => {
 
           {/* Center: Horizontal Screen Selector Pill Bar */}
           <div className="hidden md:flex flex-1 items-center justify-center overflow-x-auto no-scrollbar py-1">
-            <nav className="flex items-center gap-1 bg-[#121316]/90 p-1 rounded-xl border border-stone-800/90 shadow-inner">
+            <nav className="flex items-center gap-1 bg-[#243B66]/45 backdrop-blur-md p-1 rounded-xl border border-white/20 shadow-inner">
               {screenItems.map((s) => {
                 const isActive = currentScreen === s.id;
                 return (
@@ -107,8 +108,8 @@ export const App: React.FC = () => {
                     }}
                     className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-editorial transition-all ${
                       isActive
-                        ? 'bg-jklu-orange text-white font-bold shadow-sm'
-                        : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/80'
+                        ? 'bg-jklu-orange text-white font-bold shadow-md ring-1 ring-white/40'
+                        : 'text-white/80 hover:text-white hover:bg-white/15'
                     }`}
                   >
                     {s.label}
@@ -131,10 +132,10 @@ export const App: React.FC = () => {
                   setCurrentScreen('home');
                 }
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-editorial font-medium border transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-editorial font-semibold border transition-all ${
                 isDriverMode
-                  ? 'bg-jklu-orange text-white border-orange-500 font-bold shadow-sm'
-                  : 'bg-[#121316] text-stone-300 border-stone-700 hover:border-stone-500'
+                  ? 'bg-jklu-orange text-white border-white/30 shadow-md font-bold'
+                  : 'bg-white text-[#2B4A7E] border-white/60 hover:bg-blue-50 shadow-sm'
               }`}
             >
               {isDriverMode ? (
@@ -144,7 +145,7 @@ export const App: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <User className="w-3.5 h-3.5 text-stone-400" />
+                  <User className="w-3.5 h-3.5 text-[#2B4A7E]" />
                   <span>Student Mode</span>
                 </>
               )}
@@ -153,7 +154,7 @@ export const App: React.FC = () => {
         </div>
 
         {/* Mobile Screen Selector Bar (for small phone screens) */}
-        <div className="md:hidden overflow-x-auto no-scrollbar px-4 py-1.5 bg-[#121316] border-t border-stone-800 flex items-center gap-1">
+        <div className="md:hidden overflow-x-auto no-scrollbar px-3 py-1.5 bg-[#2B4A7E]/95 border-t border-white/15 flex items-center gap-1">
           {screenItems.map((s) => {
             const isActive = currentScreen === s.id;
             return (
@@ -167,8 +168,10 @@ export const App: React.FC = () => {
                   }
                   setCurrentScreen(s.id as any);
                 }}
-                className={`whitespace-nowrap px-2.5 py-1 rounded-md text-[11px] font-editorial ${
-                  isActive ? 'bg-jklu-orange text-white font-bold' : 'text-stone-400'
+                className={`whitespace-nowrap px-2.5 py-1 rounded-md text-[11px] font-editorial transition-all ${
+                  isActive
+                    ? 'bg-jklu-orange text-white font-bold shadow-sm'
+                    : 'text-blue-100 hover:text-white hover:bg-white/10'
                 }`}
               >
                 {s.label}

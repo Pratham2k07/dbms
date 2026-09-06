@@ -33,7 +33,7 @@ export const BottomNavigation: React.FC = () => {
   ];
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-40 bg-[#FBFBF9]/95 backdrop-blur-md border-t border-stone-200/90 pb-safe">
+    <nav className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-blue-100/90 shadow-md pb-safe">
       <div className="max-w-lg mx-auto flex items-center justify-around px-2 py-2">
         {navItems.map((item) => {
           const isActive = activeTab === item.tab && !isDriverMode;
@@ -47,18 +47,18 @@ export const BottomNavigation: React.FC = () => {
             >
               {/* Active hairline indicator bar */}
               {isActive && (
-                <span className="absolute top-0 w-8 h-[2px] bg-jklu-orange rounded-full animate-fadeIn" />
+                <span className="absolute top-0 w-8 h-[2.5px] bg-jklu-orange rounded-full animate-fadeIn" />
               )}
 
               <Icon
                 className={`w-5 h-5 transition-transform duration-200 group-active:scale-95 ${
-                  isActive ? 'text-[#121316]' : 'text-stone-400 group-hover:text-stone-600'
+                  isActive ? 'text-[#2B4A7E]' : 'text-slate-400 group-hover:text-[#4F70B0]'
                 }`}
               />
 
               <span
                 className={`text-[10px] font-editorial font-bold tracking-widest mt-1 transition-colors ${
-                  isActive ? 'text-[#121316]' : 'text-stone-400 group-hover:text-stone-600'
+                  isActive ? 'text-[#2B4A7E]' : 'text-slate-400 group-hover:text-[#4F70B0]'
                 }`}
               >
                 {item.label}

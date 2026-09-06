@@ -14,8 +14,8 @@ export const Header: React.FC = () => {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
-    <header className="sticky top-0 z-30 bg-[#FBFBF9]/95 backdrop-blur-md border-b border-stone-200/80 transition-all">
-      <div className="px-4 sm:px-6 lg:px-8 py-3 max-w-7xl mx-auto flex items-center justify-between">
+    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-blue-100/80 shadow-sm transition-all">
+      <div className="px-4 sm:px-6 lg:px-8 py-2.5 max-w-7xl mx-auto flex items-center justify-between">
         {/* Brand Section */}
         <div
           onClick={() => {
@@ -28,18 +28,18 @@ export const Header: React.FC = () => {
           className="cursor-pointer group flex items-center gap-2.5"
         >
           {/* JKLU Geometric Emblem */}
-          <div className="w-8 h-8 rounded bg-[#121316] text-[#FBFBF9] flex items-center justify-center font-editorial font-bold text-xs tracking-tighter border border-stone-800 shadow-sm transition-transform group-hover:scale-105">
+          <div className="w-8 h-8 rounded-lg bg-[#2B4A7E] text-white flex items-center justify-center font-editorial font-black text-xs tracking-tighter border border-[#6686C6]/30 shadow-sm transition-transform group-hover:scale-105">
             <span className="text-jklu-orange">JK</span>LU
           </div>
 
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="font-editorial font-bold text-[14px] tracking-tight text-[#121316] leading-none">
+              <span className="font-editorial font-bold text-[14px] tracking-tight text-[#2B4A7E] leading-none">
                 JKLU SHUTTLE
               </span>
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-jklu-orange animate-pulse" />
             </div>
-            <p className="text-[10px] text-stone-500 font-medium tracking-wide uppercase mt-0.5">
+            <p className="text-[10px] text-[#4F70B0] font-medium tracking-wide uppercase mt-0.5">
               University Mobility
             </p>
           </div>
@@ -49,7 +49,7 @@ export const Header: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowNotifDrawer(!showNotifDrawer)}
-            className="relative p-2 rounded-full hover:bg-stone-100 text-stone-700 transition-colors"
+            className="relative p-2 rounded-full hover:bg-blue-50 text-[#2B4A7E] transition-colors"
             title="Official Announcements & Notices"
           >
             <Bell className="w-4 h-4" />
