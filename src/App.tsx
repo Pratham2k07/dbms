@@ -84,15 +84,9 @@ export const App: React.FC = () => {
               <span className="text-jklu-orange">JK</span>LU
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-editorial font-bold text-sm sm:text-base tracking-wide text-white leading-none">
-                  JKLU SHUTTLE
-                </h1>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold tracking-wider uppercase bg-white/20 text-white border border-white/30 backdrop-blur-sm">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  LIVE
-                </span>
-              </div>
+              <h1 className="font-editorial font-bold text-sm sm:text-base tracking-wide text-white leading-none">
+                JKLU SHUTTLE
+              </h1>
               <p className="text-[10px] text-blue-100/90 font-mono uppercase tracking-wider mt-0.5">
                 University Mobility Service
               </p>
