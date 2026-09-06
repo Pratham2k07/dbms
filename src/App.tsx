@@ -53,17 +53,21 @@ export const App: React.FC = () => {
   const isSplashOrAuth = currentScreen === 'splash' || currentScreen === 'location-loading' || currentScreen === 'login';
   const showMobileBottomNav = !isSplashOrAuth && !isDriverMode;
 
-  const screenItems = [
-    { id: 'splash', label: '1. Splash' },
-    { id: 'login', label: '2. Login Portal' },
-    { id: 'location-loading', label: '3. Location' },
-    { id: 'home', label: '4. Student Portal' },
-    { id: 'stop-details', label: '5. Stop Details' },
-    { id: 'live-tracking', label: '6. Live Tracking' },
-    { id: 'route-details', label: '7. Route Details' },
-    { id: 'driver-dashboard', label: '8. Driver Portal' },
-    { id: 'profile', label: '9. Profile' }
-  ];
+  const screenItems = isDriverMode
+    ? [
+        { id: 'splash', label: '1. Splash' },
+        { id: 'login', label: '2. Login Portal' },
+        { id: 'driver-dashboard', label: '3. Driver Dashboard' }
+      ]
+    : [
+        { id: 'splash', label: '1. Splash' },
+        { id: 'login', label: '2. Login Portal' },
+        { id: 'home', label: '3. Student Home' },
+        { id: 'stop-details', label: '4. Stop Details' },
+        { id: 'live-tracking', label: '5. Live Tracking' },
+        { id: 'route-details', label: '6. Route Details' },
+        { id: 'profile', label: '7. Profile' }
+      ];
 
   return (
     <div className="min-h-screen bg-[#FBFBF9] text-[#141518] flex flex-col select-none font-sans">
@@ -72,7 +76,7 @@ export const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-4">
           {/* Left: Branding */}
           <div
-            onClick={() => setCurrentScreen('home')}
+            onClick={() => setCurrentScreen(isDriverMode ? 'driver-dashboard' : 'home')}
             className="flex items-center gap-3 shrink-0 cursor-pointer group"
           >
             {/* Crisp White Emblem with Orange & Deep Blue */}
@@ -104,11 +108,6 @@ export const App: React.FC = () => {
                   <button
                     key={s.id}
                     onClick={() => {
-                      if (s.id === 'driver-dashboard') {
-                        setIsDriverMode(true);
-                      } else {
-                        setIsDriverMode(false);
-                      }
                       setCurrentScreen(s.id as any);
                     }}
                     className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-editorial transition-all ${
@@ -124,48 +123,39 @@ export const App: React.FC = () => {
             </nav>
           </div>
 
-          {/* Right: Mode & System Status */}
+          {/* Right: Authenticated User Status & Logout */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* Mode Switcher: Student vs Driver */}
-            <button
-              onClick={() => {
-                const next = !isDriverMode;
-                setIsDriverMode(next);
-                if (next) {
-                  setCurrentScreen('driver-dashboard');
-                } else {
-                  setCurrentScreen('home');
-                }
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-editorial font-semibold border transition-all ${
-                isDriverMode
-                  ? 'bg-jklu-orange text-white border-white/30 shadow-md font-bold'
-                  : 'bg-white text-[#2B4A7E] border-white/60 hover:bg-blue-50 shadow-sm'
-              }`}
-            >
-              {isDriverMode ? (
-                <>
-                  <Shield className="w-3.5 h-3.5" />
-                  <span>Driver Mode</span>
-                </>
-              ) : (
-                <>
-                  <User className="w-3.5 h-3.5 text-[#2B4A7E]" />
-                  <span>Student Mode</span>
-                </>
-              )}
-            </button>
+            {currentScreen !== 'login' && currentScreen !== 'splash' ? (
+              <>
+                {/* Read-only Portal Identity Badge */}
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-editorial font-semibold bg-white/15 text-white border border-white/20">
+                  {isDriverMode ? (
+                    <>
+                      <Shield className="w-3.5 h-3.5 text-orange-300" />
+                      <span>Driver Portal</span>
+                    </>
+                  ) : (
+                    <>
+                      <User className="w-3.5 h-3.5 text-blue-200" />
+                      <span>Student Portal</span>
+                    </>
+                  )}
+                </div>
 
-            {/* Logout / Switch User Button */}
-            {currentScreen !== 'login' && currentScreen !== 'splash' && (
-              <button
-                onClick={logoutUser}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-editorial font-semibold bg-[#243B66]/60 hover:bg-white/20 text-white border border-white/25 transition-all"
-                title="Sign out to Login Portal"
-              >
-                <LogOut className="w-3.5 h-3.5 text-orange-300" />
-                <span className="hidden sm:inline">Logout</span>
-              </button>
+                {/* Logout / Switch User Button */}
+                <button
+                  onClick={logoutUser}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-editorial font-semibold bg-[#243B66]/60 hover:bg-white/20 text-white border border-white/25 transition-all"
+                  title="Sign out to Login Portal"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-orange-300" />
+                  <span className="hidden sm:inline">Logout</span>
+                </button>
+              </>
+            ) : (
+              <span className="text-xs font-editorial font-semibold px-3 py-1 rounded-xl bg-white/10 text-white border border-white/20">
+                JKLU Net
+              </span>
             )}
           </div>
         </div>
@@ -178,11 +168,6 @@ export const App: React.FC = () => {
               <button
                 key={s.id}
                 onClick={() => {
-                  if (s.id === 'driver-dashboard') {
-                    setIsDriverMode(true);
-                  } else {
-                    setIsDriverMode(false);
-                  }
                   setCurrentScreen(s.id as any);
                 }}
                 className={`whitespace-nowrap px-2.5 py-1 rounded-md text-[11px] font-editorial transition-all ${
