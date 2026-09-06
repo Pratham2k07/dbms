@@ -47,26 +47,36 @@ export const App: React.FC = () => {
     }
   };
 
-  const isAuthOrLoading = currentScreen === 'login' || currentScreen === 'location-loading';
-  const showMobileBottomNav = !isAuthOrLoading && !isDriverMode;
-
   const screenItems = isDriverMode
     ? [
-        { id: 'login', label: '1. Login Portal' },
-        { id: 'driver-dashboard', label: '2. Driver Dashboard' }
+        { id: 'driver-dashboard', label: '1. Driver Dashboard' }
       ]
     : [
-        { id: 'login', label: '1. Login Portal' },
-        { id: 'home', label: '2. Student Home' },
-        { id: 'stop-details', label: '3. Stop Details' },
-        { id: 'live-tracking', label: '4. Live Tracking' },
-        { id: 'route-details', label: '5. Route Details' },
-        { id: 'profile', label: '6. Profile' }
+        { id: 'home', label: '1. Home & Map' },
+        { id: 'stop-details', label: '2. Stop Details' },
+        { id: 'live-tracking', label: '3. Live Tracking' },
+        { id: 'route-details', label: '4. Route Details' },
+        { id: 'profile', label: '5. Profile' }
       ];
+
+  // Initially only login portal appears (without navbar or other elements)
+  if (currentScreen === 'login') {
+    return (
+      <div className="min-h-screen bg-[#FBFBF9] flex flex-col justify-center select-none font-sans">
+        <ToastNotification />
+        <main className="flex-1 flex flex-col justify-center">
+          <LoginScreen />
+        </main>
+      </div>
+    );
+  }
+
+  const isLoading = currentScreen === 'location-loading';
+  const showMobileBottomNav = !isLoading && !isDriverMode;
 
   return (
     <div className="min-h-screen bg-[#FBFBF9] text-[#141518] flex flex-col select-none font-sans">
-      {/* Top Global Navigation Bar - Official JKLU Blue, Orange & White Theme */}
+      {/* Top Global Navigation Bar - Revealed After Login */}
       <header className="sticky top-0 z-50 bg-gradient-to-r from-[#2B4A7E] via-[#486DA8] to-[#6686C6] border-b border-white/20 shadow-lg text-white">
         <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-4">
           {/* Left: Branding */}
@@ -111,16 +121,14 @@ export const App: React.FC = () => {
 
           {/* Right: Authenticated User Status & Logout */}
           <div className="flex items-center gap-2 shrink-0">
-            {currentScreen !== 'login' && (
-              <button
-                onClick={logoutUser}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-editorial font-semibold bg-white/15 hover:bg-white/25 text-white border border-white/25 transition-all shadow-sm"
-                title="Sign out to Login Portal"
-              >
-                <LogOut className="w-3.5 h-3.5 text-orange-300" />
-                <span>Logout</span>
-              </button>
-            )}
+            <button
+              onClick={logoutUser}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-editorial font-semibold bg-white/15 hover:bg-white/25 text-white border border-white/25 transition-all shadow-sm"
+              title="Sign out to Login Portal"
+            >
+              <LogOut className="w-3.5 h-3.5 text-orange-300" />
+              <span>Logout</span>
+            </button>
           </div>
         </div>
 
@@ -152,7 +160,7 @@ export const App: React.FC = () => {
 
       {/* Main Responsive Body */}
       <div className="flex-1 w-full bg-[#FBFBF9] flex flex-col">
-        {!isAuthOrLoading && <Header />}
+        {!isLoading && <Header />}
 
         <main className="flex-1">
           {renderScreen()}
