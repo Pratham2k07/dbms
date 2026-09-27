@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface StatusIndicatorProps {
-  status: 'AVAILABLE' | 'FULL' | 'SCHEDULED' | 'RUNNING';
+  status: 'AVAILABLE' | 'MODERATE' | 'FULL' | 'SCHEDULED' | 'RUNNING';
   size?: 'sm' | 'md' | 'lg';
   showLabel?: boolean;
 }
@@ -19,6 +19,13 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
           ping: 'bg-emerald-400',
           text: 'text-emerald-700 font-semibold',
           badge: 'bg-emerald-50 border-emerald-200/60 text-emerald-800'
+        };
+      case 'MODERATE':
+        return {
+          dot: 'bg-amber-500',
+          ping: 'bg-amber-300',
+          text: 'text-amber-700 font-semibold',
+          badge: 'bg-amber-50 border-amber-200/60 text-amber-800'
         };
       case 'FULL':
         return {

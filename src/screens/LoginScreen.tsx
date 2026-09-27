@@ -42,7 +42,9 @@ export const LoginScreen: React.FC = () => {
     // Realistic brief authorization handshake
     setTimeout(() => {
       setIsLoading(false);
-      loginUser(email, password, selectedRole);
+      // Auto-detect role: if an administrator enters their admin email, route to admin portal
+      const targetRole = email.toLowerCase().includes('admin') ? 'admin' : selectedRole;
+      loginUser(email, password, targetRole);
     }, 600);
   };
 
@@ -76,13 +78,13 @@ export const LoginScreen: React.FC = () => {
 
         {/* Floating Login Card */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-blue-100/80 space-y-5">
-          {/* Dual Role Tabs */}
+          {/* Dual Role Tabs (Student & Driver only - no Admin button for normal users) */}
           <div className="space-y-2">
             <label className="text-[11px] font-mono font-bold uppercase tracking-wider text-stone-400 block text-center">
               Select Your University Role
             </label>
 
-            <div className="grid grid-cols-2 p-1 rounded-2xl bg-[#EDF3FC] border border-blue-100">
+            <div className="grid grid-cols-2 p-1 rounded-2xl bg-[#EDF3FC] border border-blue-100 gap-1">
               <button
                 type="button"
                 onClick={() => handleRoleChange('student')}
@@ -143,7 +145,7 @@ export const LoginScreen: React.FC = () => {
                 </label>
                 <button
                   type="button"
-                  onClick={() => alert('Demo notice: Default password is pre-filled. You can also click the 1-Click Demo buttons below.')}
+                  onClick={() => alert('Demo notice: Default password is pre-filled for testing.')}
                   className="text-[11px] text-[#4F70B0] hover:underline font-medium"
                 >
                   Forgot?

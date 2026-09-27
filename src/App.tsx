@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from './context/AppContext';
 import { ToastNotification } from './components/common/ToastNotification';
 import { LocationLoadingScreen } from './screens/LocationLoadingScreen';
@@ -9,7 +9,11 @@ import { LiveTrackingScreen } from './screens/LiveTrackingScreen';
 import { RouteDetailsScreen } from './screens/RouteDetailsScreen';
 import { DriverDashboardScreen } from './screens/DriverDashboardScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
+import { ProfileDropdown } from './components/navigation/ProfileDropdown';
 import { Shield, User, LogOut, Menu, X } from 'lucide-react';
+
+import { AdminLayout } from './components/admin/AdminLayout';
+import { AdminLoginScreen } from './screens/admin/AdminLoginScreen';
 
 export const App: React.FC = () => {
   const {
@@ -23,6 +27,29 @@ export const App: React.FC = () => {
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // Detect /admin in path or hash
+  const [isAdminPath, setIsAdminPath] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const path = window.location.pathname.toLowerCase();
+    const hash = window.location.hash.toLowerCase();
+    return path.startsWith('/admin') || hash.includes('admin');
+  });
+
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const path = window.location.pathname.toLowerCase();
+      const hash = window.location.hash.toLowerCase();
+      setIsAdminPath(path.startsWith('/admin') || hash.includes('admin'));
+    };
+
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+    };
+  }, []);
+
   // Screen router
   const renderScreen = () => {
     switch (currentScreen) {
@@ -31,9 +58,8 @@ export const App: React.FC = () => {
       case 'location-loading':
         return <LocationLoadingScreen />;
       case 'home':
-        return <HomeScreen />;
       case 'stop-details':
-        return <StopDetailsScreen />;
+        return <HomeScreen />;
       case 'live-tracking':
         return <LiveTrackingScreen />;
       case 'route-details':
@@ -53,13 +79,31 @@ export const App: React.FC = () => {
       ]
     : [
         { id: 'home', label: '1. Home & Map' },
-        { id: 'stop-details', label: '2. Stop Details' },
-        { id: 'live-tracking', label: '3. Live Tracking' },
-        { id: 'route-details', label: '4. Route Details' },
-        { id: 'profile', label: '5. Profile' }
+        { id: 'live-tracking', label: '2. Live Tracking' },
+        { id: 'route-details', label: '3. Route Details' }
       ];
 
-  // Initially only login portal appears (without navbar or other elements)
+  // 1. When logged in as Admin, render dedicated Admin Portal Control Center
+  if (currentUserRole === 'admin') {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC]">
+        <ToastNotification />
+        <AdminLayout />
+      </div>
+    );
+  }
+
+  // 2. When user navigates to /admin (or #admin) while not authenticated, show Admin Login
+  if (isAdminPath) {
+    return (
+      <div className="min-h-screen bg-[#0F1E36]">
+        <ToastNotification />
+        <AdminLoginScreen />
+      </div>
+    );
+  }
+
+  // 3. Regular root / login portal (Student & Driver only)
   if (currentScreen === 'login') {
     return (
       <div className="min-h-screen bg-[#FBFBF9] flex flex-col justify-center select-none font-sans">
@@ -118,17 +162,10 @@ export const App: React.FC = () => {
             </nav>
           </div>
 
-          {/* Right: Authenticated User Status & Logout (Desktop) + 3-Lines Menu (Mobile) */}
+          {/* Right: Profile Dropdown in place of standalone Logout + 3-Lines Menu (Mobile) */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* Desktop Logout */}
-            <button
-              onClick={logoutUser}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-editorial font-semibold bg-white/15 hover:bg-white/25 text-white border border-white/25 transition-all shadow-sm"
-              title="Sign out to Login Portal"
-            >
-              <LogOut className="w-3.5 h-3.5 text-orange-300" />
-              <span>Logout</span>
-            </button>
+            {/* Profile Dropdown Menu */}
+            <ProfileDropdown />
 
             {/* Mobile 3-Lines Hamburger Menu Button */}
             <button
@@ -174,8 +211,23 @@ export const App: React.FC = () => {
               );
             })}
 
-            {/* Mobile Logout inside Dropdown */}
-            <div className="pt-2 mt-2 border-t border-white/15">
+            {/* Mobile Profile & Logout inside Dropdown */}
+            <div className="pt-2 mt-2 border-t border-white/15 space-y-1">
+              <button
+                onClick={() => {
+                  setCurrentScreen('profile');
+                  setIsMobileMenuOpen(false);
+                }}
+                className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-editorial font-bold transition-all flex items-center gap-2 ${
+                  currentScreen === 'profile'
+                    ? 'bg-jklu-orange text-white shadow-md'
+                    : 'text-white/85 hover:bg-white/15 hover:text-white'
+                }`}
+              >
+                <User className="w-4 h-4 text-blue-200" />
+                <span>My Profile & Settings</span>
+              </button>
+
               <button
                 onClick={() => {
                   setIsMobileMenuOpen(false);

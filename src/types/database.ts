@@ -19,6 +19,13 @@ export interface Driver extends User {
   assigned_shuttle_id?: string;
 }
 
+export interface Admin extends User {
+  admin_id: string;
+  email: string;
+  designation: string;
+  department: string;
+}
+
 export interface Route {
   route_id: string;
   route_name: string;
@@ -53,7 +60,7 @@ export interface Trip {
   start_time: string;
   end_time: string | null;
   running_status: 'SCHEDULED' | 'RUNNING' | 'COMPLETED' | 'CANCELLED';
-  capacity_status: 'AVAILABLE' | 'FULL';
+  capacity_status: 'AVAILABLE' | 'MODERATE' | 'FULL';
   speed_kmh?: number;
 }
 

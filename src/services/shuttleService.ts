@@ -36,9 +36,11 @@ export const shuttleService = {
   advanceShuttleLocation(
     currentLoc: ShuttleLocation,
     routeId: string,
-    stepPercent: number = 0.8
+    stepPercent: number = 0.8,
+    customCoordinates?: Record<string, [number, number][]>
   ): ShuttleLocation {
-    const path = ROUTE_PATH_COORDINATES[routeId] || ROUTE_PATH_COORDINATES['ROUTE-01'];
+    const coordsMap = customCoordinates || ROUTE_PATH_COORDINATES;
+    const path = coordsMap[routeId] || coordsMap['ROUTE-01'] || ROUTE_PATH_COORDINATES['ROUTE-01'];
     if (!path || path.length < 2) return currentLoc;
 
     // Advance percentage (looping back when reaching destination for continuous demo)

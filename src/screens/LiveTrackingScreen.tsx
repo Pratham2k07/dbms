@@ -63,11 +63,11 @@ export const LiveTrackingScreen: React.FC = () => {
         {/* Top Header Bar */}
         <div className="flex items-center justify-between border-b border-stone-200/80 pb-4">
           <button
-            onClick={() => setCurrentScreen('stop-details')}
+            onClick={() => setCurrentScreen('home')}
             className="group inline-flex items-center gap-2 text-stone-600 hover:text-[#121316] text-xs font-editorial font-bold tracking-wider uppercase transition-colors"
           >
             <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-            <span>BACK TO STOP DETAILS</span>
+            <span>BACK TO HOME & MAP</span>
           </button>
 
           <div className="flex items-center gap-3">

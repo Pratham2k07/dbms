@@ -8,7 +8,16 @@ export type ScreenType =
   | 'live-tracking'
   | 'route-details'
   | 'driver-dashboard'
-  | 'profile';
+  | 'profile'
+  | 'admin-dashboard'
+  | 'admin-routes'
+  | 'admin-stops'
+  | 'admin-trips'
+  | 'admin-shuttles'
+  | 'admin-drivers'
+  | 'admin-live-tracking'
+  | 'admin-history'
+  | 'admin-profile';
 
 export type TabType = 'home' | 'track' | 'profile';
 
@@ -28,7 +37,7 @@ export interface UpcomingShuttleCardData {
   eta_minutes: number;
   estimated_time: string;
   scheduled_time: string;
-  capacity_status: 'AVAILABLE' | 'FULL';
+  capacity_status: 'AVAILABLE' | 'MODERATE' | 'FULL';
   shuttle_location?: ShuttleLocation;
 }
 

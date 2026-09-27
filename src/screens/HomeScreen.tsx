@@ -1,10 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { MapView } from '../components/map/MapView';
 import { NearbyStopList } from '../components/stops/NearbyStopList';
 import { locationService } from '../services/locationService';
 import { stopService } from '../services/stopService';
-import { MapPin, Compass, Bus, Navigation2 } from 'lucide-react';
+import { MapPin, Compass, Bus } from 'lucide-react';
 
 export const HomeScreen: React.FC = () => {
   const {
@@ -15,11 +15,24 @@ export const HomeScreen: React.FC = () => {
     tripStops,
     shuttleLocations,
     shuttles,
-    navigateToStopDetails,
+    routes,
+    etaMap,
     navigateToLiveTracking,
     selectedStopId,
     setSelectedStopId
   } = useApp();
+
+  // Inline stop selection on Home & Map (toggles dropdown box inside the stop item)
+  const [inlineSelectedStopId, setInlineSelectedStopId] = useState<string | null>(null);
+
+  const handleSelectStop = (stopId: string) => {
+    if (inlineSelectedStopId === stopId) {
+      setInlineSelectedStopId(null);
+    } else {
+      setInlineSelectedStopId(stopId);
+      setSelectedStopId(stopId);
+    }
+  };
 
   // 1. Calculate approaching shuttle counts across stops
   const approachingCounts = useMemo(() => {
@@ -48,8 +61,21 @@ export const HomeScreen: React.FC = () => {
     });
   }, [shuttleLocations, trips, shuttles]);
 
+  // 4. Retrieve upcoming shuttles for any stop
+  const getUpcomingShuttlesForStop = useCallback((stopId: string) => {
+    return stopService.getUpcomingShuttles(
+      stopId,
+      trips,
+      tripStops,
+      shuttles,
+      routes,
+      shuttleLocations,
+      etaMap
+    );
+  }, [trips, tripStops, shuttles, routes, shuttleLocations, etaMap]);
+
   return (
-    <div className="min-h-full bg-[#FBFBF9] pb-10 select-none">
+    <div className="min-h-full bg-[#FBFBF9] pb-4 select-none">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 lg:pt-8 space-y-6">
         {/* Top Greeting & Operational Summary Bar */}
         <section className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-stone-200/80 pb-5">
@@ -107,32 +133,32 @@ export const HomeScreen: React.FC = () => {
               </div>
             </div>
 
-            {/* Map Component with responsive height */}
-            <div className="space-y-2">
+            {/* Map Section */}
+            <div className="space-y-1.5">
               <MapView
                 stops={stops}
                 studentLocation={studentLocation}
                 activeShuttles={activeShuttlesForMap}
                 selectedStopId={selectedStopId}
-                onSelectStop={(stopId) => {
-                  setSelectedStopId(stopId);
-                  navigateToStopDetails(stopId);
-                }}
+                onSelectStop={(stopId) => handleSelectStop(stopId)}
                 onSelectShuttle={(tripId) => navigateToLiveTracking(tripId)}
-                heightClass="h-80 lg:h-[480px]"
+                heightClass="h-72 sm:h-80 lg:h-[350px]"
               />
-              <div className="flex items-center justify-between text-[11px] font-mono text-stone-500 px-1">
+              <div className="flex items-center justify-between text-[11px] font-mono text-stone-500 px-1 pt-0.5">
                 <span>● Tap any stop pin or shuttle icon to view live telemetry</span>
                 <span className="text-emerald-700 font-semibold">{activeShuttlesForMap.length} ACTIVE SHUTTLES</span>
               </div>
             </div>
           </div>
 
-          {/* Right Column (PC: 5 cols) - Ordered Nearby Stops List */}
+          {/* Right Column (PC: 5 cols) - Ordered Nearby Stops List with Dropdown Boxes */}
           <div className="lg:col-span-5 bg-white lg:rounded-3xl border border-stone-200/90 shadow-subtle p-2 sm:p-4">
             <NearbyStopList
               stops={nearbyStops}
-              onSelectStop={(stopId) => navigateToStopDetails(stopId)}
+              selectedStopId={inlineSelectedStopId}
+              onSelectStop={handleSelectStop}
+              getUpcomingShuttles={getUpcomingShuttlesForStop}
+              onTrackShuttle={(tripId) => navigateToLiveTracking(tripId)}
             />
           </div>
         </div>

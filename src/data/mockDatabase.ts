@@ -1,6 +1,7 @@
 import {
   Student,
   Driver,
+  Admin,
   Route,
   Stop,
   Shuttle,
@@ -18,6 +19,16 @@ export const CURRENT_STUDENT: Student = {
   roll_no: '2024BTECH042',
   email: 'pratham.lalwani@jklu.edu.in',
   phone_number: '+91 98290 12345'
+};
+
+export const CURRENT_ADMIN: Admin = {
+  user_id: 'USR-ADM-001',
+  admin_id: 'ADM-001',
+  name: 'Prof. Anurag Sharma',
+  email: 'admin@jklu.edu.in',
+  phone_number: '+91 98290 88200',
+  designation: 'Head of Campus Transit & Operations Incharge',
+  department: 'JKLU Transport & Mobility Cell'
 };
 
 // Student boarding point located in Jaipur city near Mansarovar Metro
@@ -64,25 +75,246 @@ export const MOCK_DRIVERS: Driver[] = [
   }
 ];
 
-// All trips start at JKLU Campus (Origin) and end at JKLU Campus (Terminus)
+// All stops available in university transit database (38 Jaipur Locations + JKLU Campus)
 export const MOCK_STOPS: Stop[] = [
+  // --- University Terminus & Origin ---
   {
     stop_id: 'STOP-JKLU-START',
     stop_name: 'JKLU CAMPUS (ORIGIN)',
     latitude: 26.8373,
     longitude: 75.6499,
-    description: 'JKLU Campus Departure Bus Bay • Start of Circuit'
+    description: 'JKLU Departure Bus Bay • University Mobility Origin'
+  },
+  {
+    stop_id: 'STOP-JKLU',
+    stop_name: 'JKLU CAMPUS (TERMINUS)',
+    latitude: 26.8373,
+    longitude: 75.6499,
+    is_destination: true,
+    description: 'JK Lakshmipat University • Final Arrival Terminus'
+  },
+
+  // --- 38 Jaipur Transit Locations ---
+  {
+    stop_id: 'STOP-AMER',
+    stop_name: 'AMER',
+    latitude: 26.9855,
+    longitude: 75.8507,
+    description: 'Amer Town Bus Stand & Historical Heritage Hub'
+  },
+  {
+    stop_id: 'STOP-JAL-MAHAL',
+    stop_name: 'JAL MAHAL',
+    latitude: 26.9534,
+    longitude: 75.8462,
+    description: 'Man Sagar Lake Promenade, Amer Road'
+  },
+  {
+    stop_id: 'STOP-KUKAS',
+    stop_name: 'KUKAS',
+    latitude: 27.0543,
+    longitude: 75.8973,
+    description: 'Kukas Industrial & Educational Zone, NH-11C'
+  },
+  {
+    stop_id: 'STOP-AMER-FORT',
+    stop_name: 'AMER FORT',
+    latitude: 26.9855,
+    longitude: 75.8513,
+    description: 'Amer Palace Main Gate & Tourist Transit Drop'
+  },
+  {
+    stop_id: 'STOP-DELHI-ROAD',
+    stop_name: 'DELHI ROAD',
+    latitude: 26.9740,
+    longitude: 75.8760,
+    description: 'Delhi-Jaipur Highway (NH-48) Junction'
+  },
+  {
+    stop_id: 'STOP-JAGATPURA',
+    stop_name: 'JAGATPURA',
+    latitude: 26.8286,
+    longitude: 75.8360,
+    description: 'Jagatpura Railway Overbridge & Institutional Area'
+  },
+  {
+    stop_id: 'STOP-PRATAP-NAGAR',
+    stop_name: 'PRATAP NAGAR',
+    latitude: 26.8042,
+    longitude: 75.8173,
+    description: 'Kumbha Marg / Haldi Ghati Marg Circle'
+  },
+  {
+    stop_id: 'STOP-SITAPURA',
+    stop_name: 'SITAPURA',
+    latitude: 26.7820,
+    longitude: 75.8280,
+    description: 'Sitapura Industrial Area & RIICO Transit Hub'
+  },
+  {
+    stop_id: 'STOP-MAHAL-ROAD',
+    stop_name: 'MAHAL ROAD',
+    latitude: 26.8150,
+    longitude: 75.8450,
+    description: 'Mahal Road Akshay Patra Junction'
   },
   {
     stop_id: 'STOP-MANSAROVAR',
-    stop_name: 'MANSAROVAR METRO',
+    stop_name: 'MANSAROVAR',
     latitude: 26.8732,
     longitude: 75.7668,
-    description: 'Pillar 34, New Sanganer Road Transit Hub'
+    description: 'Pillar 34, New Sanganer Road & Metro Hub'
+  },
+  {
+    stop_id: 'STOP-NEW-AATISH-MARKET',
+    stop_name: 'NEW AATISH MARKET',
+    latitude: 26.8820,
+    longitude: 75.7590,
+    description: 'New Aatish Market Metro Station Circle'
+  },
+  {
+    stop_id: 'STOP-DURGAPURA',
+    stop_name: 'DURGAPURA',
+    latitude: 26.8520,
+    longitude: 75.7910,
+    description: 'Durgapura Elevated Road & Railway Junction'
+  },
+  {
+    stop_id: 'STOP-MALVIYA-NAGAR',
+    stop_name: 'MALVIYA NAGAR',
+    latitude: 26.8540,
+    longitude: 75.8150,
+    description: 'Gaurav Tower (GT) / Calgiri Hospital Circle'
+  },
+  {
+    stop_id: 'STOP-JAWAHAR-CIRCLE',
+    stop_name: 'JAWAHAR CIRCLE',
+    latitude: 26.8398,
+    longitude: 75.8078,
+    description: 'Patrika Gate & Jawahar Circle Garden'
+  },
+  {
+    stop_id: 'STOP-AIRPORT',
+    stop_name: 'JAIPUR AIRPORT',
+    latitude: 26.8288,
+    longitude: 75.8055,
+    description: 'Terminal 2 Circle, Sanganer Highway'
+  },
+  {
+    stop_id: 'STOP-TONK-ROAD',
+    stop_name: 'TONK ROAD',
+    latitude: 26.8650,
+    longitude: 75.7990,
+    description: 'Tonk Road Bus Bay, Gopalpura Flyover Cut'
+  },
+  {
+    stop_id: 'STOP-WTP',
+    stop_name: 'WORLD TRADE PARK',
+    latitude: 26.8530,
+    longitude: 75.8050,
+    description: 'World Trade Park (WTP) JLN Marg Entry'
+  },
+  {
+    stop_id: 'STOP-GAURAV-TOWER',
+    stop_name: 'GAURAV TOWER',
+    latitude: 26.8550,
+    longitude: 75.8060,
+    description: 'GT Central Retail Circle, Malviya Nagar'
+  },
+  {
+    stop_id: 'STOP-SANGANER',
+    stop_name: 'SANGANER',
+    latitude: 26.8170,
+    longitude: 75.7770,
+    description: 'Sanganer Stadium & Bus Stand Circle'
+  },
+  {
+    stop_id: 'STOP-C-SCHEME',
+    stop_name: 'C-SCHEME',
+    latitude: 26.9100,
+    longitude: 75.7980,
+    description: 'Statue Circle & Bhagwan Das Road Junction'
+  },
+  {
+    stop_id: 'STOP-MI-ROAD',
+    stop_name: 'MI ROAD',
+    latitude: 26.9160,
+    longitude: 75.8100,
+    description: 'Panch Batti, Mirza Ismail (MI) Road'
+  },
+  {
+    stop_id: 'STOP-SINDHI-CAMP',
+    stop_name: 'SINDHI CAMP',
+    latitude: 26.9230,
+    longitude: 75.7980,
+    description: 'Central Inter-State Bus Terminal (ISBT)'
+  },
+  {
+    stop_id: 'STOP-RAILWAY-STN',
+    stop_name: 'JAIPUR JUNCTION',
+    latitude: 26.9190,
+    longitude: 75.7885,
+    description: 'Jaipur Junction Railway Station (North Terminal)'
+  },
+  {
+    stop_id: 'STOP-CHANDPOLE',
+    stop_name: 'CHANDPOLE',
+    latitude: 26.9240,
+    longitude: 75.8130,
+    description: 'Chandpole Gate & Metro Station Entrance'
+  },
+  {
+    stop_id: 'STOP-BANI-PARK',
+    stop_name: 'BANI PARK',
+    latitude: 26.9310,
+    longitude: 75.7920,
+    description: 'Collectorate Circle & Kanti Chandra Road'
+  },
+  {
+    stop_id: 'STOP-PINK-CITY',
+    stop_name: 'PINK CITY',
+    latitude: 26.9220,
+    longitude: 75.8240,
+    description: 'Ajmeri Gate / Walled City Entry'
+  },
+  {
+    stop_id: 'STOP-BAPU-BAZAAR',
+    stop_name: 'BAPU BAZAAR',
+    latitude: 26.9200,
+    longitude: 75.8230,
+    description: 'Bapu Bazaar Heritage Market Gate'
+  },
+  {
+    stop_id: 'STOP-JOHARI-BAZAAR',
+    stop_name: 'JOHARI BAZAAR',
+    latitude: 26.9210,
+    longitude: 75.8270,
+    description: 'Sanganeri Gate to Johari Bazaar Corridor'
+  },
+  {
+    stop_id: 'STOP-HAWA-MAHAL',
+    stop_name: 'HAWA MAHAL',
+    latitude: 26.9239,
+    longitude: 75.8267,
+    description: 'Hawa Mahal Bazaar & Badi Chaupar Transit'
+  },
+  {
+    stop_id: 'STOP-CITY-PALACE',
+    stop_name: 'CITY PALACE',
+    latitude: 26.9258,
+    longitude: 75.8237,
+    description: 'Jalebi Chowk, City Palace Entrance'
+  },
+  {
+    stop_id: 'STOP-JANTAR-MANTAR',
+    stop_name: 'JANTAR MANTAR',
+    latitude: 26.9248,
+    longitude: 75.8246,
+    description: 'UNESCO World Heritage Observatory Gate'
   },
   {
     stop_id: 'STOP-DCM',
-    stop_name: 'DCM (AJMER ROAD)',
+    stop_name: 'DCM',
     latitude: 26.8865,
     longitude: 75.7420,
     description: 'DCM Flyover Junction & Ajmer Expressway Hub'
@@ -95,33 +327,39 @@ export const MOCK_STOPS: Stop[] = [
     description: 'Amrapali Circle & Gandhi Path Junction'
   },
   {
-    stop_id: 'STOP-AIRPORT',
-    stop_name: 'JAIPUR AIRPORT',
-    latitude: 26.8288,
-    longitude: 75.8055,
-    description: 'Terminal 2 Circle, Sanganer Highway'
+    stop_id: 'STOP-SODALA',
+    stop_name: 'SODALA',
+    latitude: 26.8970,
+    longitude: 75.7720,
+    description: 'Sodala Elevated Road Cut, Ajmer Road'
   },
   {
-    stop_id: 'STOP-MALVIYA-NAGAR',
-    stop_name: 'MALVIYA NAGAR',
-    latitude: 26.8540,
-    longitude: 75.8150,
-    description: 'Gaurav Tower (GT) / Calgiri Hospital Circle'
+    stop_id: 'STOP-SHYAM-NAGAR',
+    stop_name: 'SHYAM NAGAR',
+    latitude: 26.8900,
+    longitude: 75.7620,
+    description: 'Shyam Nagar Metro Station, Janpath'
   },
   {
-    stop_id: 'STOP-RAILWAY-STN',
-    stop_name: 'RAILWAY STATION',
-    latitude: 26.9190,
-    longitude: 75.7885,
-    description: 'Jaipur Junction North Terminal'
+    stop_id: 'STOP-AJMER-ROAD',
+    stop_name: 'AJMER ROAD',
+    latitude: 26.8790,
+    longitude: 75.7250,
+    description: '200 Feet Bypass & Ajmer Expressway Highway Hub'
   },
   {
-    stop_id: 'STOP-JKLU',
-    stop_name: 'JKLU CAMPUS (TERMINUS)',
-    latitude: 26.8373,
-    longitude: 75.6499,
-    is_destination: true,
-    description: 'JK Lakshmipat University - Final Arrival Terminus'
+    stop_id: 'STOP-CIVIL-LINES',
+    stop_name: 'CIVIL LINES',
+    latitude: 26.9020,
+    longitude: 75.7790,
+    description: 'Civil Lines Metro Station & Jacob Road'
+  },
+  {
+    stop_id: 'STOP-VIDYADHAR-NAGAR',
+    stop_name: 'VIDYADHAR NAGAR',
+    latitude: 26.9620,
+    longitude: 75.7760,
+    description: 'Central Spine Circle, Sector 2'
   }
 ];
 

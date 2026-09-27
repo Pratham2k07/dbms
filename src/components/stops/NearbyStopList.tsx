@@ -2,12 +2,23 @@ import React from 'react';
 import { NearbyStopInfo } from '../../types/ui';
 import { NearbyStopItem } from './NearbyStopItem';
 
+import { UpcomingShuttleCardData } from '../../types/ui';
+
 interface NearbyStopListProps {
   stops: NearbyStopInfo[];
+  selectedStopId?: string | null;
   onSelectStop: (stopId: string) => void;
+  getUpcomingShuttles?: (stopId: string) => UpcomingShuttleCardData[];
+  onTrackShuttle?: (tripId: string) => void;
 }
 
-export const NearbyStopList: React.FC<NearbyStopListProps> = ({ stops, onSelectStop }) => {
+export const NearbyStopList: React.FC<NearbyStopListProps> = ({
+  stops,
+  selectedStopId,
+  onSelectStop,
+  getUpcomingShuttles,
+  onTrackShuttle
+}) => {
   return (
     <section className="space-y-2">
       {/* Editorial Section Header */}
@@ -24,14 +35,22 @@ export const NearbyStopList: React.FC<NearbyStopListProps> = ({ stops, onSelectS
 
       {/* Stop Items List with subtle separators */}
       <div className="divide-y divide-stone-200/60 pt-1">
-        {stops.map((item, idx) => (
-          <NearbyStopItem
-            key={item.stop.stop_id}
-            item={item}
-            index={idx}
-            onSelect={onSelectStop}
-          />
-        ))}
+        {stops.map((item, idx) => {
+          const isSelected = Boolean(selectedStopId && selectedStopId === item.stop.stop_id);
+          const shuttlesForStop = isSelected && getUpcomingShuttles ? getUpcomingShuttles(item.stop.stop_id) : [];
+
+          return (
+            <NearbyStopItem
+              key={item.stop.stop_id}
+              item={item}
+              index={idx}
+              isSelected={isSelected}
+              onSelect={onSelectStop}
+              upcomingShuttles={shuttlesForStop}
+              onTrackShuttle={onTrackShuttle}
+            />
+          );
+        })}
       </div>
     </section>
   );

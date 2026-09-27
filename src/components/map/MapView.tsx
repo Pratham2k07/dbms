@@ -107,10 +107,21 @@ export const MapView: React.FC<MapViewProps> = ({
     // Fix map sizing in case parent container renders with animation
     const timer = setTimeout(() => {
       map.invalidateSize();
-    }, 200);
+    }, 150);
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (mapContainerRef.current && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        map.invalidateSize();
+      });
+      resizeObserver.observe(mapContainerRef.current);
+    }
 
     return () => {
       clearTimeout(timer);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
       map.remove();
       mapInstanceRef.current = null;
     };
