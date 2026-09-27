@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { MapView } from '../../components/map/MapView';
 import {
@@ -40,31 +40,48 @@ export const AdminLiveTrackingScreen: React.FC = () => {
 
   const [activeRouteFilter, setActiveRouteFilter] = useState<string>('ALL');
   const [activeTelemetryTripId, setActiveTelemetryTripId] = useState<string | null>(selectedTripId || 'TRIP-101');
+  const [viewMode, setViewMode] = useState<'single' | 'fleet'>('single');
 
   // Filter running trips
   const runningTrips = trips.filter((t) => t.running_status === 'RUNNING');
 
-  // Prepare active shuttles for MapView
-  const mapActiveShuttles = runningTrips
-    .map((trip) => {
-      const loc = shuttleLocations.find((sl) => sl.shuttle_id === trip.shuttle_id || sl.trip_id === trip.trip_id);
-      const sht = shuttles.find((s) => s.shuttle_id === trip.shuttle_id);
-      if (!loc) return null;
-
-      // Filter by route if selected
-      if (activeRouteFilter !== 'ALL' && trip.route_id !== activeRouteFilter) return null;
-
-      return {
-        location: loc,
-        number: sht?.shuttle_number || trip.shuttle_id,
-        routeId: trip.route_id
-      };
-    })
-    .filter(Boolean) as { location: any; number: string; routeId: string }[];
-
   // Selected trip telemetry info
   const selectedTrip = trips.find((t) => t.trip_id === activeTelemetryTripId) || runningTrips[0];
   const selectedShuttle = shuttles.find((s) => s.shuttle_id === selectedTrip?.shuttle_id);
+
+  // Prepare active shuttles for MapView - strictly 1 shuttle in single mode, or all in fleet mode
+  const mapActiveShuttles = useMemo(() => {
+    if (viewMode === 'single' && selectedTrip) {
+      const loc = shuttleLocations.find((sl) => sl.shuttle_id === selectedTrip.shuttle_id || sl.trip_id === selectedTrip.trip_id);
+      if (!loc) return [];
+      return [
+        {
+          location: loc,
+          number: selectedShuttle?.shuttle_number || selectedTrip.shuttle_id,
+          routeId: selectedTrip.route_id
+        }
+      ];
+    }
+
+    return runningTrips
+      .map((trip) => {
+        const loc = shuttleLocations.find((sl) => sl.shuttle_id === trip.shuttle_id || sl.trip_id === trip.trip_id);
+        const sht = shuttles.find((s) => s.shuttle_id === trip.shuttle_id);
+        if (!loc) return null;
+
+        // Filter by route if selected
+        if (activeRouteFilter !== 'ALL' && trip.route_id !== activeRouteFilter) return null;
+
+        return {
+          location: loc,
+          number: sht?.shuttle_number || trip.shuttle_id,
+          routeId: trip.route_id
+        };
+      })
+      .filter(Boolean) as { location: any; number: string; routeId: string }[];
+  }, [viewMode, selectedTrip, selectedShuttle, shuttleLocations, runningTrips, activeRouteFilter]);
+
+  // Selected trip telemetry info
   const selectedRoute = routes.find((r) => r.route_id === selectedTrip?.route_id);
   const selectedDriver = drivers.find((d) => d.driver_id === selectedTrip?.driver_id);
   const selectedLocation = shuttleLocations.find((sl) => sl.trip_id === selectedTrip?.trip_id || sl.shuttle_id === selectedTrip?.shuttle_id);
@@ -178,9 +195,35 @@ export const AdminLiveTrackingScreen: React.FC = () => {
                 GPS Coordinate Telemetry Feed
               </span>
             </div>
-            <span className="text-[11px] font-mono text-stone-400">
-              Click any shuttle pin on the map to inspect telemetry
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono text-stone-400 hidden sm:inline">
+                View Mode:
+              </span>
+              <div className="flex items-center p-0.5 rounded-lg bg-stone-100 border border-stone-200 text-[11px] font-mono">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('single')}
+                  className={`px-2.5 py-0.5 rounded-md font-semibold transition-all ${
+                    viewMode === 'single'
+                      ? 'bg-white text-[#E8590C] shadow-xs'
+                      : 'text-stone-500 hover:text-stone-800'
+                  }`}
+                >
+                  1 Shuttle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('fleet')}
+                  className={`px-2.5 py-0.5 rounded-md font-semibold transition-all ${
+                    viewMode === 'fleet'
+                      ? 'bg-white text-[#2B4A7E] shadow-xs'
+                      : 'text-stone-500 hover:text-stone-800'
+                  }`}
+                >
+                  All Fleet
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="rounded-2xl overflow-hidden border border-stone-200 shadow-inner">

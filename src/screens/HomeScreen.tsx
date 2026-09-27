@@ -13,6 +13,7 @@ export const HomeScreen: React.FC = () => {
     stops,
     trips,
     tripStops,
+    routeStops,
     shuttleLocations,
     shuttles,
     routes,
@@ -24,6 +25,12 @@ export const HomeScreen: React.FC = () => {
 
   // Inline stop selection on Home & Map (toggles dropdown box inside the stop item)
   const [inlineSelectedStopId, setInlineSelectedStopId] = useState<string | null>(null);
+
+  // Single active shuttle selection (ensures only 1 shuttle is rendered on the map at any time)
+  const [selectedShuttleId, setSelectedShuttleId] = useState<string>(() => {
+    const running = trips.find((t) => t.running_status === 'RUNNING');
+    return running ? running.shuttle_id : (shuttles[0]?.shuttle_id || 'SHT-01');
+  });
 
   const handleSelectStop = (stopId: string) => {
     if (inlineSelectedStopId === stopId) {
@@ -48,20 +55,57 @@ export const HomeScreen: React.FC = () => {
     );
   }, [studentLocation, stops, approachingCounts]);
 
-  // 3. Format active shuttles for map rendering
-  const activeShuttlesForMap = useMemo(() => {
-    return shuttleLocations.map((loc) => {
-      const trip = trips.find((t) => t.trip_id === loc.trip_id);
-      const shuttle = shuttles.find((s) => s.shuttle_id === loc.shuttle_id);
-      return {
-        location: loc,
-        number: shuttle ? shuttle.shuttle_number : 'SHUTTLE',
-        routeId: trip ? trip.route_id : 'ROUTE-01'
-      };
-    });
-  }, [shuttleLocations, trips, shuttles]);
+  // 3. Active running trips to cross-reference
+  const runningTrips = useMemo(() => {
+    return trips.filter((t) => t.running_status === 'RUNNING');
+  }, [trips]);
 
-  // 4. Retrieve upcoming shuttles for any stop
+  // Find the trip assigned to the currently selected 1 shuttle
+  const activeTripForSelectedShuttle = useMemo(() => {
+    return (
+      trips.find((t) => t.shuttle_id === selectedShuttleId && t.running_status === 'RUNNING') ||
+      trips.find((t) => t.shuttle_id === selectedShuttleId) ||
+      trips[0]
+    );
+  }, [trips, selectedShuttleId]);
+
+  const activeRouteForSelectedShuttle = useMemo(() => {
+    return (
+      routes.find((r) => r.route_id === activeTripForSelectedShuttle?.route_id) || routes[0]
+    );
+  }, [routes, activeTripForSelectedShuttle]);
+
+  // 4. Format active shuttle for map rendering - STRICTLY 1 SHUTTLE AT A TIME
+  const activeShuttlesForMap = useMemo(() => {
+    const loc = shuttleLocations.find(
+      (l) =>
+        l.shuttle_id === selectedShuttleId ||
+        (activeTripForSelectedShuttle && l.trip_id === activeTripForSelectedShuttle.trip_id)
+    );
+    const shuttle = shuttles.find((s) => s.shuttle_id === selectedShuttleId);
+    if (!loc || !shuttle) return [];
+    return [
+      {
+        location: loc,
+        number: shuttle.shuttle_number,
+        routeId: activeTripForSelectedShuttle ? activeTripForSelectedShuttle.route_id : 'ROUTE-01'
+      }
+    ];
+  }, [shuttleLocations, selectedShuttleId, activeTripForSelectedShuttle, shuttles]);
+
+  // 5. Filter map stops to this 1 shuttle's active route corridor (+ selected stop),
+  // preventing 40 cluttered pins across Jaipur while keeping clean focus on 1 shuttle
+  const stopsForMap = useMemo(() => {
+    if (!activeTripForSelectedShuttle) return stops;
+    const currentRouteStops = routeStops.filter(
+      (rs) => rs.route_id === activeTripForSelectedShuttle.route_id
+    );
+    const stopIdSet = new Set(currentRouteStops.map((rs) => rs.stop_id));
+    if (selectedStopId) stopIdSet.add(selectedStopId);
+    return stops.filter((s) => stopIdSet.has(s.stop_id));
+  }, [stops, routeStops, activeTripForSelectedShuttle, selectedStopId]);
+
+  // 6. Retrieve upcoming shuttles for any stop
   const getUpcomingShuttlesForStop = useCallback((stopId: string) => {
     return stopService.getUpcomingShuttles(
       stopId,
@@ -133,20 +177,72 @@ export const HomeScreen: React.FC = () => {
               </div>
             </div>
 
-            {/* Map Section */}
-            <div className="space-y-1.5">
+            {/* Map Section with 1-Shuttle at a time Focus */}
+            <div className="space-y-2">
+              {/* Single Shuttle Selector Bar */}
+              <div className="bg-white p-2.5 rounded-2xl border border-stone-200/90 shadow-subtle flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-stone-400 pl-1">
+                    Track Shuttle:
+                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {shuttles.map((sht) => {
+                      const isSelected = selectedShuttleId === sht.shuttle_id;
+                      const hasRunningTrip = runningTrips.some((rt) => rt.shuttle_id === sht.shuttle_id);
+                      return (
+                        <button
+                          key={sht.shuttle_id}
+                          type="button"
+                          onClick={() => setSelectedShuttleId(sht.shuttle_id)}
+                          className={`px-3 py-1 rounded-xl text-xs font-editorial font-bold flex items-center gap-1.5 transition-all ${
+                            isSelected
+                              ? 'bg-[#E8590C] text-white shadow-sm ring-2 ring-[#E8590C]/25'
+                              : 'bg-stone-50 hover:bg-stone-100 text-stone-600 border border-stone-200/80'
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              isSelected
+                                ? 'bg-white'
+                                : hasRunningTrip
+                                ? 'bg-emerald-500 animate-pulse'
+                                : 'bg-stone-300'
+                            }`}
+                          />
+                          <span>{sht.shuttle_number}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200/70 font-semibold flex items-center gap-1.5 self-end sm:self-auto">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>1 ACTIVE SHUTTLE DISPLAYED</span>
+                </div>
+              </div>
+
+              {/* Map displaying only the selected shuttle */}
               <MapView
-                stops={stops}
+                stops={stopsForMap}
                 studentLocation={studentLocation}
                 activeShuttles={activeShuttlesForMap}
+                highlightRouteId={activeTripForSelectedShuttle?.route_id || 'ROUTE-02'}
                 selectedStopId={selectedStopId}
                 onSelectStop={(stopId) => handleSelectStop(stopId)}
-                onSelectShuttle={(tripId) => navigateToLiveTracking(tripId)}
+                onSelectShuttle={(tripId) => {
+                  const t = trips.find((item) => item.trip_id === tripId);
+                  if (t) setSelectedShuttleId(t.shuttle_id);
+                  navigateToLiveTracking(tripId);
+                }}
                 heightClass="h-72 sm:h-80 lg:h-[350px]"
               />
+
               <div className="flex items-center justify-between text-[11px] font-mono text-stone-500 px-1 pt-0.5">
-                <span>● Tap any stop pin or shuttle icon to view live telemetry</span>
-                <span className="text-emerald-700 font-semibold">{activeShuttlesForMap.length} ACTIVE SHUTTLES</span>
+                <span>● Tap stop pin or shuttle icon to view live telemetry</span>
+                <span className="text-stone-700 font-medium">
+                  Showing: <strong className="text-[#E8590C]">{shuttles.find((s) => s.shuttle_id === selectedShuttleId)?.shuttle_number || 'SHUTTLE 01'}</strong> ({activeRouteForSelectedShuttle.route_code})
+                </span>
               </div>
             </div>
           </div>
@@ -158,7 +254,11 @@ export const HomeScreen: React.FC = () => {
               selectedStopId={inlineSelectedStopId}
               onSelectStop={handleSelectStop}
               getUpcomingShuttles={getUpcomingShuttlesForStop}
-              onTrackShuttle={(tripId) => navigateToLiveTracking(tripId)}
+              onTrackShuttle={(tripId) => {
+                const t = trips.find((item) => item.trip_id === tripId);
+                if (t) setSelectedShuttleId(t.shuttle_id);
+                navigateToLiveTracking(tripId);
+              }}
             />
           </div>
         </div>

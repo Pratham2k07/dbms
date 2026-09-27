@@ -38,18 +38,20 @@ export const LiveTrackingScreen: React.FC = () => {
     (ts) => ts.trip_id === trip.trip_id && ts.stop_id === selectedStopId
   );
 
-  // Formatted active shuttles list for the map
+  // Formatted active shuttle for the map - STRICTLY 1 SHUTTLE (the one assigned to this trip)
   const activeShuttlesForMap = useMemo(() => {
-    return shuttleLocations.map((loc) => {
-      const t = trips.find((item) => item.trip_id === loc.trip_id);
-      const s = shuttles.find((item) => item.shuttle_id === loc.shuttle_id);
-      return {
+    const loc = shuttleLocations.find(
+      (item) => item.trip_id === trip.trip_id || item.shuttle_id === shuttle.shuttle_id
+    );
+    if (!loc) return [];
+    return [
+      {
         location: loc,
-        number: s ? s.shuttle_number : 'SHUTTLE',
-        routeId: t ? t.route_id : 'ROUTE-01'
-      };
-    });
-  }, [shuttleLocations, trips, shuttles]);
+        number: shuttle ? shuttle.shuttle_number : 'SHUTTLE',
+        routeId: route ? route.route_id : 'ROUTE-01'
+      }
+    ];
+  }, [shuttleLocations, trip.trip_id, shuttle, route]);
 
   // Stops belonging to this route
   const routeStops = useMemo(() => {
