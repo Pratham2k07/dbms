@@ -120,7 +120,7 @@ export const HomeScreen: React.FC = () => {
 
   return (
     <div className="min-h-full bg-[#FBFBF9] pb-4 select-none">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 lg:pt-8 space-y-6">
+      <div className="w-full max-w-[1920px] mx-auto px-3 sm:px-6 lg:px-8 xl:px-10 pt-4 lg:pt-6 space-y-5">
         {/* Top Greeting & Operational Summary Bar */}
         <section className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-stone-200/80 pb-5">
           <div>
@@ -235,7 +235,7 @@ export const HomeScreen: React.FC = () => {
                   if (t) setSelectedShuttleId(t.shuttle_id);
                   navigateToLiveTracking(tripId);
                 }}
-                heightClass="h-72 sm:h-80 lg:h-[350px]"
+                heightClass="h-72 sm:h-80 lg:h-[400px] xl:h-[430px]"
               />
 
               <div className="flex items-center justify-between text-[11px] font-mono text-stone-500 px-1 pt-0.5">
@@ -248,7 +248,7 @@ export const HomeScreen: React.FC = () => {
           </div>
 
           {/* Right Column (PC: 5 cols) - Ordered Nearby Stops List with Dropdown Boxes */}
-          <div className="lg:col-span-5 bg-white lg:rounded-3xl border border-stone-200/90 shadow-subtle p-2 sm:p-4">
+          <div className="lg:col-span-5 bg-white rounded-3xl border border-stone-200/90 shadow-subtle p-3 sm:p-4 flex flex-col lg:h-[545px] xl:h-[575px] overflow-hidden">
             <NearbyStopList
               stops={nearbyStops}
               selectedStopId={inlineSelectedStopId}

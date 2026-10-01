@@ -278,7 +278,7 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
   );
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1920px] mx-auto">
       {/* Header & Create Action */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white rounded-3xl p-6 border border-stone-200 shadow-sm">
         <div className="space-y-1">

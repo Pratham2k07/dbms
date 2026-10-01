@@ -83,7 +83,7 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-[1920px] mx-auto">
       {/* Welcome & Quick Actions Bar */}
       <div className="bg-gradient-to-r from-[#1E3A68] via-[#2B4A7E] to-[#3B629B] rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:16px_16px] opacity-10 pointer-events-none" />

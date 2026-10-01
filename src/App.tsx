@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useApp } from './context/AppContext';
 import { ToastNotification } from './components/common/ToastNotification';
 import { LocationLoadingScreen } from './screens/LocationLoadingScreen';
@@ -13,7 +13,6 @@ import { ProfileDropdown } from './components/navigation/ProfileDropdown';
 import { Shield, User, LogOut, Menu, X } from 'lucide-react';
 
 import { AdminLayout } from './components/admin/AdminLayout';
-import { AdminLoginScreen } from './screens/admin/AdminLoginScreen';
 
 export const App: React.FC = () => {
   const {
@@ -22,33 +21,11 @@ export const App: React.FC = () => {
     isDriverMode,
     setIsDriverMode,
     logoutUser,
-    currentUserRole
+    currentUserRole,
+    isAuthenticated
   } = useApp();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  // Detect /admin in path or hash
-  const [isAdminPath, setIsAdminPath] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    const path = window.location.pathname.toLowerCase();
-    const hash = window.location.hash.toLowerCase();
-    return path.startsWith('/admin') || hash.includes('admin');
-  });
-
-  useEffect(() => {
-    const handleUrlChange = () => {
-      const path = window.location.pathname.toLowerCase();
-      const hash = window.location.hash.toLowerCase();
-      setIsAdminPath(path.startsWith('/admin') || hash.includes('admin'));
-    };
-
-    window.addEventListener('popstate', handleUrlChange);
-    window.addEventListener('hashchange', handleUrlChange);
-    return () => {
-      window.removeEventListener('popstate', handleUrlChange);
-      window.removeEventListener('hashchange', handleUrlChange);
-    };
-  }, []);
 
   // Screen router
   const renderScreen = () => {
@@ -83,28 +60,8 @@ export const App: React.FC = () => {
         { id: 'route-details', label: '3. Route Details' }
       ];
 
-  // 1. When logged in as Admin, render dedicated Admin Portal Control Center
-  if (currentUserRole === 'admin') {
-    return (
-      <div className="min-h-screen bg-[#F8FAFC]">
-        <ToastNotification />
-        <AdminLayout />
-      </div>
-    );
-  }
-
-  // 2. When user navigates to /admin (or #admin) while not authenticated, show Admin Login
-  if (isAdminPath) {
-    return (
-      <div className="min-h-screen bg-[#0F1E36]">
-        <ToastNotification />
-        <AdminLoginScreen />
-      </div>
-    );
-  }
-
-  // 3. Regular root / login portal (Student & Driver only)
-  if (currentScreen === 'login') {
+  // 1. If not authenticated or currentScreen is 'login', always render the 3-option Login Screen
+  if (!isAuthenticated || currentScreen === 'login') {
     return (
       <div className="min-h-screen bg-[#FBFBF9] flex flex-col justify-center select-none font-sans">
         <ToastNotification />
@@ -115,13 +72,23 @@ export const App: React.FC = () => {
     );
   }
 
+  // 2. When authenticated as Admin, render dedicated Admin Portal Control Center
+  if (currentUserRole === 'admin') {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC]">
+        <ToastNotification />
+        <AdminLayout />
+      </div>
+    );
+  }
+
   const isLoading = currentScreen === 'location-loading';
 
   return (
     <div className="min-h-screen bg-[#FBFBF9] text-[#141518] flex flex-col select-none font-sans">
       {/* Top Global Navigation Bar - Revealed After Login */}
       <header className="sticky top-0 z-50 bg-gradient-to-r from-[#2B4A7E] via-[#486DA8] to-[#6686C6] border-b border-white/20 shadow-lg text-white">
-        <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-4">
+        <div className="w-full max-w-[1920px] mx-auto px-3 sm:px-6 lg:px-8 xl:px-10 py-2.5 flex items-center justify-between gap-4">
           {/* Left: Branding */}
           <div
             onClick={() => setCurrentScreen(isDriverMode ? 'driver-dashboard' : 'home')}

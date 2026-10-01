@@ -1,26 +1,31 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Mail, Lock, Eye, EyeOff, Shield, User, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Shield, User, ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react';
+
+type UserRole = 'driver' | 'student' | 'admin';
 
 export const LoginScreen: React.FC = () => {
   const { loginUser } = useApp();
 
-  const [selectedRole, setSelectedRole] = useState<'student' | 'driver'>('student');
+  const [selectedRole, setSelectedRole] = useState<UserRole>('student');
   const [email, setEmail] = useState<string>('pratham.lalwani@jklu.edu.in');
   const [password, setPassword] = useState<string>('jklu@2024');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
-  const handleRoleChange = (role: 'student' | 'driver') => {
+  const handleRoleChange = (role: UserRole) => {
     setSelectedRole(role);
     setErrorMessage('');
-    if (role === 'student') {
-      setEmail('pratham.lalwani@jklu.edu.in');
-      setPassword('jklu@2024');
-    } else {
+    if (role === 'driver') {
       setEmail('ramesh.kumar@jklu.edu.in');
       setPassword('driver@8821');
+    } else if (role === 'student') {
+      setEmail('pratham.lalwani@jklu.edu.in');
+      setPassword('jklu@2024');
+    } else if (role === 'admin') {
+      setEmail('admin@jklu.edu.in');
+      setPassword('admin@jklu');
     }
   };
 
@@ -29,7 +34,7 @@ export const LoginScreen: React.FC = () => {
     setErrorMessage('');
 
     if (!email.trim()) {
-      setErrorMessage('Please enter your university email address or driver ID.');
+      setErrorMessage(`Please enter your ${selectedRole} email address or ID.`);
       return;
     }
     if (!password.trim()) {
@@ -42,10 +47,8 @@ export const LoginScreen: React.FC = () => {
     // Realistic brief authorization handshake
     setTimeout(() => {
       setIsLoading(false);
-      // Auto-detect role: if an administrator enters their admin email, route to admin portal
-      const targetRole = email.toLowerCase().includes('admin') ? 'admin' : selectedRole;
-      loginUser(email, password, targetRole);
-    }, 600);
+      loginUser(email, password, selectedRole);
+    }, 500);
   };
 
   return (
@@ -78,37 +81,53 @@ export const LoginScreen: React.FC = () => {
 
         {/* Floating Login Card */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-blue-100/80 space-y-5">
-          {/* Dual Role Tabs (Student & Driver only - no Admin button for normal users) */}
+          {/* 3 Role Options: Driver, Student, Admin */}
           <div className="space-y-2">
             <label className="text-[11px] font-mono font-bold uppercase tracking-wider text-stone-400 block text-center">
-              Select Your University Role
+              Select Your Portal Role
             </label>
 
-            <div className="grid grid-cols-2 p-1 rounded-2xl bg-[#EDF3FC] border border-blue-100 gap-1">
-              <button
-                type="button"
-                onClick={() => handleRoleChange('student')}
-                className={`py-2.5 px-3 rounded-xl text-xs font-editorial font-bold flex items-center justify-center gap-2 transition-all ${
-                  selectedRole === 'student'
-                    ? 'bg-white text-[#2B4A7E] shadow-sm'
-                    : 'text-stone-500 hover:text-stone-800'
-                }`}
-              >
-                <User className={`w-3.5 h-3.5 ${selectedRole === 'student' ? 'text-jklu-orange' : 'text-stone-400'}`} />
-                <span>Student Portal</span>
-              </button>
-
+            <div className="grid grid-cols-3 p-1 rounded-2xl bg-[#EDF3FC] border border-blue-100 gap-1">
+              {/* Option 1: Driver */}
               <button
                 type="button"
                 onClick={() => handleRoleChange('driver')}
-                className={`py-2.5 px-3 rounded-xl text-xs font-editorial font-bold flex items-center justify-center gap-2 transition-all ${
+                className={`py-2.5 px-2 rounded-xl text-xs font-editorial font-bold flex items-center justify-center gap-1.5 transition-all ${
                   selectedRole === 'driver'
-                    ? 'bg-[#E8590C] text-white shadow-sm'
-                    : 'text-stone-500 hover:text-stone-800'
+                    ? 'bg-[#E8590C] text-white shadow-sm ring-1 ring-[#E8590C]/30'
+                    : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
                 }`}
               >
                 <Shield className={`w-3.5 h-3.5 ${selectedRole === 'driver' ? 'text-white' : 'text-stone-400'}`} />
-                <span>Driver Portal</span>
+                <span className="truncate">Driver</span>
+              </button>
+
+              {/* Option 2: Student */}
+              <button
+                type="button"
+                onClick={() => handleRoleChange('student')}
+                className={`py-2.5 px-2 rounded-xl text-xs font-editorial font-bold flex items-center justify-center gap-1.5 transition-all ${
+                  selectedRole === 'student'
+                    ? 'bg-[#2B4A7E] text-white shadow-sm ring-1 ring-[#2B4A7E]/30'
+                    : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+                }`}
+              >
+                <User className={`w-3.5 h-3.5 ${selectedRole === 'student' ? 'text-white' : 'text-stone-400'}`} />
+                <span className="truncate">Student</span>
+              </button>
+
+              {/* Option 3: Admin */}
+              <button
+                type="button"
+                onClick={() => handleRoleChange('admin')}
+                className={`py-2.5 px-2 rounded-xl text-xs font-editorial font-bold flex items-center justify-center gap-1.5 transition-all ${
+                  selectedRole === 'admin'
+                    ? 'bg-[#0F1E36] text-white shadow-sm ring-1 ring-[#0F1E36]/30'
+                    : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+                }`}
+              >
+                <ShieldCheck className={`w-3.5 h-3.5 ${selectedRole === 'admin' ? 'text-white' : 'text-stone-400'}`} />
+                <span className="truncate">Admin</span>
               </button>
             </div>
           </div>
@@ -118,7 +137,9 @@ export const LoginScreen: React.FC = () => {
             {/* Email Field */}
             <div className="space-y-1.5">
               <label className="text-xs font-editorial font-bold text-stone-700 block">
-                {selectedRole === 'student' ? 'University Email' : 'Driver / Staff Email or ID'}
+                {selectedRole === 'driver' && 'Driver / Staff Email or ID'}
+                {selectedRole === 'student' && 'University Student Email'}
+                {selectedRole === 'admin' && 'Administrator Official Email or ID'}
               </label>
               <div className="relative flex items-center">
                 <Mail className="w-4 h-4 text-stone-400 absolute left-3.5 pointer-events-none" />
@@ -127,9 +148,11 @@ export const LoginScreen: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={
-                    selectedRole === 'student'
-                      ? 'pratham.lalwani@jklu.edu.in'
-                      : 'ramesh.kumar@jklu.edu.in'
+                    selectedRole === 'driver'
+                      ? 'ramesh.kumar@jklu.edu.in'
+                      : selectedRole === 'admin'
+                      ? 'admin@jklu.edu.in'
+                      : 'pratham.lalwani@jklu.edu.in'
                   }
                   required
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#FBFBF9] border border-stone-200 focus:border-[#4F70B0] focus:ring-2 focus:ring-[#4F70B0]/20 text-xs sm:text-sm text-stone-800 transition-all outline-none font-medium"
@@ -139,18 +162,9 @@ export const LoginScreen: React.FC = () => {
 
             {/* Password Field */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-editorial font-bold text-stone-700">
-                  Password
-                </label>
-                <button
-                  type="button"
-                  onClick={() => alert('Demo notice: Default password is pre-filled for testing.')}
-                  className="text-[11px] text-[#4F70B0] hover:underline font-medium"
-                >
-                  Forgot?
-                </button>
-              </div>
+              <label className="text-xs font-editorial font-bold text-stone-700 block">
+                Password
+              </label>
 
               <div className="relative flex items-center">
                 <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 pointer-events-none" />
@@ -172,6 +186,7 @@ export const LoginScreen: React.FC = () => {
               </div>
             </div>
 
+
             {/* Error banner */}
             {errorMessage && (
               <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">
@@ -186,6 +201,8 @@ export const LoginScreen: React.FC = () => {
               className={`w-full py-3.5 px-4 rounded-xl font-editorial font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-md transition-all active:scale-[0.99] text-white ${
                 selectedRole === 'driver'
                   ? 'bg-[#E8590C] hover:bg-[#D9480F]'
+                  : selectedRole === 'admin'
+                  ? 'bg-[#0F1E36] hover:bg-[#1E3A68]'
                   : 'bg-[#2B4A7E] hover:bg-[#20375E]'
               }`}
             >
@@ -197,7 +214,9 @@ export const LoginScreen: React.FC = () => {
               ) : (
                 <>
                   <span>
-                    Sign In to {selectedRole === 'student' ? 'Student Portal' : 'Driver Dashboard'}
+                    {selectedRole === 'driver' && 'Sign In to Driver Dashboard'}
+                    {selectedRole === 'student' && 'Sign In to Student Portal'}
+                    {selectedRole === 'admin' && 'Enter Admin Control Center'}
                   </span>
                   <ArrowRight className="w-4 h-4" />
                 </>

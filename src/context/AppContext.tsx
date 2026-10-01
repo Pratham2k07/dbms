@@ -751,10 +751,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const loginUser = (email: string, _password?: string, forceRole?: 'student' | 'driver' | 'admin'): boolean => {
     let role: 'student' | 'driver' | 'admin' = 'student';
-    if (email.toLowerCase().includes('admin')) {
-      role = 'admin';
-    } else if (forceRole) {
+    if (forceRole) {
       role = forceRole;
+    } else if (email.toLowerCase().includes('admin')) {
+      role = 'admin';
     } else if (email.toLowerCase().includes('driver') || email.toLowerCase().includes('ramesh')) {
       role = 'driver';
     } else {
@@ -783,7 +783,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const logoutUser = () => {
     setIsAuthenticated(false);
     setIsDriverMode(false);
+    setCurrentUserRole('student');
     setCurrentScreen('login');
+    if (typeof window !== 'undefined') {
+      if (window.location.hash || window.location.pathname !== '/') {
+        window.history.pushState({}, '', '/');
+        window.dispatchEvent(new Event('popstate'));
+      }
+    }
     triggerNotification('LOGGED OUT', 'You have signed out of JKLU Shuttle.', 'info');
   };
 
