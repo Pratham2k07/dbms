@@ -141,6 +141,31 @@ export const LoginScreen: React.FC = () => {
                 {selectedRole === 'student' && 'University Student Email'}
                 {selectedRole === 'admin' && 'Administrator Official Email or ID'}
               </label>
+
+              {/* Driver Fast Switcher for Pair Testing */}
+              {selectedRole === 'driver' && (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                  {[
+                    { name: 'Ramesh (DRV-101)', email: 'ramesh.kumar@jklu.edu.in' },
+                    { name: 'Vikram (DRV-102)', email: 'vikram.singh@jklu.edu.in' },
+                    { name: 'Rajesh (DRV-103)', email: 'rajesh.meena@jklu.edu.in' },
+                    { name: 'Devendra (DRV-104)', email: 'devendra.sharma@jklu.edu.in' }
+                  ].map((drv) => (
+                    <button
+                      type="button"
+                      key={drv.email}
+                      onClick={() => setEmail(drv.email)}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-mono whitespace-nowrap transition-colors border ${
+                        email === drv.email
+                          ? 'bg-[#E8590C]/15 border-[#E8590C] text-[#E8590C] font-bold'
+                          : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100'
+                      }`}
+                    >
+                      {drv.name}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="relative flex items-center">
                 <Mail className="w-4 h-4 text-stone-400 absolute left-3.5 pointer-events-none" />
                 <input

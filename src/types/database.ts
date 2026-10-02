@@ -33,6 +33,11 @@ export interface Route {
   total_stops: number;
   description: string;
   color: string; // Subtle route line color
+  assigned_shuttle_id?: string;
+  assigned_driver_id?: string;
+  status?: 'ACTIVE' | 'INACTIVE' | 'CANCELLED';
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Stop {
@@ -62,6 +67,8 @@ export interface Trip {
   running_status: 'SCHEDULED' | 'RUNNING' | 'COMPLETED' | 'CANCELLED';
   capacity_status: 'AVAILABLE' | 'MODERATE' | 'FULL';
   speed_kmh?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface RouteStop {
@@ -98,4 +105,32 @@ export interface ShuttleLocation {
   timestamp: string;
   progress_percentage: number; // 0 to 100 along the route path
   current_segment_index: number;
+}
+
+export interface DriverAssignment {
+  assignment_id: string;
+  driver_id: string;
+  route_id: string;
+  trip_id?: string;
+  shuttle_id: string;
+  assigned_at: string;
+  updated_at?: string;
+  status: 'ACTIVE' | 'REPLACED' | 'CANCELLED' | 'COMPLETED';
+  notes?: string;
+}
+
+export interface DriverNotification {
+  notification_id: string;
+  recipient_driver_id: string; // foreign key to Driver.driver_id
+  title: string;
+  message: string;
+  type: 'ASSIGNMENT_NEW' | 'ASSIGNMENT_UPDATED' | 'ASSIGNMENT_REMOVED' | 'TRIP_CANCELLED' | 'GENERAL';
+  related_route_id?: string;
+  related_trip_id?: string;
+  related_shuttle_id?: string;
+  route_name?: string;
+  stops_preview?: string[];
+  scheduled_time?: string;
+  created_at: string;
+  read_status: boolean;
 }

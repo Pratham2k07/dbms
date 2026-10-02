@@ -755,23 +755,73 @@ export const AdminTripsScreen: React.FC<AdminTripsScreenProps> = ({
               </button>
             </div>
 
-            {/* Trip Info Pills */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs bg-stone-50 p-3.5 rounded-2xl border border-stone-100">
+            {/* Trip Info Pills & Reassignment Controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs bg-stone-50 p-4 rounded-2xl border border-stone-200">
               <div>
-                <span className="text-[10px] text-stone-400 font-mono block">ROUTE</span>
-                <span className="font-bold text-stone-800">{selectedTripDetails.route_id}</span>
+                <span className="text-[10px] text-stone-400 font-mono block mb-1">ROUTE CORRIDOR</span>
+                <span className="font-bold text-stone-800 block">{selectedTripDetails.route_id}</span>
+                <span className="text-[10px] text-stone-500 font-mono">
+                  {getRouteInfo(selectedTripDetails.route_id)?.route_name}
+                </span>
               </div>
+
               <div>
-                <span className="text-[10px] text-stone-400 font-mono block">SHUTTLE</span>
-                <span className="font-bold text-stone-800">{getShuttleName(selectedTripDetails.shuttle_id)}</span>
+                <span className="text-[10px] text-stone-400 font-mono block mb-1">ASSIGNED SHUTTLE</span>
+                <select
+                  value={selectedTripDetails.shuttle_id}
+                  disabled={selectedTripDetails.running_status === 'COMPLETED' || selectedTripDetails.running_status === 'CANCELLED'}
+                  onChange={(e) => {
+                    const newShuttleId = e.target.value;
+                    const updated = { ...selectedTripDetails, shuttle_id: newShuttleId };
+                    updateTrip(updated);
+                    setSelectedTripDetails(updated);
+                  }}
+                  className="w-full px-2 py-1 rounded-lg border border-stone-200 bg-white font-editorial font-bold text-stone-800 text-xs"
+                >
+                  {shuttles.map((s) => (
+                    <option key={s.shuttle_id} value={s.shuttle_id} disabled={s.status !== 'ACTIVE'}>
+                      {s.shuttle_number} ({s.registration_number})
+                    </option>
+                  ))}
+                </select>
               </div>
+
               <div>
-                <span className="text-[10px] text-stone-400 font-mono block">DRIVER</span>
-                <span className="font-bold text-stone-800">{getDriverName(selectedTripDetails.driver_id)}</span>
+                <span className="text-[10px] text-stone-400 font-mono block mb-1">ASSIGNED DRIVER (OPERATOR)</span>
+                <select
+                  value={selectedTripDetails.driver_id}
+                  disabled={selectedTripDetails.running_status === 'COMPLETED' || selectedTripDetails.running_status === 'CANCELLED'}
+                  onChange={(e) => {
+                    const newDriverId = e.target.value;
+                    const updated = { ...selectedTripDetails, driver_id: newDriverId };
+                    updateTrip(updated);
+                    setSelectedTripDetails(updated);
+                  }}
+                  className="w-full px-2 py-1 rounded-lg border border-stone-200 bg-white font-editorial font-bold text-stone-800 text-xs"
+                >
+                  {drivers.map((d) => (
+                    <option key={d.driver_id} value={d.driver_id}>
+                      {d.name} ({d.driver_id})
+                    </option>
+                  ))}
+                </select>
               </div>
+
               <div>
-                <span className="text-[10px] text-stone-400 font-mono block">STATUS</span>
-                <span className="font-mono font-bold text-emerald-700">{selectedTripDetails.running_status}</span>
+                <span className="text-[10px] text-stone-400 font-mono block mb-1">RUNNING STATUS</span>
+                <span
+                  className={`inline-block font-mono font-bold text-xs px-2.5 py-1 rounded-lg border uppercase ${
+                    selectedTripDetails.running_status === 'RUNNING'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : selectedTripDetails.running_status === 'CANCELLED'
+                      ? 'bg-red-50 text-red-800 border-red-200'
+                      : selectedTripDetails.running_status === 'COMPLETED'
+                      ? 'bg-stone-100 text-stone-700 border-stone-200'
+                      : 'bg-amber-50 text-amber-800 border-amber-200'
+                  }`}
+                >
+                  {selectedTripDetails.running_status}
+                </span>
               </div>
             </div>
 

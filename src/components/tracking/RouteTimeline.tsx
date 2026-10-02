@@ -2,6 +2,7 @@ import React from 'react';
 import { Route, Stop, Trip, TripStop } from '../../types/database';
 import { Building2, Bus, Check, Clock } from 'lucide-react';
 import { routeService } from '../../services/routeService';
+import { useApp } from '../../context/AppContext';
 
 interface RouteTimelineProps {
   route: Route;
@@ -18,7 +19,8 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
   selectedStopId,
   etaMinutes
 }) => {
-  const stopsMetadata = routeService.getRouteStopsWithMetadata(route.route_id);
+  const { routeStops, stops, routes } = useApp();
+  const stopsMetadata = routeService.getRouteStopsWithMetadata(route.route_id, routeStops, stops, routes);
 
   return (
     <div className="space-y-4 py-2">

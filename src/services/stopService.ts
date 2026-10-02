@@ -1,18 +1,19 @@
 import { Stop, Trip, TripStop, Shuttle, Route, ShuttleLocation } from '../types/database';
 import { UpcomingShuttleCardData } from '../types/ui';
-import { MOCK_STOPS } from '../data/mockDatabase';
+import { databaseService } from './databaseService';
 
 export const stopService = {
   getAllStops(): Stop[] {
-    return MOCK_STOPS;
+    return databaseService.getState().stops;
   },
 
   getStopById(stopId: string): Stop | undefined {
-    return MOCK_STOPS.find((s) => s.stop_id === stopId);
+    return databaseService.getState().stops.find((s) => s.stop_id === stopId);
   },
 
   getDestinationStop(): Stop {
-    return MOCK_STOPS.find((s) => s.is_destination) || MOCK_STOPS[MOCK_STOPS.length - 1];
+    const stops = databaseService.getState().stops;
+    return stops.find((s) => s.is_destination) || stops[stops.length - 1];
   },
 
   /**

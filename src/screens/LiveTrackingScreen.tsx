@@ -6,7 +6,6 @@ import { StatusIndicator } from '../components/common/StatusIndicator';
 import { ETA } from '../components/shuttles/ETA';
 import { ArrowLeft, Route as RouteIcon, Radio, User, Gauge, ShieldCheck, Bus } from 'lucide-react';
 import { routeService } from '../services/routeService';
-import { MOCK_DRIVERS } from '../data/mockDatabase';
 
 export const LiveTrackingScreen: React.FC = () => {
   const {
@@ -15,6 +14,7 @@ export const LiveTrackingScreen: React.FC = () => {
     trips,
     shuttles,
     routes,
+    drivers,
     stops,
     tripStops,
     routeStops: allRouteStops,
@@ -32,7 +32,7 @@ export const LiveTrackingScreen: React.FC = () => {
   const trip = trips.find((t) => t.trip_id === selectedTripId) || trips[0];
   const shuttle = shuttles.find((s) => s.shuttle_id === trip.shuttle_id) || shuttles[0];
   const route = routes.find((r) => r.route_id === trip.route_id) || routes[0];
-  const driver = MOCK_DRIVERS.find((d) => d.driver_id === trip.driver_id) || MOCK_DRIVERS[0];
+  const driver = drivers.find((d) => d.driver_id === trip.driver_id) || drivers[0];
 
   // Dynamic ETA for this trip & stop
   const etaKey = `${trip.trip_id}_${selectedStopId}`;
@@ -75,7 +75,7 @@ export const LiveTrackingScreen: React.FC = () => {
   // Stops belonging to this route and active corridors
   const mapStops = useMemo(() => {
     if (!showAllShuttlesOnMap) {
-      const sequenceList = routeService.getRouteStopsWithMetadata(route.route_id);
+      const sequenceList = routeService.getRouteStopsWithMetadata(route.route_id, allRouteStops, stops, routes);
       return sequenceList.map((item) => item.stop);
     }
     const activeRouteIds = new Set(trips.filter((t) => t.running_status === 'RUNNING').map((t) => t.route_id));
@@ -83,7 +83,7 @@ export const LiveTrackingScreen: React.FC = () => {
     return stops.filter((s) =>
       allRouteStops.some((rs) => activeRouteIds.has(rs.route_id) && rs.stop_id === s.stop_id)
     );
-  }, [showAllShuttlesOnMap, route.route_id, trips, stops, allRouteStops]);
+  }, [showAllShuttlesOnMap, route.route_id, trips, stops, allRouteStops, routes]);
 
   return (
     <div className="min-h-full bg-[#FBFBF9] pb-10 select-none">

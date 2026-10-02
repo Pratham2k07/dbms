@@ -1,5 +1,5 @@
 import { Route, Stop, RouteStop } from '../types/database';
-import { MOCK_ROUTES, MOCK_ROUTE_STOPS, MOCK_STOPS } from '../data/mockDatabase';
+import { databaseService } from './databaseService';
 
 export interface RouteStopSequence {
   sequence_number: number;
@@ -10,11 +10,11 @@ export interface RouteStopSequence {
 
 export const routeService = {
   getAllRoutes(): Route[] {
-    return MOCK_ROUTES;
+    return databaseService.getState().routes;
   },
 
   getRouteById(routeId: string, routesList?: Route[]): Route | undefined {
-    const list = routesList || MOCK_ROUTES;
+    const list = routesList || databaseService.getState().routes;
     return list.find((r) => r.route_id === routeId);
   },
 
@@ -27,9 +27,10 @@ export const routeService = {
     customStops?: Stop[],
     customRoutes?: Route[]
   ): RouteStopSequence[] {
-    const allRouteStops = customRouteStops || MOCK_ROUTE_STOPS;
-    const allStops = customStops || MOCK_STOPS;
-    const allRoutes = customRoutes || MOCK_ROUTES;
+    const dbState = databaseService.getState();
+    const allRouteStops = customRouteStops || dbState.routeStops;
+    const allStops = customStops || dbState.stops;
+    const allRoutes = customRoutes || dbState.routes;
 
     const routeStops = allRouteStops
       .filter((rs) => rs.route_id === routeId)

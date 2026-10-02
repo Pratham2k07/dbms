@@ -15,7 +15,8 @@ import {
   MapPin,
   Compass,
   CheckCircle2,
-  GripVertical
+  GripVertical,
+  Bus
 } from 'lucide-react';
 
 interface AdminRoutesScreenProps {
@@ -32,8 +33,12 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
     stops,
     routeStops,
     trips,
+    shuttles,
+    drivers,
     createRoute,
+    createRouteWithAssignment,
     updateRoute,
+    cancelRoute,
     deleteRoute,
     createStop,
     setSelectedRouteId,
@@ -50,6 +55,8 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
   const [editCode, setEditCode] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [editColor, setEditColor] = useState('#2B4A7E');
+  const [editAssignedDriverId, setEditAssignedDriverId] = useState('');
+  const [editAssignedShuttleId, setEditAssignedShuttleId] = useState('');
   const [editSearchStop, setEditSearchStop] = useState('');
 
   // Create Route Form State
@@ -59,8 +66,14 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
   const [newRouteDesc, setNewRouteDesc] = useState('');
   const [newRouteColor, setNewRouteColor] = useState('#E8590C');
   const [selectedStopIds, setSelectedStopIds] = useState<string[]>([]);
+  const [newAssignedShuttleId, setNewAssignedShuttleId] = useState('');
+  const [newAssignedDriverId, setNewAssignedDriverId] = useState('');
+  const [newStartTime, setNewStartTime] = useState('10:30 AM');
+  const [newInstructions, setNewInstructions] = useState('Campus express circuit assigned from Admin Dispatch');
   const [stopSearchQuery, setStopSearchQuery] = useState('');
   const [createError, setCreateError] = useState('');
+  const [createSuccessMsg, setCreateSuccessMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Drag and Drop reordering state
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -87,12 +100,32 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
     // Pre-select JKLU Campus Origin as initial starting stop
     const originStop = stops.find((s) => s.stop_id === 'STOP-JKLU-START' || s.stop_id.includes('JKLU'));
     setSelectedStopIds(originStop ? [originStop.stop_id] : []);
+
+    // Pre-select available active shuttle
+    const availableShuttle = shuttles.find(
+      (s) => s.status === 'ACTIVE' && !trips.some((t) => t.shuttle_id === s.shuttle_id && t.running_status === 'RUNNING')
+    );
+    setNewAssignedShuttleId(availableShuttle?.shuttle_id || shuttles[0]?.shuttle_id || '');
+
+    // Pre-select available driver
+    const availableDriver = drivers.find(
+      (d) => !trips.some((t) => t.driver_id === d.driver_id && t.running_status === 'RUNNING')
+    );
+    setNewAssignedDriverId(availableDriver?.driver_id || drivers[0]?.driver_id || '');
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setNewStartTime(timeStr);
+    setNewInstructions('Assigned from Campus Admin Operations');
     setCreateError('');
+    setCreateSuccessMsg('');
     setShowCreateModal(true);
   };
 
   const handleCloseCreate = () => {
     setShowCreateModal(false);
+    setCreateSuccessMsg('');
+    setCreateError('');
     if (onCloseCreateModal) onCloseCreateModal();
   };
 
@@ -123,6 +156,8 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
     setEditCode(r.route_code);
     setEditDesc(r.description);
     setEditColor(r.color);
+    setEditAssignedDriverId(r.assigned_driver_id || '');
+    setEditAssignedShuttleId(r.assigned_shuttle_id || '');
     setEditSearchStop('');
   };
 
@@ -179,12 +214,27 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
       route_name: editName.trim(),
       route_code: editCode.trim().toUpperCase(),
       description: editDesc.trim(),
-      color: editColor
+      color: editColor,
+      assigned_driver_id: editAssignedDriverId || undefined,
+      assigned_shuttle_id: editAssignedShuttleId || undefined
     };
 
-    updateRoute(updated);
+    updateRoute(updated, undefined, editAssignedDriverId || undefined, editAssignedShuttleId || undefined);
     setSelectedRoute(updated);
     setIsEditingRoute(false);
+  };
+
+  // Cancel Route (propagates immediately to driver & student portals)
+  const handleCancelRoute = (routeId: string) => {
+    if (confirm(`Are you sure you want to cancel Route ${routeId}? All active and scheduled trips on this corridor will be cancelled, and assigned drivers and students will be updated immediately.`)) {
+      const res = cancelRoute(routeId);
+      if (res.success) {
+        setIsViewingDetails(false);
+        setSelectedRoute(null);
+      } else {
+        alert(res.error || 'Failed to cancel route.');
+      }
+    }
   };
 
   // Delete Route with safety check
@@ -214,23 +264,41 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
   const handleCreateRouteSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setCreateError('');
+    setCreateSuccessMsg('');
 
     if (selectedStopIds.length < 2) {
       setCreateError('Please select at least 2 stops to form a valid route circuit.');
       return;
     }
 
-    const res = createRoute({
+    setIsSubmitting(true);
+    const res = createRouteWithAssignment({
       route_id: newRouteId,
       route_name: newRouteName,
       route_code: newRouteCode,
       description: newRouteDesc,
       color: newRouteColor,
-      stop_ids: selectedStopIds
+      stop_ids: selectedStopIds,
+      assigned_shuttle_id: newAssignedShuttleId || undefined,
+      assigned_driver_id: newAssignedDriverId || undefined,
+      start_time: newStartTime,
+      instructions: newInstructions
     });
+    setIsSubmitting(false);
 
     if (res.success) {
-      handleCloseCreate();
+      const drv = drivers.find((d) => d.driver_id === newAssignedDriverId);
+      const sht = shuttles.find((s) => s.shuttle_id === newAssignedShuttleId);
+      const drvName = drv ? drv.name : 'Assigned Driver';
+      const shtName = sht ? sht.shuttle_number : 'Assigned Shuttle';
+
+      setCreateSuccessMsg(
+        `Route ${newRouteCode} successfully created! Saved to database and assigned to ${drvName} (${shtName}). Real-time dispatch notification sent.`
+      );
+
+      setTimeout(() => {
+        handleCloseCreate();
+      }, 1800);
     } else {
       setCreateError(res.error || 'Failed to create route.');
     }
@@ -352,6 +420,38 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
                   </p>
                 </div>
 
+                {/* Assigned Shuttle & Driver Badges */}
+                {(() => {
+                  const assignedSht = shuttles.find((s) => s.shuttle_id === route.assigned_shuttle_id);
+                  const assignedDrv = drivers.find((d) => d.driver_id === route.assigned_driver_id);
+                  return (
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-stone-100 text-[11px] font-mono">
+                      <div className="bg-stone-50 p-2.5 rounded-xl border border-stone-100">
+                        <span className="text-stone-400 block text-[9px] uppercase font-bold">Assigned Shuttle</span>
+                        <span className="font-bold text-stone-800 truncate block mt-0.5">
+                          {assignedSht ? `${assignedSht.shuttle_number}` : 'Unassigned'}
+                        </span>
+                        {assignedSht && (
+                          <span className="text-[10px] text-stone-400 truncate block">
+                            {assignedSht.registration_number}
+                          </span>
+                        )}
+                      </div>
+                      <div className="bg-stone-50 p-2.5 rounded-xl border border-stone-100">
+                        <span className="text-stone-400 block text-[9px] uppercase font-bold">Assigned Driver</span>
+                        <span className="font-bold text-stone-800 truncate block mt-0.5">
+                          {assignedDrv ? assignedDrv.name : 'Unassigned'}
+                        </span>
+                        {assignedDrv && (
+                          <span className="text-[10px] text-stone-400 truncate block">
+                            {assignedDrv.driver_id}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Stops Sequence Preview */}
                 <div className="space-y-1.5 pt-2 border-t border-stone-100">
                   <div className="flex items-center justify-between text-[11px] font-mono text-stone-400 uppercase">
@@ -382,8 +482,18 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
                   className="flex-1 py-2 px-3 rounded-xl bg-blue-50 text-[#2B4A7E] hover:bg-[#2B4A7E] hover:text-white font-editorial font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
                 >
                   <Eye className="w-3.5 h-3.5" />
-                  <span>Configure Stops</span>
+                  <span>Configure & Assign</span>
                 </button>
+
+                {route.status !== 'CANCELLED' && (
+                  <button
+                    onClick={() => handleCancelRoute(route.route_id)}
+                    title="Cancel Route"
+                    className="p-2 rounded-xl text-stone-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                  >
+                    <AlertTriangle className="w-4 h-4" />
+                  </button>
+                )}
 
                 <button
                   onClick={() => handleDeleteRoute(route.route_id)}
@@ -491,6 +601,45 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
                   </div>
                 </div>
 
+                {/* Assigned Shuttle & Driver in Edit Form */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-blue-100">
+                  <div>
+                    <label className="text-[11px] font-medium text-stone-600 block mb-1">
+                      Assigned Shuttle
+                    </label>
+                    <select
+                      value={editAssignedShuttleId}
+                      onChange={(e) => setEditAssignedShuttleId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-stone-200 text-xs font-medium"
+                    >
+                      <option value="">-- No Shuttle Assigned --</option>
+                      {shuttles.map((s) => (
+                        <option key={s.shuttle_id} value={s.shuttle_id} disabled={s.status !== 'ACTIVE'}>
+                          {s.shuttle_number} ({s.registration_number}) {s.status !== 'ACTIVE' ? `[${s.status}]` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-medium text-stone-600 block mb-1">
+                      Assigned Driver (Operator)
+                    </label>
+                    <select
+                      value={editAssignedDriverId}
+                      onChange={(e) => setEditAssignedDriverId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-stone-200 text-xs font-medium"
+                    >
+                      <option value="">-- No Driver Assigned --</option>
+                      {drivers.map((d) => (
+                        <option key={d.driver_id} value={d.driver_id}>
+                          Captain {d.name} ({d.driver_id})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 <div className="flex justify-end gap-2 pt-2">
                   <button
                     type="button"
@@ -503,7 +652,7 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
                     type="submit"
                     className="px-3 py-1.5 rounded-lg bg-[#2B4A7E] text-white text-xs font-bold font-editorial shadow-xs"
                   >
-                    Save Changes
+                    Save Changes & Reassign
                   </button>
                 </div>
               </form>
@@ -620,13 +769,25 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
 
             {/* Modal Footer Actions */}
             <div className="pt-4 border-t border-stone-100 flex items-center justify-between">
-              <button
-                onClick={() => handleDeleteRoute(selectedRoute.route_id)}
-                className="px-3.5 py-2 rounded-xl text-red-600 hover:bg-red-50 text-xs font-editorial font-bold flex items-center gap-1.5"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Delete Route</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleDeleteRoute(selectedRoute.route_id)}
+                  className="px-3.5 py-2 rounded-xl text-red-600 hover:bg-red-50 text-xs font-editorial font-bold flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete Route</span>
+                </button>
+
+                {selectedRoute.status !== 'CANCELLED' && (
+                  <button
+                    onClick={() => handleCancelRoute(selectedRoute.route_id)}
+                    className="px-3.5 py-2 rounded-xl text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-xs font-editorial font-bold flex items-center gap-1.5"
+                  >
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>Cancel / Deactivate Route</span>
+                  </button>
+                )}
+              </div>
 
               <button
                 onClick={() => setIsViewingDetails(false)}
@@ -1010,6 +1171,107 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
                 </div>
               </div>
 
+              {/* SECTION 3: ASSIGN SHUTTLE & DRIVER */}
+              <div className="space-y-4 pt-4 border-t border-stone-100">
+                <div className="space-y-0.5">
+                  <h3 className="font-editorial font-bold text-sm text-[#1E3A68] uppercase tracking-wider flex items-center gap-2">
+                    <Bus className="w-4 h-4 text-[#E8590C]" />
+                    <span>3. Assign Shuttle & Driver (Real-Time Driver Dispatch)</span>
+                  </h3>
+                  <p className="text-[11px] text-stone-500">
+                    Assign an active university shuttle vehicle and driver. Upon saving, a scheduled trip and real-time database notification are dispatched to the driver's portal.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Shuttle Selection */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-editorial font-bold text-stone-700 block">
+                      Assigned Shuttle Vehicle
+                    </label>
+                    <select
+                      value={newAssignedShuttleId}
+                      onChange={(e) => setNewAssignedShuttleId(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-stone-50 border border-stone-200 text-xs font-medium outline-none focus:border-[#2B4A7E]"
+                    >
+                      <option value="">-- Do Not Assign Shuttle Now --</option>
+                      {shuttles.map((s) => (
+                        <option
+                          key={s.shuttle_id}
+                          value={s.shuttle_id}
+                          disabled={s.status !== 'ACTIVE'}
+                        >
+                          {s.shuttle_number} ({s.registration_number}) — {s.capacity} seats {s.status !== 'ACTIVE' ? `[${s.status}]` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Driver Selection */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-editorial font-bold text-stone-700 block">
+                      Assigned Driver (Operator)
+                    </label>
+                    <select
+                      value={newAssignedDriverId}
+                      onChange={(e) => setNewAssignedDriverId(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-stone-50 border border-stone-200 text-xs font-medium outline-none focus:border-[#2B4A7E]"
+                    >
+                      <option value="">-- Do Not Assign Driver Now --</option>
+                      {drivers.map((d) => (
+                        <option key={d.driver_id} value={d.driver_id}>
+                          Captain {d.name} ({d.driver_id}) • Lic: {d.license_no}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1 sm:col-span-1">
+                    <label className="text-xs font-editorial font-bold text-stone-700 block">
+                      Scheduled Departure Time
+                    </label>
+                    <input
+                      type="text"
+                      value={newStartTime}
+                      onChange={(e) => setNewStartTime(e.target.value)}
+                      placeholder="10:30 AM"
+                      className="w-full px-3 py-2.5 rounded-xl bg-stone-50 border border-stone-200 text-xs font-mono font-bold outline-none focus:border-[#2B4A7E]"
+                    />
+                  </div>
+
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs font-editorial font-bold text-stone-700 block">
+                      Driver Instructions / Dispatch Notes
+                    </label>
+                    <input
+                      type="text"
+                      value={newInstructions}
+                      onChange={(e) => setNewInstructions(e.target.value)}
+                      placeholder="e.g. Depart from Bay 1, stop at all designated campus stops"
+                      className="w-full px-3 py-2.5 rounded-xl bg-stone-50 border border-stone-200 text-xs font-medium outline-none focus:border-[#2B4A7E]"
+                    />
+                  </div>
+                </div>
+
+                {/* Error Banner in Form */}
+                {createError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
+                    <span>{createError}</span>
+                  </div>
+                )}
+
+                {/* Success Banner in Form */}
+                {createSuccessMsg && (
+                  <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-xs text-emerald-800 flex items-center gap-2 animate-fadeIn font-editorial font-bold">
+                    <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-600" />
+                    <span>{createSuccessMsg}</span>
+                  </div>
+                )}
+              </div>
+
               {/* Submit Buttons */}
               <div className="pt-4 border-t border-stone-100 flex items-center justify-between">
                 <span className="text-xs text-stone-500 font-mono">
@@ -1026,9 +1288,20 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2.5 rounded-xl bg-[#E8590C] hover:bg-[#D9480F] text-white font-editorial font-bold text-xs shadow-md transition-all active:scale-95"
+                    disabled={isSubmitting || !!createSuccessMsg}
+                    className="px-6 py-2.5 rounded-xl bg-[#E8590C] hover:bg-[#D9480F] disabled:opacity-50 text-white font-editorial font-bold text-xs shadow-md transition-all active:scale-95 flex items-center gap-2"
                   >
-                    Create Route
+                    {isSubmitting ? (
+                      <>
+                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Saving & Dispatching...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Create & Dispatch Route</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

@@ -8,19 +8,25 @@ export const RouteDetailsScreen: React.FC = () => {
     selectedRouteId,
     setSelectedRouteId,
     routes,
+    stops,
+    routeStops,
     trips,
     shuttles,
+    drivers,
     setCurrentScreen,
     navigateToLiveTracking
   } = useApp();
 
   const activeRoute = routes.find((r) => r.route_id === selectedRouteId) || routes[0];
-  const stopsMetadata = routeService.getRouteStopsWithMetadata(activeRoute.route_id);
+  const stopsMetadata = routeService.getRouteStopsWithMetadata(activeRoute.route_id, routeStops, stops, routes);
 
   // Active shuttles currently operating on this route
   const activeTripsOnRoute = trips.filter(
     (t) => t.route_id === activeRoute.route_id && t.running_status === 'RUNNING'
   );
+
+  const assignedShuttle = shuttles.find((s) => s.shuttle_id === activeRoute.assigned_shuttle_id);
+  const assignedDriver = drivers.find((d) => d.driver_id === activeRoute.assigned_driver_id);
 
   return (
     <div className="min-h-full bg-[#FBFBF9] pb-10 select-none">
@@ -102,6 +108,39 @@ export const RouteDetailsScreen: React.FC = () => {
                 </p>
               </div>
             </div>
+
+            {/* Assigned Shuttle & Driver Card */}
+            {(assignedShuttle || assignedDriver) && (
+              <div className="p-4 rounded-3xl bg-white border border-stone-200 shadow-subtle space-y-2">
+                <span className="text-[10px] font-mono text-stone-400 font-bold uppercase tracking-wider block">
+                  Designated Vehicle & Driver Assignment
+                </span>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-[10px] text-stone-400 font-mono block">SHUTTLE</span>
+                    <span className="font-editorial font-bold text-stone-800">
+                      {assignedShuttle ? assignedShuttle.shuttle_number : 'Unassigned'}
+                    </span>
+                    {assignedShuttle && (
+                      <span className="text-[10px] font-mono text-stone-400 block truncate">
+                        {assignedShuttle.registration_number}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-stone-400 font-mono block">DRIVER</span>
+                    <span className="font-editorial font-bold text-stone-800">
+                      {assignedDriver ? assignedDriver.name : 'Unassigned'}
+                    </span>
+                    {assignedDriver && (
+                      <span className="text-[10px] font-mono text-stone-400 block truncate">
+                        Lic: {assignedDriver.license_no}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Active Shuttles on this Corridor */}
             <div className="p-5 rounded-3xl bg-white border border-stone-200 shadow-subtle space-y-3">
