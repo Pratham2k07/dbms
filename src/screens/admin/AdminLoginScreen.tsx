@@ -26,9 +26,9 @@ export const AdminLoginScreen: React.FC = () => {
 
     setIsLoading(true);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       setIsLoading(false);
-      const success = loginUser(email, password, 'admin');
+      const success = await loginUser(email, password, 'admin');
       if (!success) {
         setErrorMessage('Authentication failed. Check your admin credentials.');
       }

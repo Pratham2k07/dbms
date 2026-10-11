@@ -45,9 +45,9 @@ export const LoginScreen: React.FC = () => {
     setIsLoading(true);
 
     // Realistic brief authorization handshake
-    setTimeout(() => {
+    setTimeout(async () => {
       setIsLoading(false);
-      loginUser(email, password, selectedRole);
+      await loginUser(email, password, selectedRole);
     }, 500);
   };
 

@@ -23,6 +23,9 @@ import {
 import { shuttleService } from '../services/shuttleService';
 import { tripService } from '../services/tripService';
 import { databaseService } from '../services/databaseService';
+import * as authService from '../services/authService';
+import * as apiService from '../services/apiService';
+import { socketService } from '../services/socket';
 
 interface AppContextType {
   // Navigation & Screen states
@@ -36,7 +39,7 @@ interface AppContextType {
   // Authentication State
   isAuthenticated: boolean;
   currentUserRole: 'student' | 'driver' | 'admin';
-  loginUser: (email: string, password?: string, forceRole?: 'student' | 'driver' | 'admin') => boolean;
+  loginUser: (email: string, password?: string, forceRole?: 'student' | 'driver' | 'admin') => Promise<boolean>;
   logoutUser: () => void;
 
   // Selected Entities
@@ -264,6 +267,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [triggerNotification]);
 
+  // ================= WebSocket Live Tracking Listener =================
+  useEffect(() => {
+    socketService.onLocationUpdated((data) => {
+      // Find the shuttle and update its coordinates based on real backend broadcast!
+      setShuttleLocations((prev) => {
+        const existingIdx = prev.findIndex(loc => loc.shuttle_id === `SH-00${data.id}`); // Mapping numeric to ID temporarily
+        if (existingIdx !== -1) {
+          const updated = [...prev];
+          updated[existingIdx] = { ...updated[existingIdx], current_lat: data.lat, current_lng: data.lng, timestamp: new Date().toISOString() };
+          return updated;
+        }
+        return prev;
+      });
+    });
+  }, []);
+
   // Quick navigation helpers
   const navigateToStopDetails = useCallback((stopId: string) => {
     setSelectedStopId(stopId);
@@ -298,18 +317,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const handleStartTrip = useCallback(
     (tripId: string) => {
       databaseService.updateTripRunningStatus(tripId, 'RUNNING');
+      
+      // Async hit backend
+      const trip = trips.find((t) => t.trip_id === tripId);
+      if (trip) {
+        apiService.startShift(trip.shuttle_id).catch(err => console.warn('API error', err));
+      }
+
       triggerNotification(
         'JKLU SHUTTLE',
         `Trip ${tripId} has commenced. Live GPS telemetry is active.`,
         'info'
       );
     },
-    [triggerNotification]
+    [triggerNotification, trips]
   );
 
   const handleEndTrip = useCallback(
     (tripId: string) => {
       databaseService.updateTripRunningStatus(tripId, 'COMPLETED');
+      
+      // Async hit backend
+      apiService.endShift().catch(err => console.warn('API error', err));
+
       triggerNotification(
         'JKLU SHUTTLE',
         `Trip ${tripId} completed at JK Lakshmipat University.`,
@@ -325,6 +355,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!trip) return;
       const nextStatus: 'AVAILABLE' | 'FULL' = trip.capacity_status === 'AVAILABLE' ? 'FULL' : 'AVAILABLE';
       databaseService.updateTripCapacity(tripId, nextStatus);
+      
+      // Async hit backend
+      apiService.updateTripCapacity(tripId, nextStatus).catch(err => console.warn('API error', err));
+
       triggerNotification(
         'CAPACITY UPDATED',
         `Shuttle capacity updated: Seats now ${nextStatus}.`,
@@ -342,7 +376,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     databaseService.markAllNotificationsAsRead(driverId);
   }, []);
 
-  // ================= ADMIN ROUTE CRUD =================
   const createRoute = useCallback((routeData: {
     route_id: string;
     route_name: string;
@@ -357,6 +390,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }) => {
     const res = databaseService.createRouteWithAssignment(routeData);
     if (res.success && res.route) {
+      // Async hit backend
+      apiService.createRoute(routeData).catch(err => console.warn('API error', err));
+
       triggerNotification(
         'ROUTE CREATED & SAVED',
         `Route ${res.route.route_code} (${res.route.route_name}) created with ${res.route.total_stops} stops.`,
@@ -376,6 +412,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ) => {
     const res = databaseService.updateRoute(updated, stop_ids, newAssignedDriverId, newAssignedShuttleId);
     if (res.success) {
+      // Async hit backend
+      apiService.updateRoute(updated.route_id, { updated, stop_ids }).catch(err => console.warn('API error', err));
+
       triggerNotification('ROUTE UPDATED', `Route ${updated.route_code} updated successfully.`, 'info');
     }
     return res;
@@ -392,6 +431,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteRoute = useCallback((routeId: string) => {
     const res = databaseService.deleteRoute(routeId);
     if (res.success) {
+      // Async hit backend
+      apiService.deleteRoute(routeId).catch(err => console.warn('API error', err));
+
       triggerNotification('ROUTE DELETED', `Route ${routeId} has been removed.`, 'info');
     }
     return res;
@@ -613,8 +655,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearInterval(interval);
   }, [isSimulating, simSpeed, trips, routeCoordinates]);
 
-  const loginUser = (email: string, _password?: string, forceRole?: 'student' | 'driver' | 'admin'): boolean => {
+  const loginUser = async (email: string, password?: string, forceRole?: 'student' | 'driver' | 'admin'): Promise<boolean> => {
     let role: 'student' | 'driver' | 'admin' = 'student';
+    
+    // In the future, the backend API will return the exact role.
+    // For now, we simulate calling the backend, but use our local role-parsing logic
+    try {
+      // Call real backend endpoint (will hit mock data until SQL is added)
+      await authService.login(email, password || 'password');
+      
+      // Initialize WebSockets upon successful authentication
+      socketService.connect();
+    } catch (e) {
+      console.warn("Backend not running or login failed, falling back to local auth simulation");
+    }
+
     if (forceRole) {
       role = forceRole;
     } else if (email.toLowerCase().includes('admin')) {
