@@ -275,7 +275,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const existingIdx = prev.findIndex(loc => loc.shuttle_id === `SH-00${data.id}`); // Mapping numeric to ID temporarily
         if (existingIdx !== -1) {
           const updated = [...prev];
-          updated[existingIdx] = { ...updated[existingIdx], current_lat: data.lat, current_lng: data.lng, timestamp: new Date().toISOString() };
+          updated[existingIdx] = { ...updated[existingIdx], latitude: data.lat, longitude: data.lng, timestamp: new Date().toISOString() };
           return updated;
         }
         return prev;
