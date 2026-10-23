@@ -371,142 +371,152 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
       </div>
 
       {/* Routes Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {routes.map((route) => {
-          const routeStopsList = getRouteStopsList(route.route_id);
-          const activeTripsOnRoute = trips.filter(
-            (t) => t.route_id === route.route_id && t.running_status === 'RUNNING'
-          );
+      {routes.length === 0 ? (
+        <div className="bg-white rounded-3xl p-12 text-center border border-stone-200 shadow-sm space-y-4">
+          <RouteIcon className="w-12 h-12 text-stone-300 mx-auto" />
+          <h3 className="font-editorial font-bold text-lg text-stone-800">No Routes Configured</h3>
+          <p className="text-xs text-stone-500 max-w-sm mx-auto">
+            No transit routes have been loaded yet. Click "+ Create New Route" above to build a circuit.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {routes.map((route) => {
+            const routeStopsList = getRouteStopsList(route.route_id);
+            const activeTripsOnRoute = trips.filter(
+              (t) => t.route_id === route.route_id && t.running_status === 'RUNNING'
+            );
 
-          return (
-            <div
-              key={route.route_id}
-              className="bg-white rounded-3xl p-6 border border-stone-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group space-y-4"
-            >
-              <div className="space-y-3">
-                {/* Badge & Color indicator */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="px-2.5 py-1 rounded-lg text-xs font-mono font-black text-white shadow-sm"
-                      style={{ backgroundColor: route.color || '#2B4A7E' }}
-                    >
-                      {route.route_code}
-                    </span>
-                    <span className="text-[11px] font-mono text-stone-400 font-bold">
-                      {route.route_id}
-                    </span>
-                  </div>
-
-                  {activeTripsOnRoute.length > 0 ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      {activeTripsOnRoute.length} Live
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-mono text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full">
-                      Standby
-                    </span>
-                  )}
-                </div>
-
-                {/* Route Name & Description */}
-                <div>
-                  <h3 className="font-editorial font-bold text-base text-stone-900 group-hover:text-[#2B4A7E] transition-colors">
-                    {route.route_name}
-                  </h3>
-                  <p className="text-xs text-stone-500 line-clamp-2 mt-1">
-                    {route.description}
-                  </p>
-                </div>
-
-                {/* Assigned Shuttle & Driver Badges */}
-                {(() => {
-                  const assignedSht = shuttles.find((s) => s.shuttle_id === route.assigned_shuttle_id);
-                  const assignedDrv = drivers.find((d) => d.driver_id === route.assigned_driver_id);
-                  return (
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-stone-100 text-[11px] font-mono">
-                      <div className="bg-stone-50 p-2.5 rounded-xl border border-stone-100">
-                        <span className="text-stone-400 block text-[9px] uppercase font-bold">Assigned Shuttle</span>
-                        <span className="font-bold text-stone-800 truncate block mt-0.5">
-                          {assignedSht ? `${assignedSht.shuttle_number}` : 'Unassigned'}
-                        </span>
-                        {assignedSht && (
-                          <span className="text-[10px] text-stone-400 truncate block">
-                            {assignedSht.registration_number}
-                          </span>
-                        )}
-                      </div>
-                      <div className="bg-stone-50 p-2.5 rounded-xl border border-stone-100">
-                        <span className="text-stone-400 block text-[9px] uppercase font-bold">Assigned Driver</span>
-                        <span className="font-bold text-stone-800 truncate block mt-0.5">
-                          {assignedDrv ? assignedDrv.name : 'Unassigned'}
-                        </span>
-                        {assignedDrv && (
-                          <span className="text-[10px] text-stone-400 truncate block">
-                            {assignedDrv.driver_id}
-                          </span>
-                        )}
-                      </div>
+            return (
+              <div
+                key={route.route_id}
+                className="bg-white rounded-3xl p-6 border border-stone-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group space-y-4"
+              >
+                <div className="space-y-3">
+                  {/* Badge & Color indicator */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="px-2.5 py-1 rounded-lg text-xs font-mono font-black text-white shadow-sm"
+                        style={{ backgroundColor: route.color || '#2B4A7E' }}
+                      >
+                        {route.route_code}
+                      </span>
+                      <span className="text-[11px] font-mono text-stone-400 font-bold">
+                        {route.route_id}
+                      </span>
                     </div>
-                  );
-                })()}
 
-                {/* Stops Sequence Preview */}
-                <div className="space-y-1.5 pt-2 border-t border-stone-100">
-                  <div className="flex items-center justify-between text-[11px] font-mono text-stone-400 uppercase">
-                    <span>Circuit Sequence</span>
-                    <span>{routeStopsList.length} Stops</span>
+                    {activeTripsOnRoute.length > 0 ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        {activeTripsOnRoute.length} Live
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full">
+                        Standby
+                      </span>
+                    )}
                   </div>
 
-                  <div className="space-y-1 bg-stone-50/70 p-2.5 rounded-xl border border-stone-100 max-h-36 overflow-y-auto">
-                    {routeStopsList.map((item) => (
-                      <div key={item.stop_id + item.sequence} className="flex items-center gap-2 text-xs">
-                        <span className="font-mono text-[10px] text-stone-400 font-bold w-4">
-                          {String(item.sequence).padStart(2, '0')}
-                        </span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-stone-300 shrink-0" />
-                        <span className="font-medium text-stone-700 truncate">
-                          {item.stop_name}
-                        </span>
+                  {/* Route Name & Description */}
+                  <div>
+                    <h3 className="font-editorial font-bold text-base text-stone-900 group-hover:text-[#2B4A7E] transition-colors">
+                      {route.route_name}
+                    </h3>
+                    <p className="text-xs text-stone-500 line-clamp-2 mt-1">
+                      {route.description}
+                    </p>
+                  </div>
+
+                  {/* Assigned Shuttle & Driver Badges */}
+                  {(() => {
+                    const assignedSht = shuttles.find((s) => s.shuttle_id === route.assigned_shuttle_id);
+                    const assignedDrv = drivers.find((d) => d.driver_id === route.assigned_driver_id);
+                    return (
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-stone-100 text-[11px] font-mono">
+                        <div className="bg-stone-50 p-2.5 rounded-xl border border-stone-100">
+                          <span className="text-stone-400 block text-[9px] uppercase font-bold">Assigned Shuttle</span>
+                          <span className="font-bold text-stone-800 truncate block mt-0.5">
+                            {assignedSht ? `${assignedSht.shuttle_number}` : 'Unassigned'}
+                          </span>
+                          {assignedSht && (
+                            <span className="text-[10px] text-stone-400 truncate block">
+                              {assignedSht.registration_number}
+                            </span>
+                          )}
+                        </div>
+                        <div className="bg-stone-50 p-2.5 rounded-xl border border-stone-100">
+                          <span className="text-stone-400 block text-[9px] uppercase font-bold">Assigned Driver</span>
+                          <span className="font-bold text-stone-800 truncate block mt-0.5">
+                            {assignedDrv ? assignedDrv.name : 'Unassigned'}
+                          </span>
+                          {assignedDrv && (
+                            <span className="text-[10px] text-stone-400 truncate block">
+                              {assignedDrv.driver_id}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    ))}
+                    );
+                  })()}
+
+                  {/* Stops Sequence Preview */}
+                  <div className="space-y-1.5 pt-2 border-t border-stone-100">
+                    <div className="flex items-center justify-between text-[11px] font-mono text-stone-400 uppercase">
+                      <span>Circuit Sequence</span>
+                      <span>{routeStopsList.length} Stops</span>
+                    </div>
+
+                    <div className="space-y-1 bg-stone-50/70 p-2.5 rounded-xl border border-stone-100 max-h-36 overflow-y-auto">
+                      {routeStopsList.map((item) => (
+                        <div key={item.stop_id + item.sequence} className="flex items-center gap-2 text-xs">
+                          <span className="font-mono text-[10px] text-stone-400 font-bold w-4">
+                            {String(item.sequence).padStart(2, '0')}
+                          </span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-stone-300 shrink-0" />
+                          <span className="font-medium text-stone-700 truncate">
+                            {item.stop_name}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Action Buttons */}
-              <div className="pt-3 border-t border-stone-100 flex items-center justify-between gap-2">
-                <button
-                  onClick={() => handleOpenDetails(route)}
-                  className="flex-1 py-2 px-3 rounded-xl bg-blue-50 text-[#2B4A7E] hover:bg-[#2B4A7E] hover:text-white font-editorial font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>Configure & Assign</span>
-                </button>
-
-                {route.status !== 'CANCELLED' && (
+                {/* Action Buttons */}
+                <div className="pt-3 border-t border-stone-100 flex items-center justify-between gap-2">
                   <button
-                    onClick={() => handleCancelRoute(route.route_id)}
-                    title="Cancel Route"
-                    className="p-2 rounded-xl text-stone-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                    onClick={() => handleOpenDetails(route)}
+                    className="flex-1 py-2 px-3 rounded-xl bg-blue-50 text-[#2B4A7E] hover:bg-[#2B4A7E] hover:text-white font-editorial font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
                   >
-                    <AlertTriangle className="w-4 h-4" />
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Configure & Assign</span>
                   </button>
-                )}
 
-                <button
-                  onClick={() => handleDeleteRoute(route.route_id)}
-                  title="Delete Route"
-                  className="p-2 rounded-xl text-stone-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                  {route.status !== 'CANCELLED' && (
+                    <button
+                      onClick={() => handleCancelRoute(route.route_id)}
+                      title="Cancel Route"
+                      className="p-2 rounded-xl text-stone-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                    >
+                      <AlertTriangle className="w-4 h-4" />
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => handleDeleteRoute(route.route_id)}
+                    title="Delete Route"
+                    className="p-2 rounded-xl text-stone-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* ================= ROUTE DETAILS / EDIT MODAL ================= */}
       {isViewingDetails && selectedRoute && (

@@ -8,7 +8,8 @@ import {
   createStop,
   updateStop,
   deleteStop,
-  getAllStops
+  getAllStops,
+  getAllRouteStops
 } from '../controllers/stops.controller';
 import { authenticateToken, requireRole } from '../middlewares/auth.middleware';
 
@@ -18,6 +19,7 @@ const router = Router();
 router.get('/', getRoutes);
 router.get('/stops/all', getAllStops);
 router.get('/all-stops', getAllStops);
+router.get('/route-stops/all', getAllRouteStops);
 router.get('/:routeId/stops', getStopsByRouteId);
 
 

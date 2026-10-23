@@ -34,6 +34,9 @@ export const HomeScreen: React.FC = () => {
     return running ? running.shuttle_id : (shuttles[0]?.shuttle_id || 'SHT-01');
   });
 
+  // Toggle to view all 40 stops across Jaipur vs only the active corridor
+  const [showAllStopsOnMap, setShowAllStopsOnMap] = useState<boolean>(true);
+
   const handleSelectStop = (stopId: string) => {
     if (inlineSelectedStopId === stopId) {
       setInlineSelectedStopId(null);
@@ -48,7 +51,7 @@ export const HomeScreen: React.FC = () => {
     return stopService.getApproachingCounts(trips, tripStops);
   }, [trips, tripStops]);
 
-  // 2. Sort stops dynamically by geographic distance from student location
+  // 2. Sort stops dynamically by geographic distance from student location (all 40 stops)
   const nearbyStops = useMemo(() => {
     return locationService.calculateNearbyStops(
       studentLocation,
@@ -95,17 +98,16 @@ export const HomeScreen: React.FC = () => {
     ];
   }, [shuttleLocations, selectedShuttleId, activeTripForSelectedShuttle, shuttles]);
 
-  // 5. Filter map stops to this 1 shuttle's active route corridor (+ selected stop),
-  // preventing 40 cluttered pins across Jaipur while keeping clean focus on 1 shuttle
+  // 5. Stops to render on map: default to all 40 stops across Jaipur and JKLU
   const stopsForMap = useMemo(() => {
-    if (!activeTripForSelectedShuttle) return stops;
+    if (showAllStopsOnMap || !activeTripForSelectedShuttle) return stops;
     const currentRouteStops = routeStops.filter(
       (rs) => rs.route_id === activeTripForSelectedShuttle.route_id
     );
     const stopIdSet = new Set(currentRouteStops.map((rs) => rs.stop_id));
     if (selectedStopId) stopIdSet.add(selectedStopId);
     return stops.filter((s) => stopIdSet.has(s.stop_id));
-  }, [stops, routeStops, activeTripForSelectedShuttle, selectedStopId]);
+  }, [showAllStopsOnMap, stops, routeStops, activeTripForSelectedShuttle, selectedStopId]);
 
   // 6. Retrieve upcoming shuttles for any stop
   const getUpcomingShuttlesForStop = useCallback((stopId: string) => {
@@ -218,9 +220,31 @@ export const HomeScreen: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200/70 font-semibold flex items-center gap-1.5 self-end sm:self-auto">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span>1 ACTIVE SHUTTLE DISPLAYED</span>
+                <div className="flex items-center gap-2 flex-wrap self-end sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setShowAllStopsOnMap((prev) => !prev)}
+                    className={`text-[11px] font-mono px-2.5 py-1 rounded-full border font-semibold flex items-center gap-1.5 transition-all ${
+                      showAllStopsOnMap
+                        ? 'bg-blue-50 text-[#1E3A68] border-blue-200 shadow-xs'
+                        : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
+                    }`}
+                  >
+                    <MapPin className="w-3 h-3 text-[#E8590C]" />
+                    <span>{showAllStopsOnMap ? `ALL ${stops.length} STOPS PINNED` : 'ACTIVE CORRIDOR STOPS'}</span>
+                  </button>
+
+                  {activeShuttlesForMap.length > 0 ? (
+                    <div className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200/70 font-semibold flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span>{activeShuttlesForMap.length} ACTIVE SHUTTLE IN TRANSIT</span>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] font-mono text-stone-500 bg-stone-100 px-2.5 py-1 rounded-full border border-stone-200 font-semibold flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-stone-400"></span>
+                      <span>0 ACTIVE SHUTTLES (FLEET IDLE)</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -244,9 +268,17 @@ export const HomeScreen: React.FC = () => {
 
 
               <div className="flex items-center justify-between text-[11px] font-mono text-stone-500 px-1 pt-0.5">
-                <span>● Tap stop pin or shuttle icon to view live telemetry</span>
+                <span>● Tap stop pin to inspect vicinity & transit connectivity</span>
                 <span className="text-stone-700 font-medium">
-                  Showing: <strong className="text-[#E8590C]">{shuttles.find((s) => s.shuttle_id === selectedShuttleId)?.shuttle_number || 'SHUTTLE 01'}</strong> ({activeRouteForSelectedShuttle?.route_code || 'All Routes'})
+                  {activeShuttlesForMap.length > 0 ? (
+                    <>
+                      Tracking: <strong className="text-[#E8590C]">{shuttles.find((s) => s.shuttle_id === selectedShuttleId)?.shuttle_number || 'SHUTTLE'}</strong> ({activeRouteForSelectedShuttle?.route_code || 'Active Corridor'})
+                    </>
+                  ) : (
+                    <span className="text-stone-500 font-medium">
+                      All {stops.length} Stops Mapped • Fleet in Depot (0 Active Trips)
+                    </span>
+                  )}
                 </span>
               </div>
             </div>

@@ -2,6 +2,7 @@ import api from './api';
 
 // Routes
 export const getRoutes = () => api.get('/routes').then(res => res.data);
+export const getAllRouteStops = () => api.get('/routes/route-stops/all').then(res => res.data);
 export const createRoute = (data: any) => api.post('/routes', data).then(res => res.data);
 export const updateRoute = (id: string, data: any) => api.put(`/routes/${id}`, data).then(res => res.data);
 export const deleteRoute = (id: string) => api.delete(`/routes/${id}`).then(res => res.data);

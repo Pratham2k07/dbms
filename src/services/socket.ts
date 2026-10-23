@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = 'http://localhost:5000';
+const SOCKET_URL = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5000';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -11,7 +11,7 @@ class SocketService {
         reconnectionAttempts: 5,
         reconnectionDelay: 1000
       });
-      console.log('Connecting to socket server...');
+      console.log('Connecting to socket server at', SOCKET_URL);
     }
   }
 

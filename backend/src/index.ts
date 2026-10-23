@@ -54,13 +54,31 @@ io.on('connection', (socket) => {
   });
 });
 
+import path from 'path';
+import fs from 'fs';
+
 // Routes
 app.use('/api', apiRoutes);
 
-// Base route
-app.get('/', (req: Request, res: Response) => {
-  res.send('Backend Server is running with WebSockets!');
-});
+// Serve frontend static build files (All-in-one unified port)
+const frontendDistPath = path.resolve(__dirname, '../../dist');
+
+if (fs.existsSync(frontendDistPath)) {
+  console.log(`[Unified Port] Serving frontend static assets from: ${frontendDistPath}`);
+  app.use(express.static(frontendDistPath));
+
+  // SPA fallback for React client-side routing
+  app.use((req: Request, res: Response, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/socket.io')) {
+      return res.sendFile(path.join(frontendDistPath, 'index.html'));
+    }
+    next();
+  });
+} else {
+  app.get('/', (req: Request, res: Response) => {
+    res.send('JKLU Shuttle Transit Backend is running. Run `npm run build` to package frontend.');
+  });
+}
 
 // Start server
 httpServer.listen(PORT, () => {

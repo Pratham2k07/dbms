@@ -357,8 +357,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       apiService.getShuttles().catch(() => null),
       apiService.getTrips().catch(() => null),
       apiService.getDrivers().catch(() => null),
-      apiService.getAllStops().catch(() => null)
-    ]).then(([liveRoutes, liveShuttles, liveTrips, liveDrivers, liveStops]) => {
+      apiService.getAllStops().catch(() => null),
+      apiService.getAllRouteStops().catch(() => null)
+    ]).then(([liveRoutes, liveShuttles, liveTrips, liveDrivers, liveStops, liveRouteStops]) => {
       if (!isMounted) return;
       if (liveRoutes && Array.isArray(liveRoutes) && liveRoutes.length > 0) {
         setRoutes(liveRoutes);
@@ -376,6 +377,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (liveStops && Array.isArray(liveStops) && liveStops.length > 0) {
         setStops(liveStops);
       }
+      if (liveRouteStops && Array.isArray(liveRouteStops) && liveRouteStops.length > 0) {
+        setRouteStops(liveRouteStops);
+      }
       if (liveShuttles && Array.isArray(liveShuttles) && liveShuttles.length > 0) {
         setShuttles(liveShuttles);
       }
@@ -389,6 +393,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       databaseService.syncFromLiveDatabase({
         routes: liveRoutes && Array.isArray(liveRoutes) ? liveRoutes : undefined,
         stops: liveStops && Array.isArray(liveStops) ? liveStops : undefined,
+        routeStops: liveRouteStops && Array.isArray(liveRouteStops) ? liveRouteStops : undefined,
         shuttles: liveShuttles && Array.isArray(liveShuttles) ? liveShuttles : undefined,
         trips: liveTrips && Array.isArray(liveTrips) ? liveTrips : undefined,
         drivers: liveDrivers && Array.isArray(liveDrivers) ? liveDrivers : undefined

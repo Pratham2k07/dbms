@@ -11,6 +11,8 @@ export const fetchAllRoutes = async () => {
       r.description, 
       r.color, 
       r.status,
+      r.assigned_shuttle_id,
+      r.assigned_driver_id,
       r.route_coordinates,
       r.total_distance_km
     FROM routes r
@@ -22,6 +24,29 @@ export const fetchAllRoutes = async () => {
     return result.rows;
   } catch (error) {
     console.error('Database query error in fetchAllRoutes:', error);
+    return [];
+  }
+};
+
+export const fetchAllRouteStops = async () => {
+  const query = `
+    SELECT 
+      route_id, 
+      stop_id, 
+      sequence_number, 
+      distance_from_prev_km, 
+      cumulative_distance_km, 
+      scheduled_arrival, 
+      scheduled_departure
+    FROM route_stops
+    ORDER BY route_id, sequence_number ASC;
+  `;
+
+  try {
+    const result = await pool.query(query);
+    return result.rows;
+  } catch (error) {
+    console.error('Database query error in fetchAllRouteStops:', error);
     return [];
   }
 };
@@ -56,7 +81,7 @@ export const fetchStopsForRoute = async (routeId: string) => {
 };
 
 export const createRoute = async (routeData: any) => {
-  const { route_id, route_code, route_name, total_stops, description, color, status, stop_ids } = routeData;
+  const { route_id, route_code, route_name, total_stops, description, color, status, stop_ids, assigned_shuttle_id, assigned_driver_id } = routeData;
   const newRouteId = route_id || `ROUTE-${Date.now().toString().slice(-4)}`;
 
   const client = await pool.connect();
@@ -64,15 +89,17 @@ export const createRoute = async (routeData: any) => {
     await client.query('BEGIN');
 
     const routeQuery = `
-      INSERT INTO routes (route_id, route_code, route_name, total_stops, description, color, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO routes (route_id, route_code, route_name, total_stops, description, color, status, assigned_shuttle_id, assigned_driver_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       ON CONFLICT (route_id) DO UPDATE SET
         route_code = EXCLUDED.route_code,
         route_name = EXCLUDED.route_name,
         total_stops = EXCLUDED.total_stops,
         description = EXCLUDED.description,
         color = EXCLUDED.color,
-        status = EXCLUDED.status
+        status = EXCLUDED.status,
+        assigned_shuttle_id = COALESCE(EXCLUDED.assigned_shuttle_id, routes.assigned_shuttle_id),
+        assigned_driver_id = COALESCE(EXCLUDED.assigned_driver_id, routes.assigned_driver_id)
       RETURNING *;
     `;
     const routeRes = await client.query(routeQuery, [
@@ -82,7 +109,9 @@ export const createRoute = async (routeData: any) => {
       total_stops || (stop_ids ? stop_ids.length : 0),
       description || '',
       color || '#E8590C',
-      status || 'ACTIVE'
+      status || 'ACTIVE',
+      assigned_shuttle_id || null,
+      assigned_driver_id || null
     ]);
 
     const orderedStopsForGeo: { stop_id: string; latitude: number; longitude: number }[] = [];
@@ -196,7 +225,7 @@ export const createRoute = async (routeData: any) => {
 };
 
 export const updateRoute = async (routeId: string, routeData: any) => {
-  const { route_name, description, color, status, stop_ids } = routeData;
+  const { route_name, description, color, status, stop_ids, assigned_shuttle_id, assigned_driver_id } = routeData;
 
   const client = await pool.connect();
   try {
@@ -208,11 +237,13 @@ export const updateRoute = async (routeId: string, routeData: any) => {
         route_name = COALESCE($1, route_name),
         description = COALESCE($2, description),
         color = COALESCE($3, color),
-        status = COALESCE($4, status)
-      WHERE route_id = $5
+        status = COALESCE($4, status),
+        assigned_shuttle_id = COALESCE($5, assigned_shuttle_id),
+        assigned_driver_id = COALESCE($6, assigned_driver_id)
+      WHERE route_id = $7
       RETURNING *;
     `;
-    const res = await client.query(updateQuery, [route_name, description, color, status, routeId]);
+    const res = await client.query(updateQuery, [route_name, description, color, status, assigned_shuttle_id, assigned_driver_id, routeId]);
 
     if (Array.isArray(stop_ids)) {
       await client.query(`DELETE FROM route_stops WHERE route_id = $1;`, [routeId]);

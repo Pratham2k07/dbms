@@ -6,17 +6,6 @@ export async function populateRouteGeometries() {
 
   const client = await pool.connect();
   try {
-    // Ensure ROUTE-06 has stops
-    await client.query(`
-      INSERT INTO route_stops (route_id, stop_id, sequence_number)
-      VALUES 
-        ('ROUTE-06', 'STOP-JKLU-START', 1),
-        ('ROUTE-06', 'STOP-MANSAROVAR', 2),
-        ('ROUTE-06', 'STOP-DCM', 3),
-        ('ROUTE-06', 'STOP-JKLU', 4)
-      ON CONFLICT (route_id, stop_id) DO NOTHING;
-    `);
-
     const routesRes = await client.query('SELECT route_id, route_code, route_name FROM routes ORDER BY route_id');
     const routes = routesRes.rows;
 

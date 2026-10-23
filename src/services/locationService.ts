@@ -178,9 +178,7 @@ export const locationService = {
     stops: Stop[],
     approachingCounts: Record<string, number>
   ): NearbyStopInfo[] {
-    const list: NearbyStopInfo[] = stops
-      .filter((stop) => !stop.is_destination)
-      .map((stop) => {
+    const list: NearbyStopInfo[] = stops.map((stop) => {
         const dist = calculateHaversineDistance(
           studentLocation.latitude,
           studentLocation.longitude,

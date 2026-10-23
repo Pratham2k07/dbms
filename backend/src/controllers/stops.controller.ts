@@ -87,3 +87,13 @@ export const getAllStops = async (req: Request, res: Response) => {
   }
 };
 
+export const getAllRouteStops = async (req: Request, res: Response) => {
+  try {
+    const routeStops = await stopsQueries.fetchAllRouteStops();
+    res.status(200).json(routeStops);
+  } catch (error) {
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+
