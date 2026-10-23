@@ -12,7 +12,8 @@ export const getRoutes = async (req: Request, res: Response) => {
 
 export const getStopsByRouteId = async (req: Request, res: Response) => {
   try {
-    const stops = await stopsQueries.fetchStopsForRoute(req.params.routeId);
+    const routeId = req.params.routeId as string;
+    const stops = await stopsQueries.fetchStopsForRoute(routeId);
     res.status(200).json(stops);
   } catch (error) {
     res.status(500).json({ message: 'Internal Server Error' });
@@ -30,7 +31,8 @@ export const createRoute = async (req: Request, res: Response) => {
 
 export const updateRoute = async (req: Request, res: Response) => {
   try {
-    const result = await stopsQueries.updateRoute(req.params.id, req.body);
+    const id = req.params.id as string;
+    const result = await stopsQueries.updateRoute(id, req.body);
     res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ message: 'Internal Server Error' });
@@ -39,7 +41,8 @@ export const updateRoute = async (req: Request, res: Response) => {
 
 export const deleteRoute = async (req: Request, res: Response) => {
   try {
-    const result = await stopsQueries.deleteRoute(req.params.id);
+    const id = req.params.id as string;
+    const result = await stopsQueries.deleteRoute(id);
     res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ message: 'Internal Server Error' });
@@ -57,7 +60,8 @@ export const createStop = async (req: Request, res: Response) => {
 
 export const updateStop = async (req: Request, res: Response) => {
   try {
-    const result = await stopsQueries.updateStop(req.params.id, req.body);
+    const id = req.params.id as string;
+    const result = await stopsQueries.updateStop(id, req.body);
     res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ message: 'Internal Server Error' });
@@ -66,7 +70,8 @@ export const updateStop = async (req: Request, res: Response) => {
 
 export const deleteStop = async (req: Request, res: Response) => {
   try {
-    const result = await stopsQueries.deleteStop(req.params.id);
+    const id = req.params.id as string;
+    const result = await stopsQueries.deleteStop(id);
     res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ message: 'Internal Server Error' });

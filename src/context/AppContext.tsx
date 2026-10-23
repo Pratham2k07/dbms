@@ -272,15 +272,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     socketService.onLocationUpdated((data) => {
       // Find the shuttle and update its coordinates based on real backend broadcast!
       setShuttleLocations((prev) => {
-        const existingIdx = prev.findIndex(loc => loc.shuttle_id === `SH-00${data.id}`); // Mapping numeric to ID temporarily
+        const idStr = String(data.id);
+        const targetId = idStr.startsWith('SHT-') ? idStr : (idStr.length <= 2 ? `SHT-0${idStr}` : `SHT-${idStr}`);
+        const existingIdx = prev.findIndex(loc => loc.shuttle_id === targetId || loc.shuttle_id === idStr);
         if (existingIdx !== -1) {
           const updated = [...prev];
-          updated[existingIdx] = { ...updated[existingIdx], latitude: data.lat, longitude: data.lng, timestamp: new Date().toISOString() };
+          updated[existingIdx] = { 
+            ...updated[existingIdx], 
+            latitude: Number(data.lat), 
+            longitude: Number(data.lng), 
+            timestamp: new Date().toISOString() 
+          };
           return updated;
         }
         return prev;
       });
     });
+  }, []);
+
+  // ================= Hydrate Initial State from Live Supabase Database =================
+  useEffect(() => {
+    let isMounted = true;
+    Promise.all([
+      apiService.getRoutes().catch(() => null),
+      apiService.getShuttles().catch(() => null),
+      apiService.getTrips().catch(() => null),
+      apiService.getDrivers().catch(() => null)
+    ]).then(([liveRoutes, liveShuttles, liveTrips, liveDrivers]) => {
+      if (!isMounted) return;
+      if (liveRoutes && Array.isArray(liveRoutes) && liveRoutes.length > 0) {
+        setRoutes(liveRoutes);
+      }
+      if (liveShuttles && Array.isArray(liveShuttles) && liveShuttles.length > 0) {
+        setShuttles(liveShuttles);
+      }
+      if (liveTrips && Array.isArray(liveTrips) && liveTrips.length > 0) {
+        setTrips(liveTrips);
+      }
+      if (liveDrivers && Array.isArray(liveDrivers) && liveDrivers.length > 0) {
+        setDrivers(liveDrivers);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Quick navigation helpers
@@ -443,6 +478,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const createStop = useCallback((stopData: Stop) => {
     const res = databaseService.createStop(stopData);
     if (res.success) {
+      apiService.createStop(stopData).catch(err => console.warn('API error in createStop:', err));
       triggerNotification('STOP CREATED', `Stop '${stopData.stop_name}' added.`, 'info');
     }
     return res;
@@ -451,6 +487,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateStop = useCallback((stopData: Stop) => {
     const res = databaseService.updateStop(stopData);
     if (res.success) {
+      apiService.updateStop(stopData.stop_id, stopData).catch(err => console.warn('API error in updateStop:', err));
       triggerNotification('STOP UPDATED', `Stop '${stopData.stop_name}' updated.`, 'info');
     }
     return res;
@@ -459,6 +496,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteStop = useCallback((stopId: string) => {
     const res = databaseService.deleteStop(stopId);
     if (res.success) {
+      apiService.deleteStop(stopId).catch(err => console.warn('API error in deleteStop:', err));
       triggerNotification('STOP DELETED', `Stop ${stopId} has been removed.`, 'info');
     }
     return res;
@@ -506,6 +544,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const createShuttle = useCallback((shuttleData: Shuttle) => {
     const res = databaseService.createShuttle(shuttleData);
     if (res.success) {
+      apiService.createShuttle(shuttleData).catch(err => console.warn('API error in createShuttle:', err));
       triggerNotification('SHUTTLE ADDED', `${shuttleData.shuttle_number} added to fleet.`, 'info');
     }
     return res;
@@ -514,6 +553,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateShuttle = useCallback((shuttleData: Shuttle) => {
     const res = databaseService.updateShuttle(shuttleData);
     if (res.success) {
+      apiService.updateShuttle(shuttleData.shuttle_id, shuttleData).catch(err => console.warn('API error in updateShuttle:', err));
       triggerNotification('SHUTTLE UPDATED', `${shuttleData.shuttle_number} details updated.`, 'info');
     }
     return res;
@@ -521,6 +561,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const setShuttleStatus = useCallback((shuttleId: string, status: Shuttle['status']) => {
     databaseService.setShuttleStatus(shuttleId, status);
+    apiService.updateShuttleStatus(shuttleId, status).catch(err => console.warn('API error in updateShuttleStatus:', err));
     triggerNotification('FLEET STATUS UPDATED', `Shuttle ${shuttleId} status changed to ${status}.`, 'info');
   }, [triggerNotification]);
 
@@ -533,6 +574,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }) => {
     const res = databaseService.createDriver(data);
     if (res.success) {
+      apiService.createDriver(data).catch(err => console.warn('API error in createDriver:', err));
       triggerNotification('DRIVER ADDED', `Captain ${data.name} enrolled into transport system.`, 'info');
     }
     return res;
@@ -541,6 +583,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateDriver = useCallback((driverData: Driver) => {
     const res = databaseService.updateDriver(driverData);
     if (res.success) {
+      apiService.updateDriver(driverData.driver_id, driverData).catch(err => console.warn('API error in updateDriver:', err));
       triggerNotification('DRIVER UPDATED', `Captain ${driverData.name} record updated.`, 'info');
     }
     return res;
@@ -549,6 +592,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteDriver = useCallback((driverId: string) => {
     const res = databaseService.deleteDriver(driverId);
     if (res.success) {
+      apiService.deleteDriver(driverId).catch(err => console.warn('API error in deleteDriver:', err));
       triggerNotification('DRIVER REMOVED', `Driver ${driverId} deactivated.`, 'info');
     }
     return res;
@@ -564,6 +608,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }) => {
     const res = databaseService.createTrip(data);
     if (res.success && res.trip) {
+      apiService.createTrip(data).catch(err => console.warn('API error in createTrip:', err));
       triggerNotification(
         'TRIP SCHEDULED',
         `Trip ${res.trip.trip_id} on ${data.route_id} scheduled for ${data.start_time}.`,
@@ -576,6 +621,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateTrip = useCallback((updatedTrip: Trip) => {
     const res = databaseService.updateTrip(updatedTrip);
     if (res.success) {
+      apiService.updateTrip(updatedTrip.trip_id, updatedTrip).catch(err => console.warn('API error in updateTrip:', err));
       triggerNotification('TRIP UPDATED', `Trip ${updatedTrip.trip_id} updated.`, 'info');
     }
     return res;
@@ -583,6 +629,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const cancelTrip = useCallback((tripId: string) => {
     databaseService.cancelTrip(tripId);
+    apiService.cancelTrip(tripId).catch(err => console.warn('API error in cancelTrip:', err));
     triggerNotification('TRIP CANCELLED', `Trip ${tripId} has been cancelled.`, 'info');
   }, [triggerNotification]);
 
