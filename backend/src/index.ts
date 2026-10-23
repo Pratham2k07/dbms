@@ -24,6 +24,15 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Request Logger
+app.use((req: Request, res: Response, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    console.log(`[API] ${req.method} ${req.originalUrl} - Status: ${res.statusCode} (${Date.now() - start}ms)`);
+  });
+  next();
+});
+
 // Attach io to the req object so controllers can use it to broadcast
 app.use((req: Request, res: Response, next) => {
   (req as any).io = io;

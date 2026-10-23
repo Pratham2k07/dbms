@@ -20,8 +20,10 @@ export const HomeScreen: React.FC = () => {
     etaMap,
     navigateToLiveTracking,
     selectedStopId,
-    setSelectedStopId
+    setSelectedStopId,
+    routeCoordinates
   } = useApp();
+
 
   // Inline stop selection on Home & Map (toggles dropdown box inside the stop item)
   const [inlineSelectedStopId, setInlineSelectedStopId] = useState<string | null>(null);
@@ -228,6 +230,8 @@ export const HomeScreen: React.FC = () => {
                 studentLocation={studentLocation}
                 activeShuttles={activeShuttlesForMap}
                 highlightRouteId={activeTripForSelectedShuttle?.route_id || 'ROUTE-02'}
+                routeCoordinates={routeCoordinates}
+                activeRoutePolyline={activeRouteForSelectedShuttle?.route_coordinates}
                 selectedStopId={selectedStopId}
                 onSelectStop={(stopId) => handleSelectStop(stopId)}
                 onSelectShuttle={(tripId) => {
@@ -238,10 +242,11 @@ export const HomeScreen: React.FC = () => {
                 heightClass="h-72 sm:h-80 lg:h-[400px] xl:h-[430px]"
               />
 
+
               <div className="flex items-center justify-between text-[11px] font-mono text-stone-500 px-1 pt-0.5">
                 <span>● Tap stop pin or shuttle icon to view live telemetry</span>
                 <span className="text-stone-700 font-medium">
-                  Showing: <strong className="text-[#E8590C]">{shuttles.find((s) => s.shuttle_id === selectedShuttleId)?.shuttle_number || 'SHUTTLE 01'}</strong> ({activeRouteForSelectedShuttle.route_code})
+                  Showing: <strong className="text-[#E8590C]">{shuttles.find((s) => s.shuttle_id === selectedShuttleId)?.shuttle_number || 'SHUTTLE 01'}</strong> ({activeRouteForSelectedShuttle?.route_code || 'All Routes'})
                 </span>
               </div>
             </div>

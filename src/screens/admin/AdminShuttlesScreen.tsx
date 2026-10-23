@@ -89,10 +89,15 @@ export const AdminShuttlesScreen: React.FC<AdminShuttlesScreenProps> = ({
       updateShuttle(updated);
       setEditingShuttle(null);
     } else {
-      const nextId = `SHT-${String(shuttles.length + 1).padStart(2, '0')}`;
+      const existingNums = shuttles.map((s) => {
+        const match = s.shuttle_id.match(/\d+/);
+        return match ? parseInt(match[0], 10) : 0;
+      });
+      const maxNum = Math.max(0, ...existingNums);
+      const nextId = `SHT-${String(maxNum + 1).padStart(2, '0')}`;
       const newShuttle: Shuttle = {
         shuttle_id: nextId,
-        shuttle_number: formNumber.trim().toUpperCase(),
+        shuttle_number: formNumber.trim().toUpperCase() || `SHUTTLE ${String(maxNum + 1).padStart(2, '0')}`,
         registration_number: formReg.trim().toUpperCase(),
         capacity: parseInt(formCapacity) || 32,
         status: formStatus

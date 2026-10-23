@@ -266,43 +266,4 @@ INSERT INTO route_stops (route_id, stop_id, sequence_number, scheduled_arrival, 
   ('ROUTE-03', 'STOP-DCM', 4, '10:45 AM', '10:48 AM', 33.00),
   ('ROUTE-03', 'STOP-JKLU', 5, '11:05 AM', '11:10 AM', 45.20);
 
--- TRIPS
-INSERT INTO trips (trip_id, shuttle_id, route_id, driver_id, start_time, end_time, running_status, capacity_status, speed_kmh) VALUES
-  ('TRIP-101', 'SHT-01', 'ROUTE-02', 'DRV-101', '09:30 AM', NULL, 'RUNNING', 'AVAILABLE', 42.00),
-  ('TRIP-102', 'SHT-03', 'ROUTE-01', 'DRV-103', '09:45 AM', NULL, 'RUNNING', 'AVAILABLE', 45.00),
-  ('TRIP-103', 'SHT-02', 'ROUTE-03', 'DRV-102', '09:40 AM', NULL, 'RUNNING', 'FULL', 38.00),
-  ('TRIP-104', 'SHT-04', 'ROUTE-02', 'DRV-104', '11:00 AM', NULL, 'SCHEDULED', 'AVAILABLE', 0.00);
 
--- TRIP_STOPS
-INSERT INTO trip_stops (trip_id, stop_id, estimated_arrival, actual_arrival, actual_departure, arrival_status) VALUES
-  -- Trip 101
-  ('TRIP-101', 'STOP-JKLU-START', '09:30 AM', '09:30 AM', '09:35 AM', 'COMPLETED'),
-  ('TRIP-101', 'STOP-MANSAROVAR', '10:05 AM', NULL, NULL, 'APPROACHING'),
-  ('TRIP-101', 'STOP-VAISHALI', '10:22 AM', NULL, NULL, 'SCHEDULED'),
-  ('TRIP-101', 'STOP-DCM', '10:36 AM', NULL, NULL, 'SCHEDULED'),
-  ('TRIP-101', 'STOP-JKLU', '10:55 AM', NULL, NULL, 'SCHEDULED'),
-
-  -- Trip 102
-  ('TRIP-102', 'STOP-JKLU-START', '09:45 AM', '09:45 AM', '09:50 AM', 'COMPLETED'),
-  ('TRIP-102', 'STOP-MALVIYA-NAGAR', '10:18 AM', NULL, NULL, 'APPROACHING'),
-  ('TRIP-102', 'STOP-AIRPORT', '10:37 AM', NULL, NULL, 'SCHEDULED'),
-  ('TRIP-102', 'STOP-DCM', '10:56 AM', NULL, NULL, 'SCHEDULED'),
-  ('TRIP-102', 'STOP-JKLU', '11:15 AM', NULL, NULL, 'SCHEDULED'),
-
-  -- Trip 103
-  ('TRIP-103', 'STOP-JKLU-START', '09:40 AM', '09:40 AM', '09:45 AM', 'COMPLETED'),
-  ('TRIP-103', 'STOP-RAILWAY-STN', '10:12 AM', NULL, NULL, 'APPROACHING'),
-  ('TRIP-103', 'STOP-VAISHALI', '10:32 AM', NULL, NULL, 'SCHEDULED'),
-  ('TRIP-103', 'STOP-DCM', '10:46 AM', NULL, NULL, 'SCHEDULED'),
-  ('TRIP-103', 'STOP-JKLU', '11:05 AM', NULL, NULL, 'SCHEDULED');
-
--- SHUTTLE_LOCATIONS (Initial Telemetry Coordinates)
-INSERT INTO shuttle_locations (shuttle_id, trip_id, latitude, longitude, bearing, speed_kmh, progress_percentage) VALUES
-  ('SHT-01', 'TRIP-101', 26.858000, 75.715000, 55.00, 42.00, 28.00),
-  ('SHT-03', 'TRIP-102', 26.845000, 75.760000, 85.00, 45.00, 35.00),
-  ('SHT-02', 'TRIP-103', 26.870000, 75.745000, 40.00, 38.00, 22.00),
-  ('SHT-04', 'TRIP-104', 26.837300, 75.649900, 0.00, 0.00, 0.00);
-
--- STUDENT_LOCATIONS (Initial Student Location Near Mansarovar Metro)
-INSERT INTO student_locations (student_id, latitude, longitude) VALUES
-  ('USR-STU-001', 26.874500, 75.768000);

@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import { Stop } from '../types/database';
 import { MapView } from '../components/map/MapView';
 import { ShuttleList } from '../components/shuttles/ShuttleList';
 import { stopService } from '../services/stopService';
@@ -25,6 +26,7 @@ export const StopDetailsScreen: React.FC = () => {
 
   // Calculate distance & walking time
   const distance = useMemo(() => {
+    if (!stop) return 0;
     return locationService.calculateHaversineDistance(
       studentLocation.latitude,
       studentLocation.longitude,
@@ -128,10 +130,10 @@ export const StopDetailsScreen: React.FC = () => {
                 STOP VICINITY CARTOGRAPHY
               </span>
               <MapView
-                stops={[stop, stopService.getDestinationStop()]}
+                stops={[stop, stopService.getDestinationStop()].filter(Boolean) as Stop[]}
                 studentLocation={studentLocation}
                 activeShuttles={activeShuttlesForMap}
-                selectedStopId={stop.stop_id}
+                selectedStopId={stop?.stop_id}
                 onSelectShuttle={(tripId) => navigateToLiveTracking(tripId)}
                 heightClass="h-64 lg:h-[380px]"
                 interactive={true}

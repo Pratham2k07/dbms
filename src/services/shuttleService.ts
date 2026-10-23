@@ -1,5 +1,4 @@
 import { ShuttleLocation } from '../types/database';
-import { ROUTE_PATH_COORDINATES } from '../data/mockDatabase';
 
 /**
  * Calculates compass bearing from point A to point B in degrees
@@ -12,7 +11,7 @@ export function calculateBearing(lat1: number, lon1: number, lat2: number, lon2:
       Math.cos(lat2 * (Math.PI / 180)) *
       Math.cos((lon2 - lon1) * (Math.PI / 180));
   const brng = (Math.atan2(y, x) * 180) / Math.PI;
-  return (brng + 360) % 360;
+  return Math.round((brng + 360) % 360);
 }
 
 /**
@@ -30,45 +29,11 @@ export function interpolateCoords(
 }
 
 export const shuttleService = {
-  /**
-   * Smoothly advances a shuttle's simulated GPS position along its route polyline
-   */
-  advanceShuttleLocation(
-    currentLoc: ShuttleLocation,
-    routeId: string,
-    stepPercent: number = 0.8,
-    customCoordinates?: Record<string, [number, number][]>
-  ): ShuttleLocation {
-    const coordsMap = customCoordinates || ROUTE_PATH_COORDINATES;
-    const path = coordsMap[routeId] || coordsMap['ROUTE-01'] || ROUTE_PATH_COORDINATES['ROUTE-01'];
-    if (!path || path.length < 2) return currentLoc;
+  calculateBearing,
+  interpolateCoords,
 
-    // Advance percentage (looping back when reaching destination for continuous demo)
-    let newProgress = currentLoc.progress_percentage + stepPercent;
-    if (newProgress >= 98) {
-      newProgress = 5; // Loop back to start of trip
-    }
-
-    const totalSegments = path.length - 1;
-    const progressNormalized = newProgress / 100;
-    const rawIndex = progressNormalized * totalSegments;
-    const segmentIndex = Math.min(Math.floor(rawIndex), totalSegments - 1);
-    const fraction = rawIndex - segmentIndex;
-
-    const p1 = path[segmentIndex];
-    const p2 = path[segmentIndex + 1];
-
-    const [newLat, newLng] = interpolateCoords(p1, p2, fraction);
-    const newBearing = calculateBearing(p1[0], p1[1], p2[0], p2[1]);
-
-    return {
-      ...currentLoc,
-      latitude: Number(newLat.toFixed(6)),
-      longitude: Number(newLng.toFixed(6)),
-      bearing: Math.round(newBearing),
-      progress_percentage: Number(newProgress.toFixed(2)),
-      current_segment_index: segmentIndex,
-      timestamp: new Date().toISOString()
-    };
+  formatSpeed(speedKmh?: number): string {
+    if (!speedKmh || speedKmh < 1) return '0 km/h';
+    return `${Math.round(speedKmh)} km/h`;
   }
 };

@@ -4,7 +4,7 @@ import { ETA } from '../shuttles/ETA';
 import { StatusIndicator } from '../common/StatusIndicator';
 import { RouteTimeline } from './RouteTimeline';
 import { ChevronDown, ChevronUp, User, Gauge, ShieldCheck, MapPin } from 'lucide-react';
-import { MOCK_DRIVERS } from '../../data/mockDatabase';
+import { useApp } from '../../context/AppContext';
 
 interface TripBottomSheetProps {
   shuttle: Shuttle;
@@ -24,8 +24,10 @@ export const TripBottomSheet: React.FC<TripBottomSheetProps> = ({
   etaMinutes
 }) => {
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
+  const { drivers } = useApp();
 
-  const driver = MOCK_DRIVERS.find((d) => d.driver_id === trip.driver_id) || MOCK_DRIVERS[0];
+  const driver = drivers.find((d) => d.driver_id === trip.driver_id);
+
   const targetTripStop = tripStops.find(
     (ts) => ts.trip_id === trip.trip_id && ts.stop_id === selectedStopId
   );
@@ -115,10 +117,10 @@ export const TripBottomSheet: React.FC<TripBottomSheetProps> = ({
                   <span>Assigned Driver</span>
                 </div>
                 <p className="font-editorial font-bold text-sm text-[#121316]">
-                  {driver.name}
+                  {driver?.name || 'Assigned Driver'}
                 </p>
                 <p className="text-[10px] font-mono text-stone-500">
-                  Lic: {driver.license_no}
+                  Lic: {driver?.license_no || 'Verified Transit Operator'}
                 </p>
               </div>
 

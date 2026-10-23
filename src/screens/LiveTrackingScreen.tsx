@@ -1,11 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { MapView } from '../components/map/MapView';
 import { RouteTimeline } from '../components/tracking/RouteTimeline';
 import { StatusIndicator } from '../components/common/StatusIndicator';
 import { ETA } from '../components/shuttles/ETA';
-import { ArrowLeft, Route as RouteIcon, Radio, User, Gauge, ShieldCheck, Bus } from 'lucide-react';
+import { ArrowLeft, Route as RouteIcon, Radio, User, Gauge, ShieldCheck, Bus, AlertCircle } from 'lucide-react';
 import { routeService } from '../services/routeService';
+import * as apiService from '../services/apiService';
 
 export const LiveTrackingScreen: React.FC = () => {
   const {
@@ -23,30 +24,58 @@ export const LiveTrackingScreen: React.FC = () => {
     selectedStopId,
     etaMap,
     setCurrentScreen,
-    navigateToRouteDetails
+    navigateToRouteDetails,
+    routeCoordinates
   } = useApp();
 
   const [showAllShuttlesOnMap, setShowAllShuttlesOnMap] = useState<boolean>(true);
+  const [liveTripData, setLiveTripData] = useState<any | null>(null);
+
+  // Fetch real database-driven live trip details
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchLive = async () => {
+      if (!selectedTripId) return;
+      try {
+        const data = await apiService.getLiveTripDetails(selectedTripId);
+        if (isMounted && data && data.trip_id) {
+          setLiveTripData(data);
+        }
+      } catch (err) {
+        // Fallback gracefully
+      }
+    };
+
+    fetchLive();
+    const interval = setInterval(fetchLive, 4000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [selectedTripId]);
+
 
   // Selected trip & shuttle data
   const trip = trips.find((t) => t.trip_id === selectedTripId) || trips[0];
-  const shuttle = shuttles.find((s) => s.shuttle_id === trip.shuttle_id) || shuttles[0];
-  const route = routes.find((r) => r.route_id === trip.route_id) || routes[0];
-  const driver = drivers.find((d) => d.driver_id === trip.driver_id) || drivers[0];
+  const shuttle = trip ? (shuttles.find((s) => s.shuttle_id === trip.shuttle_id) || shuttles[0]) : shuttles[0];
+  const route = trip ? (routes.find((r) => r.route_id === trip.route_id) || routes[0]) : routes[0];
+  const driver = trip ? (drivers.find((d) => d.driver_id === trip.driver_id) || drivers[0]) : drivers[0];
 
   // Dynamic ETA for this trip & stop
-  const etaKey = `${trip.trip_id}_${selectedStopId}`;
-  const etaMinutes = etaMap[etaKey] || 5;
+  const etaKey = trip ? `${trip.trip_id}_${selectedStopId}` : '';
+  const etaMinutes = etaKey && etaMap[etaKey] !== undefined ? etaMap[etaKey] : 0;
 
-  const targetTripStop = tripStops.find(
+  const targetTripStop = trip ? tripStops.find(
     (ts) => ts.trip_id === trip.trip_id && ts.stop_id === selectedStopId
-  );
+  ) : undefined;
 
   // Formatted active shuttles for the map (renders all moving shuttles when toggle is active)
   const activeShuttlesForMap = useMemo(() => {
+    if (!trip) return [];
     if (!showAllShuttlesOnMap) {
       const loc = shuttleLocations.find(
-        (item) => item.trip_id === trip.trip_id || item.shuttle_id === shuttle.shuttle_id
+        (item) => item.trip_id === trip.trip_id || item.shuttle_id === shuttle?.shuttle_id
       );
       if (!loc) return [];
       return [
@@ -74,6 +103,7 @@ export const LiveTrackingScreen: React.FC = () => {
 
   // Stops belonging to this route and active corridors
   const mapStops = useMemo(() => {
+    if (!route) return stops;
     if (!showAllShuttlesOnMap) {
       const sequenceList = routeService.getRouteStopsWithMetadata(route.route_id, allRouteStops, stops, routes);
       return sequenceList.map((item) => item.stop);
@@ -83,7 +113,51 @@ export const LiveTrackingScreen: React.FC = () => {
     return stops.filter((s) =>
       allRouteStops.some((rs) => activeRouteIds.has(rs.route_id) && rs.stop_id === s.stop_id)
     );
-  }, [showAllShuttlesOnMap, route.route_id, trips, stops, allRouteStops, routes]);
+  }, [showAllShuttlesOnMap, route?.route_id, trips, stops, allRouteStops, routes]);
+
+  if (!trip) {
+    return (
+      <div className="min-h-full bg-[#FBFBF9] pb-10 select-none">
+        <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 pt-8 space-y-6">
+          <div className="flex items-center justify-between border-b border-stone-200/80 pb-4">
+            <button
+              onClick={() => setCurrentScreen('home')}
+              className="group inline-flex items-center gap-2 text-stone-600 hover:text-[#121316] text-xs font-editorial font-bold tracking-wider uppercase transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+              <span>BACK TO HOME & MAP</span>
+            </button>
+            <span className="flex items-center gap-1.5 text-xs font-mono text-stone-500 bg-stone-100 px-3 py-1 rounded-full font-semibold">
+              <Radio className="w-3 h-3 text-stone-400" />
+              <span>NO ACTIVE TRIPS</span>
+            </span>
+          </div>
+
+          <div className="bg-white rounded-3xl border border-stone-200 p-8 sm:p-12 text-center space-y-4 shadow-subtle">
+            <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 mx-auto flex items-center justify-center">
+              <Bus className="w-8 h-8" />
+            </div>
+            <div className="space-y-2 max-w-md mx-auto">
+              <h2 className="font-editorial font-extrabold text-2xl text-[#121316]">
+                No Trips Currently in Transit
+              </h2>
+              <p className="text-sm text-stone-500 font-medium">
+                There are currently no active shuttle trips running in the database. When a driver begins their scheduled route or an administrator creates a dispatch, live GPS tracking and arrival ETAs will automatically appear here.
+              </p>
+            </div>
+            <div className="pt-2">
+              <button
+                onClick={() => setCurrentScreen('home')}
+                className="px-6 py-2.5 rounded-xl bg-[#E8590C] text-white font-editorial font-bold text-xs uppercase tracking-wider hover:bg-[#d04e0a] transition-all shadow-sm"
+              >
+                Return to Campus Map
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-full bg-[#FBFBF9] pb-10 select-none">
@@ -198,6 +272,8 @@ export const LiveTrackingScreen: React.FC = () => {
                 studentLocation={studentLocation}
                 activeShuttles={activeShuttlesForMap}
                 highlightRouteId={route.route_id}
+                routeCoordinates={routeCoordinates}
+                activeRoutePolyline={liveTripData?.route_coordinates || route?.route_coordinates}
                 selectedStopId={selectedStopId}
                 onSelectShuttle={(tripId) => setSelectedTripId(tripId)}
                 heightClass="h-[55vh] lg:h-[620px]"
@@ -207,7 +283,9 @@ export const LiveTrackingScreen: React.FC = () => {
 
             <div className="hidden lg:flex items-center justify-between text-xs font-mono text-stone-500 px-2">
               <span>● Tap any shuttle marker on map or bar above to focus telemetry</span>
-              <span className="text-[#E8590C] font-bold">UPDATED LIVE JUST NOW</span>
+              <span className="text-[#E8590C] font-bold">
+                {liveTripData?.latest_location ? 'LIVE DATABASE TELEMETRY' : 'AWAITING DISPATCH'}
+              </span>
             </div>
           </div>
 
@@ -227,7 +305,7 @@ export const LiveTrackingScreen: React.FC = () => {
                     </span>
                   </div>
                   <p className="text-xs text-stone-600 font-medium uppercase tracking-wide mt-0.5">
-                    ON THE WAY TO CAMPUS
+                    {trip.running_status === 'RUNNING' ? 'LIVE TRANSIT CORRIDOR' : `STATUS: ${trip.running_status}`}
                   </p>
                   <div className="mt-2.5 flex items-center gap-2.5">
                     <StatusIndicator status={trip.capacity_status} size="lg" />
@@ -241,11 +319,52 @@ export const LiveTrackingScreen: React.FC = () => {
                 {/* Dominant Large ETA */}
                 <div className="text-right">
                   <span className="text-[10px] font-editorial font-bold tracking-widest text-stone-400 uppercase block">
-                    ARRIVING IN
+                    THEORETICAL ETA (25 KM/H)
                   </span>
-                  <ETA minutes={etaMinutes} size="hero" />
+                  <ETA
+                    minutes={
+                      liveTripData?.stops?.find((s: any) => s.stop_id === selectedStopId)?.theoretical_eta_minutes ??
+                      etaMinutes
+                    }
+                    size="hero"
+                  />
+                  {liveTripData?.stops?.find((s: any) => s.stop_id === selectedStopId)?.remaining_road_distance_km !== undefined && (
+                    <span className="text-[10px] font-mono text-stone-400 block mt-0.5">
+                      {liveTripData.stops.find((s: any) => s.stop_id === selectedStopId).remaining_road_distance_km} km road distance
+                    </span>
+                  )}
                 </div>
               </div>
+
+              {/* Live telemetry details */}
+              {liveTripData?.latest_location && (
+                <div className="p-3 bg-stone-900 text-white rounded-2xl border border-stone-800 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-mono">
+                    <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+                      <Radio className="w-3 h-3 animate-pulse" />
+                      LIVE GPS FIX
+                    </span>
+                    <span className="text-stone-400">
+                      Accuracy: ±{liveTripData.latest_location.accuracy_m || 5}m
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono pt-1">
+                    <div className="bg-stone-800 p-1.5 rounded-lg">
+                      <span className="text-[9px] text-stone-400 block">SPEED</span>
+                      <span className="font-bold">{liveTripData.latest_location.speed_kmh} km/h</span>
+                    </div>
+                    <div className="bg-stone-800 p-1.5 rounded-lg">
+                      <span className="text-[9px] text-stone-400 block">BEARING</span>
+                      <span className="font-bold">{liveTripData.latest_location.bearing}°</span>
+                    </div>
+                    <div className="bg-stone-800 p-1.5 rounded-lg">
+                      <span className="text-[9px] text-stone-400 block">PROGRESS</span>
+                      <span className="font-bold">{liveTripData.latest_location.progress_percentage}%</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
 
               {/* Timing info row */}
               <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200/80 flex items-center justify-between text-xs font-mono">

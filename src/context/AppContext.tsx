@@ -19,13 +19,15 @@ import {
   CURRENT_STUDENT,
   CURRENT_ADMIN,
   INITIAL_STUDENT_LOCATION
-} from '../data/mockDatabase';
+} from '../data/userProfiles';
 import { shuttleService } from '../services/shuttleService';
 import { tripService } from '../services/tripService';
 import { databaseService } from '../services/databaseService';
 import * as authService from '../services/authService';
 import * as apiService from '../services/apiService';
 import { socketService } from '../services/socket';
+import { locationService } from '../services/locationService';
+
 
 interface AppContextType {
   // Navigation & Screen states
@@ -149,6 +151,9 @@ interface AppContextType {
   updateTripCapacity: (tripId: string, capacity: 'AVAILABLE' | 'MODERATE' | 'FULL') => void;
   updateTripStopArrivalStatus: (tripId: string, stopId: string, status: TripStop['arrival_status']) => void;
 
+  updateStudentLocation: (loc: StudentLocation) => void;
+  requestStudentLocation: () => Promise<void>;
+
   // General Notification Helpers & Navigation
   dismissNotification: (id: string) => void;
   triggerNotification: (title: string, message: string, type: AppNotification['type']) => void;
@@ -171,14 +176,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeDriverId, setActiveDriverId] = useState<string>('DRV-101');
 
   // Selected entities
-  const [selectedStopId, setSelectedStopId] = useState<string>('STOP-MANSAROVAR');
-  const [selectedTripId, setSelectedTripId] = useState<string>('TRIP-101');
-  const [selectedRouteId, setSelectedRouteId] = useState<string>('ROUTE-02');
+  const [selectedStopId, setSelectedStopId] = useState<string>('STOP-JKLU');
+  const [selectedTripId, setSelectedTripId] = useState<string>('');
+  const [selectedRouteId, setSelectedRouteId] = useState<string>('ROUTE-01');
 
   // Core entities state
   const [student] = useState<Student>(CURRENT_STUDENT);
   const [admin] = useState<Admin>(CURRENT_ADMIN);
-  const [studentLocation] = useState<StudentLocation>(INITIAL_STUDENT_LOCATION);
+  const [studentLocation, setStudentLocation] = useState<StudentLocation>(INITIAL_STUDENT_LOCATION);
+
+  const updateStudentLocation = useCallback((loc: StudentLocation) => {
+    setStudentLocation(loc);
+  }, []);
+
+  const requestStudentLocation = useCallback(async () => {
+    try {
+      const loc = await locationService.getCurrentLocation();
+      setStudentLocation(loc);
+    } catch (err) {
+      console.warn('Geolocation permission not granted:', err);
+    }
+  }, []);
+
 
   // Central Database synchronized state
   const initialDb = databaseService.getState();
@@ -197,15 +216,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Computed active driver object
   const driver: Driver = drivers.find((d) => d.driver_id === activeDriverId) || drivers[0] || initialDb.drivers[0];
 
-  // Dynamic live ETAs (minutes remaining)
-  const [etaMap, setEtaMap] = useState<Record<string, number>>({
-    'TRIP-101_STOP-MANSAROVAR': 5,
-    'TRIP-101_STOP-DCM': 18,
-    'TRIP-102_STOP-AIRPORT': 7,
-    'TRIP-103_STOP-VAISHALI': 4,
-    'TRIP-101_STOP-JKLU': 28,
-    'TRIP-102_STOP-JKLU': 32
-  });
+  // Dynamic live ETAs (minutes remaining) calculated strictly from active GPS telemetry
+  const [etaMap, setEtaMap] = useState<Record<string, number>>({});
 
   // Notification queue (In-app toasts)
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -269,24 +281,71 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // ================= WebSocket Live Tracking Listener =================
   useEffect(() => {
-    socketService.onLocationUpdated((data) => {
-      // Find the shuttle and update its coordinates based on real backend broadcast!
+    socketService.connect();
+
+    // Ingest real GPS telemetry broadcasts from backend
+    socketService.onLocationUpdated((data: any) => {
+      if (!data) return;
+
+      const targetId = data.shuttle_id || `SHT-${data.id}`;
+      const targetTripId = data.trip_id;
+
       setShuttleLocations((prev) => {
-        const idStr = String(data.id);
-        const targetId = idStr.startsWith('SHT-') ? idStr : (idStr.length <= 2 ? `SHT-0${idStr}` : `SHT-${idStr}`);
-        const existingIdx = prev.findIndex(loc => loc.shuttle_id === targetId || loc.shuttle_id === idStr);
+        const existingIdx = prev.findIndex(
+          (loc) => loc.shuttle_id === targetId || (targetTripId && loc.trip_id === targetTripId)
+        );
+
+        const newEntry: ShuttleLocation = {
+          shuttle_id: targetId,
+          trip_id: targetTripId || '',
+          latitude: Number(data.latitude || data.lat),
+          longitude: Number(data.longitude || data.lng),
+          bearing: Number(data.bearing || 0),
+          speed_kmh: Number(data.speed_kmh || 0),
+          accuracy_m: data.accuracy_m ? Number(data.accuracy_m) : undefined,
+          progress_percentage: Number(data.progress_percentage || 0),
+          distance_remaining_km: data.distance_remaining_km !== undefined ? Number(data.distance_remaining_km) : undefined,
+          timestamp: data.timestamp || new Date().toISOString()
+        };
+
         if (existingIdx !== -1) {
           const updated = [...prev];
-          updated[existingIdx] = { 
-            ...updated[existingIdx], 
-            latitude: Number(data.lat), 
-            longitude: Number(data.lng), 
-            timestamp: new Date().toISOString() 
-          };
+          updated[existingIdx] = newEntry;
           return updated;
         }
-        return prev;
+        return [...prev, newEntry];
       });
+
+      // Update theoretical ETAs dynamically
+      if (data.current_or_next_stop && data.trip_id) {
+        const stopId = data.current_or_next_stop.stop_id;
+        const etaMins =
+          data.current_or_next_stop.theoretical_eta_minutes ??
+          Math.max(1, Math.round(((data.distance_remaining_km || 0) / 25) * 60));
+        setEtaMap((prev) => ({
+          ...prev,
+          [`${data.trip_id}_${stopId}`]: etaMins
+        }));
+      }
+    });
+
+    socketService.onTripStarted((data: any) => {
+      if (data?.trip_id) {
+        setTrips((prev) =>
+          prev.map((t) => (t.trip_id === data.trip_id ? { ...t, running_status: 'RUNNING' } : t))
+        );
+      }
+    });
+
+    socketService.onTripEnded((data: any) => {
+      if (data?.trip_id) {
+        setTrips((prev) =>
+          prev.map((t) => (t.trip_id === data.trip_id ? { ...t, running_status: 'COMPLETED' } : t))
+        );
+        setShuttleLocations((prev) =>
+          prev.filter((loc) => loc.trip_id !== data.trip_id && loc.shuttle_id !== data.shuttle_id)
+        );
+      }
     });
   }, []);
 
@@ -297,11 +356,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       apiService.getRoutes().catch(() => null),
       apiService.getShuttles().catch(() => null),
       apiService.getTrips().catch(() => null),
-      apiService.getDrivers().catch(() => null)
-    ]).then(([liveRoutes, liveShuttles, liveTrips, liveDrivers]) => {
+      apiService.getDrivers().catch(() => null),
+      apiService.getAllStops().catch(() => null)
+    ]).then(([liveRoutes, liveShuttles, liveTrips, liveDrivers, liveStops]) => {
       if (!isMounted) return;
       if (liveRoutes && Array.isArray(liveRoutes) && liveRoutes.length > 0) {
         setRoutes(liveRoutes);
+        // Hydrate real road geometry from database
+        const coordsMap: Record<string, [number, number][]> = {};
+        liveRoutes.forEach((r: any) => {
+          if (r.route_coordinates && Array.isArray(r.route_coordinates)) {
+            coordsMap[r.route_id] = r.route_coordinates;
+          }
+        });
+        if (Object.keys(coordsMap).length > 0) {
+          setRouteCoordinates((prev) => ({ ...prev, ...coordsMap }));
+        }
+      }
+      if (liveStops && Array.isArray(liveStops) && liveStops.length > 0) {
+        setStops(liveStops);
       }
       if (liveShuttles && Array.isArray(liveShuttles) && liveShuttles.length > 0) {
         setShuttles(liveShuttles);
@@ -312,11 +385,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (liveDrivers && Array.isArray(liveDrivers) && liveDrivers.length > 0) {
         setDrivers(liveDrivers);
       }
+
+      databaseService.syncFromLiveDatabase({
+        routes: liveRoutes && Array.isArray(liveRoutes) ? liveRoutes : undefined,
+        stops: liveStops && Array.isArray(liveStops) ? liveStops : undefined,
+        shuttles: liveShuttles && Array.isArray(liveShuttles) ? liveShuttles : undefined,
+        trips: liveTrips && Array.isArray(liveTrips) ? liveTrips : undefined,
+        drivers: liveDrivers && Array.isArray(liveDrivers) ? liveDrivers : undefined
+      });
     });
     return () => {
       isMounted = false;
     };
   }, []);
+
 
   // Quick navigation helpers
   const navigateToStopDetails = useCallback((stopId: string) => {
@@ -350,39 +432,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Driver operations
   const handleStartTrip = useCallback(
-    (tripId: string) => {
+    async (tripId: string) => {
       databaseService.updateTripRunningStatus(tripId, 'RUNNING');
-      
-      // Async hit backend
-      const trip = trips.find((t) => t.trip_id === tripId);
-      if (trip) {
-        apiService.startShift(trip.shuttle_id).catch(err => console.warn('API error', err));
+      setTrips((prev) =>
+        prev.map((t) => (t.trip_id === tripId ? { ...t, running_status: 'RUNNING' } : t))
+      );
+      try {
+        await apiService.startTrip(tripId);
+      } catch (err) {
+        console.warn('API error in startTrip:', err);
       }
 
       triggerNotification(
         'JKLU SHUTTLE',
-        `Trip ${tripId} has commenced. Live GPS telemetry is active.`,
-        'info'
-      );
-    },
-    [triggerNotification, trips]
-  );
-
-  const handleEndTrip = useCallback(
-    (tripId: string) => {
-      databaseService.updateTripRunningStatus(tripId, 'COMPLETED');
-      
-      // Async hit backend
-      apiService.endShift().catch(err => console.warn('API error', err));
-
-      triggerNotification(
-        'JKLU SHUTTLE',
-        `Trip ${tripId} completed at JK Lakshmipat University.`,
+        `Trip ${tripId} has commenced. Real driver GPS telemetry is active.`,
         'info'
       );
     },
     [triggerNotification]
   );
+
+  const handleEndTrip = useCallback(
+    async (tripId: string) => {
+      databaseService.updateTripRunningStatus(tripId, 'COMPLETED');
+      setTrips((prev) =>
+        prev.map((t) => (t.trip_id === tripId ? { ...t, running_status: 'COMPLETED' } : t))
+      );
+      // Remove shuttle from active live tracking
+      setShuttleLocations((prev) => prev.filter((loc) => loc.trip_id !== tripId));
+      try {
+        await apiService.endTrip(tripId);
+      } catch (err) {
+        console.warn('API error in endTrip:', err);
+      }
+
+      triggerNotification(
+        'JKLU SHUTTLE',
+        `Trip ${tripId} completed at JK Lakshmipat University. Live tracking ended.`,
+        'info'
+      );
+    },
+    [triggerNotification]
+  );
+
 
   const handleToggleCapacity = useCallback(
     (tripId: string) => {
@@ -425,8 +517,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }) => {
     const res = databaseService.createRouteWithAssignment(routeData);
     if (res.success && res.route) {
-      // Async hit backend
-      apiService.createRoute(routeData).catch(err => console.warn('API error', err));
+      // Async hit backend with generated trip_id if assigned
+      apiService.createRoute({
+        ...routeData,
+        trip_id: res.trip?.trip_id
+      }).catch(err => console.warn('API error in createRoute:', err));
 
       triggerNotification(
         'ROUTE CREATED & SAVED',
@@ -608,7 +703,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }) => {
     const res = databaseService.createTrip(data);
     if (res.success && res.trip) {
-      apiService.createTrip(data).catch(err => console.warn('API error in createTrip:', err));
+      apiService.createTrip({
+        ...data,
+        trip_id: res.trip.trip_id
+      }).catch(err => console.warn('API error in createTrip:', err));
       triggerNotification(
         'TRIP SCHEDULED',
         `Trip ${res.trip.trip_id} on ${data.route_id} scheduled for ${data.start_time}.`,
@@ -635,6 +733,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateTripCapacity = useCallback((tripId: string, capacity: 'AVAILABLE' | 'MODERATE' | 'FULL') => {
     databaseService.updateTripCapacity(tripId, capacity);
+    apiService.updateTripCapacity(tripId, capacity).catch(err => console.warn('API error in updateTripCapacity:', err));
   }, []);
 
   const updateTripStopArrivalStatus = useCallback(
@@ -646,75 +745,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const resetSimulation = useCallback(() => {
     databaseService.resetToDefaultState();
-    setEtaMap({
-      'TRIP-101_STOP-MANSAROVAR': 5,
-      'TRIP-101_STOP-DCM': 18,
-      'TRIP-102_STOP-AIRPORT': 7,
-      'TRIP-103_STOP-VAISHALI': 4,
-      'TRIP-101_STOP-JKLU': 28,
-      'TRIP-102_STOP-JKLU': 32
-    });
-    triggerNotification('SYSTEM RESET', 'Database and simulation restored to default state.', 'info');
+    setEtaMap({});
+    triggerNotification('SYSTEM RESET', 'Database state reset to clean database defaults.', 'info');
   }, [triggerNotification]);
 
-  // Real-time Timer-based simulation loop: smooth GPS movement and ETA decrement
-  useEffect(() => {
-    if (!isSimulating) return;
-
-    const intervalMs = Math.max(250, Math.floor(1200 / simSpeed));
-    let tickCounter = 0;
-
-    const interval = setInterval(() => {
-      tickCounter++;
-
-      // 1. Smoothly interpolate GPS coordinates for all running shuttles
-      setShuttleLocations((prevLocations) =>
-        prevLocations.map((loc) => {
-          const trip = trips.find((t) => t.trip_id === loc.trip_id);
-          if (!trip || trip.running_status !== 'RUNNING') return loc;
-
-          return shuttleService.advanceShuttleLocation(
-            loc,
-            trip.route_id,
-            0.9 * simSpeed,
-            routeCoordinates
-          );
-        })
-      );
-
-      // 2. Decrement ETAs periodically
-      if (tickCounter % 8 === 0) {
-        setEtaMap((prev) => {
-          const updated: Record<string, number> = {};
-          for (const key of Object.keys(prev)) {
-            const current = prev[key];
-            if (current > 1) {
-              updated[key] = current - 1;
-            } else {
-              updated[key] = key.includes('TRIP-101') ? 5 : 12;
-            }
-          }
-          return updated;
-        });
-      }
-    }, intervalMs);
-
-    return () => clearInterval(interval);
-  }, [isSimulating, simSpeed, trips, routeCoordinates]);
+  // Real-time tracking is driven strictly by live database telemetry and GPS broadcasts.
+  // Fake movement loops and simulation intervals have been decommissioned.
 
   const loginUser = async (email: string, password?: string, forceRole?: 'student' | 'driver' | 'admin'): Promise<boolean> => {
     let role: 'student' | 'driver' | 'admin' = 'student';
     
-    // In the future, the backend API will return the exact role.
-    // For now, we simulate calling the backend, but use our local role-parsing logic
     try {
-      // Call real backend endpoint (will hit mock data until SQL is added)
-      await authService.login(email, password || 'password');
-      
-      // Initialize WebSockets upon successful authentication
+      await authService.login(email, password || 'password123');
       socketService.connect();
     } catch (e) {
-      console.warn("Backend not running or login failed, falling back to local auth simulation");
+      console.warn("Backend auth notice:", e);
     }
 
     if (forceRole) {
@@ -839,11 +884,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cancelTrip,
         updateTripCapacity,
         updateTripStopArrivalStatus,
+        updateStudentLocation,
+        requestStudentLocation,
+
         dismissNotification,
         triggerNotification,
         navigateToStopDetails,
         navigateToLiveTracking,
         navigateToRouteDetails
+
       }}
     >
       {children}

@@ -36,6 +36,8 @@ export interface Route {
   assigned_shuttle_id?: string;
   assigned_driver_id?: string;
   status?: 'ACTIVE' | 'INACTIVE' | 'CANCELLED';
+  route_coordinates?: [number, number][];
+  total_distance_km?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -94,6 +96,7 @@ export interface StudentLocation {
   longitude: number;
   timestamp: string;
   location_name: string;
+  accuracy_m?: number;
 }
 
 export interface ShuttleLocation {
@@ -104,8 +107,12 @@ export interface ShuttleLocation {
   bearing: number;
   timestamp: string;
   progress_percentage: number; // 0 to 100 along the route path
-  current_segment_index: number;
+  current_segment_index?: number;
+  speed_kmh?: number;
+  accuracy_m?: number;
+  distance_remaining_km?: number;
 }
+
 
 export interface DriverAssignment {
   assignment_id: string;

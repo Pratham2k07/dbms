@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { StatusIndicator } from '../components/common/StatusIndicator';
+import * as apiService from '../services/apiService';
 import {
   Play,
   Square,
@@ -18,7 +19,8 @@ import {
   Eye,
   Check,
   RotateCcw,
-  Ban
+  Ban,
+  Navigation
 } from 'lucide-react';
 import { DriverNotification, Route, Trip } from '../types/database';
 
@@ -43,6 +45,20 @@ export const DriverDashboardScreen: React.FC = () => {
   const [notificationFilter, setNotificationFilter] = useState<'ALL' | 'UNREAD'>('ALL');
   const [viewingRouteDetails, setViewingRouteDetails] = useState<Route | null>(null);
   const [selectedTripIdOverride, setSelectedTripIdOverride] = useState<string | null>(null);
+
+  // Real GPS Telemetry State for Driver Device
+  const [driverCoords, setDriverCoords] = useState<{
+    lat: number;
+    lng: number;
+    speed: number;
+    heading: number;
+    accuracy: number;
+    timestamp: string;
+  } | null>(null);
+  const [gpsStatus, setGpsStatus] = useState<'IDLE' | 'ACQUIRING' | 'TRANSMITTING' | 'PERMISSION_DENIED' | 'ERROR'>('IDLE');
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [lastTelemetryResponse, setLastTelemetryResponse] = useState<any | null>(null);
+
 
   // 1. Filter trips strictly assigned to this logged-in driver
   const assignedTrips = useMemo(() => {
@@ -90,8 +106,85 @@ export const DriverDashboardScreen: React.FC = () => {
   const isCancelled = activeTrip?.running_status === 'CANCELLED';
   const isFull = activeTrip?.capacity_status === 'FULL';
 
+  // Real GPS Telemetry Streaming when trip is RUNNING
+  useEffect(() => {
+    if (!isRunning || !activeTrip) {
+      setGpsStatus('IDLE');
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      setGpsStatus('ERROR');
+      setGpsError('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    setGpsStatus('ACQUIRING');
+    let lastSent = 0;
+
+    const watchId = navigator.geolocation.watchPosition(
+      async (pos) => {
+        const { latitude, longitude, speed, heading, accuracy } = pos.coords;
+        const speedKmh = speed !== null && speed !== undefined ? Math.max(0, Math.round(speed * 3.6)) : 0;
+        const bearingVal = heading !== null && heading !== undefined ? Math.round(heading) : 0;
+        const ts = new Date(pos.timestamp).toISOString();
+
+        setDriverCoords({
+          lat: latitude,
+          lng: longitude,
+          speed: speedKmh,
+          heading: bearingVal,
+          accuracy: Math.round(accuracy),
+          timestamp: ts
+        });
+        setGpsStatus('TRANSMITTING');
+        setGpsError(null);
+
+        // Throttle database ingestion to at most once every 3 seconds
+        const now = Date.now();
+        if (now - lastSent >= 3000) {
+          lastSent = now;
+          try {
+            const res = await apiService.submitDriverLocation({
+              trip_id: activeTrip.trip_id,
+              shuttle_id: activeTrip.shuttle_id,
+              latitude,
+              longitude,
+              speed_kmh: speedKmh,
+              bearing: bearingVal,
+              accuracy_m: Math.round(accuracy),
+              gps_timestamp: ts
+            });
+            setLastTelemetryResponse(res);
+          } catch (err: any) {
+            console.warn('Driver telemetry submission error:', err);
+          }
+        }
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
+          setGpsStatus('PERMISSION_DENIED');
+          setGpsError('GPS permission was denied. Please allow location access in your browser to transmit real-time shuttle coordinates.');
+        } else {
+          setGpsStatus('ERROR');
+          setGpsError(err.message || 'GPS Signal Unavailable');
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 3000
+      }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [isRunning, activeTrip?.trip_id, activeTrip?.shuttle_id]);
+
   // Helper to get stops for a route in exact sequence
   const getOrderedStopsForRoute = (routeId: string) => {
+
     return routeStops
       .filter((rs) => rs.route_id === routeId)
       .sort((a, b) => a.sequence_number - b.sequence_number)
@@ -349,24 +442,69 @@ export const DriverDashboardScreen: React.FC = () => {
                 {/* Action Buttons based on lifecycle status */}
                 {isRunning ? (
                   <div className="space-y-3">
-                    <div className="p-4 rounded-2xl bg-stone-800/80 border border-stone-700 flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] font-mono text-stone-400 uppercase block">
-                          ACTIVE TRIP TELEMETRY
-                        </span>
-                        <span className="font-editorial font-bold text-base text-white">
-                          TRIP IN PROGRESS
-                        </span>
+                    {/* Live GPS Telemetry Status Box */}
+                    <div className="p-4 rounded-2xl bg-stone-900 border border-stone-800 space-y-3">
+                      <div className="flex items-center justify-between border-b border-stone-800 pb-2">
+                        <div>
+                          <span className="text-[10px] font-mono text-stone-400 uppercase block">
+                            AUTHENTICATED DRIVER GPS
+                          </span>
+                          <span className="font-editorial font-bold text-sm text-white">
+                            {assignedShuttle?.shuttle_number || 'SHUTTLE'} • {activeTrip.trip_id}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-xs font-mono font-bold block ${
+                            gpsStatus === 'TRANSMITTING' ? 'text-emerald-400' :
+                            gpsStatus === 'PERMISSION_DENIED' ? 'text-red-400' : 'text-amber-400'
+                          }`}>
+                            {gpsStatus === 'TRANSMITTING' ? '● BROADCASTING LIVE' :
+                             gpsStatus === 'PERMISSION_DENIED' ? '✕ PERMISSION DENIED' :
+                             gpsStatus === 'ACQUIRING' ? '⏳ ACQUIRING GPS...' : 'IDLE'}
+                          </span>
+                          {driverCoords && (
+                            <span className="text-[10px] font-mono text-stone-400">
+                              Accuracy: ±{driverCoords.accuracy}m
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span className="text-xs font-mono text-emerald-400 block">
-                          Live GPS Broadcast: ON
-                        </span>
-                        <span className="text-[10px] font-mono text-stone-400">
-                          Speed: ~24 km/h
-                        </span>
-                      </div>
+
+                      {gpsError && (
+                        <div className="p-2.5 rounded-xl bg-red-950/60 border border-red-800/80 text-xs text-red-200 font-mono">
+                          {gpsError}
+                        </div>
+                      )}
+
+                      {driverCoords && (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center pt-1">
+                          <div className="p-2 rounded-xl bg-stone-800/60">
+                            <span className="text-[9px] font-mono text-stone-400 uppercase block">SPEED</span>
+                            <span className="font-editorial font-bold text-base text-white">{driverCoords.speed} <span className="text-[10px] font-normal text-stone-400">km/h</span></span>
+                          </div>
+                          <div className="p-2 rounded-xl bg-stone-800/60">
+                            <span className="text-[9px] font-mono text-stone-400 uppercase block">HEADING</span>
+                            <span className="font-editorial font-bold text-base text-white">{driverCoords.heading}°</span>
+                          </div>
+                          <div className="p-2 rounded-xl bg-stone-800/60 col-span-2">
+                            <span className="text-[9px] font-mono text-stone-400 uppercase block">COORDINATES</span>
+                            <span className="font-mono text-xs text-emerald-400">{driverCoords.lat.toFixed(4)}, {driverCoords.lng.toFixed(4)}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {lastTelemetryResponse?.upcomingStops?.[0] && (
+                        <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-800/50 flex items-center justify-between text-xs font-mono">
+                          <span className="text-stone-300">
+                            Next: <strong className="text-white">{lastTelemetryResponse.upcomingStops[0].stop_name}</strong>
+                          </span>
+                          <span className="text-emerald-400 font-bold">
+                            {lastTelemetryResponse.upcomingStops[0].remaining_road_distance_km} km ({lastTelemetryResponse.upcomingStops[0].theoretical_eta_minutes}m ETA)
+                          </span>
+                        </div>
+                      )}
                     </div>
+
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <button

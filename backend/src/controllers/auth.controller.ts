@@ -15,8 +15,9 @@ export const register = async (req: Request, res: Response) => {
 
     // Check if user already exists
     const existingUser = await authQueries.findUserByEmail(email);
-    // Since mock returns a user by default, we need to bypass this check if using mock
-    // In real DB, existingUser would be null if not found
+    if (existingUser) {
+      return res.status(400).json({ message: 'User with this email already exists' });
+    }
     
     // Hash the password
     const salt = await bcrypt.genSalt(10);
@@ -46,9 +47,8 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Check password (bypassed slightly for mock purposes since mock password is 'mock_hashed_password')
-    // When you have a real DB, use: const isMatch = await bcrypt.compare(password, user.password);
-    const isMatch = user.password === 'mock_hashed_password' || await bcrypt.compare(password, user.password).catch(() => false);
+    // Verify password with bcrypt
+    const isMatch = await bcrypt.compare(password, user.password).catch(() => false);
 
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials' });

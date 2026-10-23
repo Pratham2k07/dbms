@@ -77,3 +77,13 @@ export const deleteStop = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 };
+
+export const getAllStops = async (req: Request, res: Response) => {
+  try {
+    const stops = await stopsQueries.fetchAllStops();
+    res.status(200).json(stops);
+  } catch (error) {
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+

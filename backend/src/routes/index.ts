@@ -13,6 +13,7 @@ import stopsRoutes from './stops.routes';
 import driverRoutes from './driver.routes';
 import adminRoutes from './admin.routes';
 import tripsRoutes from './trips.routes';
+import studentRoutes from './student.routes';
 
 router.use('/auth', authRoutes);
 router.use('/shuttles', shuttleRoutes);
@@ -20,5 +21,7 @@ router.use('/routes', stopsRoutes);
 router.use('/driver', driverRoutes);
 router.use('/admin', adminRoutes);
 router.use('/trips', tripsRoutes);
+router.use('/student', studentRoutes);
 
 export default router;
+

@@ -23,15 +23,10 @@ export const findUserByEmail = async (email: string) => {
     return null;
   } catch (error) {
     console.error('Database query error in findUserByEmail:', error);
-    // Graceful fallback for mock testing if database is not yet connected
-    if (email === 'admin@jklu.edu.in') {
-      return { id: 'USR-ADM-001', email, password: 'mock_hashed_password', role: 'admin', name: 'Admin User' };
-    } else if (email === 'driver@jklu.edu.in' || email.includes('ramesh')) {
-      return { id: 'USR-DRV-001', email, password: 'mock_hashed_password', role: 'driver', name: 'Ramesh Kumar' };
-    }
-    return { id: 'USR-STU-001', email, password: 'mock_hashed_password', role: 'student', name: 'Pratham Lalwani' };
+    return null;
   }
 };
+
 
 export const createNewUser = async (email: string, passwordHash: string, role: string, name: string) => {
   const userId = `USR-${role.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-4)}`;

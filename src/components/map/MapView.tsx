@@ -2,14 +2,16 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Stop, ShuttleLocation } from '../../types/database';
-import { ROUTE_PATH_COORDINATES } from '../../data/mockDatabase';
 import { ZoomIn, ZoomOut, Compass } from 'lucide-react';
+
 
 interface MapViewProps {
   stops?: Stop[];
   studentLocation?: { latitude: number; longitude: number };
   activeShuttles?: { location: ShuttleLocation; number: string; routeId: string }[];
   highlightRouteId?: string;
+  routeCoordinates?: Record<string, [number, number][]>;
+  activeRoutePolyline?: [number, number][];
   selectedStopId?: string;
   destinationCoords?: { latitude: number; longitude: number; name?: string };
   onSelectStop?: (stopId: string) => void;
@@ -48,6 +50,8 @@ export const MapView: React.FC<MapViewProps> = ({
   studentLocation,
   activeShuttles = [],
   highlightRouteId = 'ROUTE-01',
+  routeCoordinates,
+  activeRoutePolyline,
   selectedStopId,
   destinationCoords,
   onSelectStop,
@@ -152,9 +156,11 @@ export const MapView: React.FC<MapViewProps> = ({
     if (!routesLayerRef.current) return;
     routesLayerRef.current.clearLayers();
 
+    const allRoutes = routeCoordinates || {};
+
     // Draw non-highlighted routes with subtle gray/orange
-    Object.entries(ROUTE_PATH_COORDINATES).forEach(([rId, coords]) => {
-      if (rId !== highlightRouteId) {
+    Object.entries(allRoutes).forEach(([rId, coords]) => {
+      if (rId !== highlightRouteId && coords && coords.length > 0) {
         L.polyline(coords, {
           color: '#B0B5C0',
           weight: 3,
@@ -166,7 +172,12 @@ export const MapView: React.FC<MapViewProps> = ({
     });
 
     // Draw active highlighted route with vibrant JKLU Orange
-    const activeCoords = ROUTE_PATH_COORDINATES[highlightRouteId] || ROUTE_PATH_COORDINATES['ROUTE-01'];
+    const activeCoords =
+      (activeRoutePolyline && activeRoutePolyline.length > 0)
+        ? activeRoutePolyline
+        : (routeCoordinates && routeCoordinates[highlightRouteId]);
+
+
     if (activeCoords && activeCoords.length > 0) {
       // Glow underlayer
       L.polyline(activeCoords, {
@@ -184,7 +195,8 @@ export const MapView: React.FC<MapViewProps> = ({
         lineCap: 'round'
       }).addTo(routesLayerRef.current);
     }
-  }, [highlightRouteId]);
+  }, [highlightRouteId, routeCoordinates, activeRoutePolyline]);
+
 
   // Update Markers (Stops, Active Shuttles, Student Location)
   useEffect(() => {

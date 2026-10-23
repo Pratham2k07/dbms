@@ -10,19 +10,8 @@ import {
   DriverAssignment,
   DriverNotification
 } from '../types/database';
-import {
-  MOCK_ROUTES,
-  MOCK_STOPS,
-  MOCK_ROUTE_STOPS,
-  MOCK_SHUTTLES,
-  MOCK_DRIVERS,
-  INITIAL_TRIPS,
-  INITIAL_TRIP_STOPS,
-  INITIAL_SHUTTLE_LOCATIONS,
-  ROUTE_PATH_COORDINATES
-} from '../data/mockDatabase';
 
-const STORAGE_KEY = 'JKLU_SHUTTLE_DATABASE_V2';
+const STORAGE_KEY = 'JKLU_SHUTTLE_DATABASE_V3';
 const CHANNEL_NAME = 'JKLU_SHUTTLE_REALTIME_SYNC';
 
 export interface DatabaseState {
@@ -119,15 +108,18 @@ class CentralDatabaseService {
     }
 
     try {
+      // Purge old mock storage versions if present
+      localStorage.removeItem('JKLU_SHUTTLE_DATABASE_V2');
+      localStorage.removeItem('JKLU_SHUTTLE_DATABASE_V1');
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed && Array.isArray(parsed.routes) && Array.isArray(parsed.driverNotifications)) {
+        if (parsed && Array.isArray(parsed.routes)) {
           return parsed;
         }
       }
     } catch (e) {
-      console.warn('Failed to parse stored database state, initializing seed data:', e);
+      console.warn('Failed to parse stored database state, initializing clean state:', e);
     }
 
     const defaultState = this.generateDefaultSeedState();
@@ -136,116 +128,19 @@ class CentralDatabaseService {
   }
 
   private generateDefaultSeedState(): DatabaseState {
-    // Initial seeded driver assignments
-    const initialAssignments: DriverAssignment[] = [
-      {
-        assignment_id: 'ASG-01',
-        driver_id: 'DRV-101', // Ramesh Kumar
-        route_id: 'ROUTE-01',
-        trip_id: 'TRIP-101',
-        shuttle_id: 'SHT-01',
-        assigned_at: new Date(Date.now() - 3600000).toISOString(),
-        status: 'ACTIVE',
-        notes: 'Regular Morning Service via Malviya Nagar & Jaipur Airport'
-      },
-      {
-        assignment_id: 'ASG-02',
-        driver_id: 'DRV-102', // Vikram Singh
-        route_id: 'ROUTE-02',
-        trip_id: 'TRIP-102',
-        shuttle_id: 'SHT-02',
-        assigned_at: new Date(Date.now() - 7200000).toISOString(),
-        status: 'ACTIVE',
-        notes: 'Campus Express via Mansarovar Metro & DCM'
-      },
-      {
-        assignment_id: 'ASG-03',
-        driver_id: 'DRV-103', // Rajesh Meena
-        route_id: 'ROUTE-03',
-        trip_id: 'TRIP-103',
-        shuttle_id: 'SHT-03',
-        assigned_at: new Date(Date.now() - 10800000).toISOString(),
-        status: 'ACTIVE',
-        notes: 'City Circuit via Railway Station & Vaishali Nagar'
-      }
-    ];
-
-    // Initial driver notifications stored in database so drivers see past assignments
-    const initialNotifications: DriverNotification[] = [
-      {
-        notification_id: 'NOTIF-01',
-        recipient_driver_id: 'DRV-101',
-        title: 'Assigned: Route 01 (Campus ↔ Malviya Nagar)',
-        message: 'You are assigned to Route 01 with Shuttle 01 (RJ 14 PA 8842). Scheduled departure: 09:30 AM.',
-        type: 'ASSIGNMENT_NEW',
-        related_route_id: 'ROUTE-01',
-        related_trip_id: 'TRIP-101',
-        related_shuttle_id: 'SHT-01',
-        route_name: 'Malviya Nagar & Airport Corridor',
-        stops_preview: ['JKLU Campus (Origin)', 'Malviya Nagar', 'Jaipur Airport', 'DCM (Ajmer Road)', 'JKLU Campus (Terminus)'],
-        scheduled_time: '09:30 AM',
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-        read_status: false
-      },
-      {
-        notification_id: 'NOTIF-02',
-        recipient_driver_id: 'DRV-102',
-        title: 'Assigned: Route 02 (Campus ↔ Mansarovar)',
-        message: 'You are assigned to Route 02 with Shuttle 02 (RJ 14 PA 9104). Scheduled departure: 10:00 AM.',
-        type: 'ASSIGNMENT_NEW',
-        related_route_id: 'ROUTE-02',
-        related_trip_id: 'TRIP-102',
-        related_shuttle_id: 'SHT-02',
-        route_name: 'Mansarovar Metro Corridor',
-        stops_preview: ['JKLU Campus (Origin)', 'Mansarovar Metro', 'Vaishali Nagar', 'DCM (Ajmer Road)', 'JKLU Campus (Terminus)'],
-        scheduled_time: '10:00 AM',
-        created_at: new Date(Date.now() - 7200000).toISOString(),
-        read_status: false
-      },
-      {
-        notification_id: 'NOTIF-03',
-        recipient_driver_id: 'DRV-103',
-        title: 'Assigned: Route 03 (Campus ↔ Railway Station)',
-        message: 'You are assigned to Route 03 with Shuttle 03 (RJ 14 PA 7721). Scheduled departure: 10:45 AM.',
-        type: 'ASSIGNMENT_NEW',
-        related_route_id: 'ROUTE-03',
-        related_trip_id: 'TRIP-103',
-        related_shuttle_id: 'SHT-03',
-        route_name: 'Railway Station Corridor',
-        stops_preview: ['JKLU Campus (Origin)', 'Railway Station', 'Vaishali Nagar', 'DCM (Ajmer Road)', 'JKLU Campus (Terminus)'],
-        scheduled_time: '10:45 AM',
-        created_at: new Date(Date.now() - 10800000).toISOString(),
-        read_status: false
-      }
-    ];
-
-    // Seed routes with assigned driver and shuttle
-    const enrichedRoutes: Route[] = MOCK_ROUTES.map((r) => {
-      if (r.route_id === 'ROUTE-01') {
-        return { ...r, assigned_shuttle_id: 'SHT-01', assigned_driver_id: 'DRV-101', status: 'ACTIVE' };
-      }
-      if (r.route_id === 'ROUTE-02') {
-        return { ...r, assigned_shuttle_id: 'SHT-02', assigned_driver_id: 'DRV-102', status: 'ACTIVE' };
-      }
-      if (r.route_id === 'ROUTE-03') {
-        return { ...r, assigned_shuttle_id: 'SHT-03', assigned_driver_id: 'DRV-103', status: 'ACTIVE' };
-      }
-      return { ...r, status: 'ACTIVE' };
-    });
-
     return {
-      routes: enrichedRoutes,
-      stops: MOCK_STOPS,
-      routeStops: MOCK_ROUTE_STOPS,
-      shuttles: MOCK_SHUTTLES,
-      drivers: MOCK_DRIVERS,
-      trips: INITIAL_TRIPS,
-      tripStops: INITIAL_TRIP_STOPS,
-      driverAssignments: initialAssignments,
-      driverNotifications: initialNotifications,
-      shuttleLocations: INITIAL_SHUTTLE_LOCATIONS,
-      routeCoordinates: ROUTE_PATH_COORDINATES,
-      version: 2
+      routes: [],
+      stops: [],
+      routeStops: [],
+      shuttles: [],
+      drivers: [],
+      trips: [],
+      tripStops: [],
+      driverAssignments: [],
+      driverNotifications: [],
+      shuttleLocations: [],
+      routeCoordinates: {},
+      version: 3
     };
   }
 
@@ -255,6 +150,51 @@ class CentralDatabaseService {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
     } catch (e) {
       console.error('Failed to save database state to localStorage:', e);
+    }
+  }
+
+  public syncFromLiveDatabase(data: {
+    routes?: Route[];
+    shuttles?: Shuttle[];
+    trips?: Trip[];
+    drivers?: Driver[];
+    stops?: Stop[];
+    routeStops?: RouteStop[];
+  }) {
+    let hasChanges = false;
+    if (data.routes && Array.isArray(data.routes)) {
+      this.state.routes = data.routes;
+      hasChanges = true;
+    }
+    if (data.shuttles && Array.isArray(data.shuttles)) {
+      this.state.shuttles = data.shuttles;
+      hasChanges = true;
+    }
+    if (data.trips && Array.isArray(data.trips)) {
+      this.state.trips = data.trips;
+      hasChanges = true;
+    }
+    if (data.drivers && Array.isArray(data.drivers)) {
+      this.state.drivers = data.drivers;
+      hasChanges = true;
+    }
+    if (data.stops && Array.isArray(data.stops)) {
+      this.state.stops = data.stops;
+      hasChanges = true;
+    }
+    if (data.routeStops && Array.isArray(data.routeStops)) {
+      this.state.routeStops = data.routeStops;
+      hasChanges = true;
+    }
+    if (hasChanges) {
+      this.saveStateToStorage(this.state);
+      this.notifySubscribers({
+        eventId: `sync-${Date.now()}`,
+        action: 'DATABASE_RESET',
+        table: 'All',
+        timestamp: new Date().toISOString(),
+        sourceTabId: this.tabId
+      });
     }
   }
 

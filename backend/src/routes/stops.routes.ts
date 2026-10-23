@@ -1,12 +1,25 @@
 import { Router } from 'express';
-import { getRoutes, getStopsByRouteId, createRoute, updateRoute, deleteRoute, createStop, updateStop, deleteStop } from '../controllers/stops.controller';
+import {
+  getRoutes,
+  getStopsByRouteId,
+  createRoute,
+  updateRoute,
+  deleteRoute,
+  createStop,
+  updateStop,
+  deleteStop,
+  getAllStops
+} from '../controllers/stops.controller';
 import { authenticateToken, requireRole } from '../middlewares/auth.middleware';
 
 const router = Router();
 
 // Publicly accessible
 router.get('/', getRoutes);
+router.get('/stops/all', getAllStops);
+router.get('/all-stops', getAllStops);
 router.get('/:routeId/stops', getStopsByRouteId);
+
 
 // Admin only routes
 router.use(authenticateToken, requireRole(['admin']));
