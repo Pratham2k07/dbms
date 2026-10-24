@@ -495,3 +495,28 @@ export const updateTripStopStatus = async (tripId: string, stopId: string, statu
     return { success: false, error };
   }
 };
+
+export const fetchAllTripStops = async () => {
+  const query = `
+    SELECT 
+      ts.trip_id,
+      ts.stop_id,
+      ts.stop_sequence,
+      ts.arrival_status,
+      ts.actual_arrival,
+      ts.actual_departure,
+      s.stop_name,
+      s.latitude,
+      s.longitude
+    FROM trip_stops ts
+    JOIN stops s ON ts.stop_id = s.stop_id
+    ORDER BY ts.trip_id, ts.stop_sequence ASC;
+  `;
+  try {
+    const result = await pool.query(query);
+    return result.rows;
+  } catch (error) {
+    console.error('Database query error in fetchAllTripStops:', error);
+    return [];
+  }
+};

@@ -163,8 +163,9 @@ export const AdminTripsScreen: React.FC<AdminTripsScreenProps> = ({
   };
 
   // Wizard Step 6 Submit
-  const handleFinalCreateTrip = () => {
-    const res = createTrip({
+  const handleFinalCreateTrip = async () => {
+    setWizardError('');
+    const res = await createTrip({
       route_id: selectedRouteIdState,
       shuttle_id: selectedShuttleIdState,
       driver_id: selectedDriverIdState,
@@ -175,7 +176,7 @@ export const AdminTripsScreen: React.FC<AdminTripsScreenProps> = ({
     if (res.success) {
       handleCloseWizard();
     } else {
-      setWizardError(res.error || 'Failed to create trip.');
+      setWizardError(res.error || 'Failed to create trip in database.');
     }
   };
 
@@ -770,11 +771,13 @@ export const AdminTripsScreen: React.FC<AdminTripsScreenProps> = ({
                 <select
                   value={selectedTripDetails.shuttle_id}
                   disabled={selectedTripDetails.running_status === 'COMPLETED' || selectedTripDetails.running_status === 'CANCELLED'}
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const newShuttleId = e.target.value;
                     const updated = { ...selectedTripDetails, shuttle_id: newShuttleId };
-                    updateTrip(updated);
-                    setSelectedTripDetails(updated);
+                    const res = await updateTrip(updated);
+                    if (res && res.success) {
+                      setSelectedTripDetails(res.trip || updated);
+                    }
                   }}
                   className="w-full px-2 py-1 rounded-lg border border-stone-200 bg-white font-editorial font-bold text-stone-800 text-xs"
                 >
@@ -791,11 +794,13 @@ export const AdminTripsScreen: React.FC<AdminTripsScreenProps> = ({
                 <select
                   value={selectedTripDetails.driver_id}
                   disabled={selectedTripDetails.running_status === 'COMPLETED' || selectedTripDetails.running_status === 'CANCELLED'}
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const newDriverId = e.target.value;
                     const updated = { ...selectedTripDetails, driver_id: newDriverId };
-                    updateTrip(updated);
-                    setSelectedTripDetails(updated);
+                    const res = await updateTrip(updated);
+                    if (res && res.success) {
+                      setSelectedTripDetails(res.trip || updated);
+                    }
                   }}
                   className="w-full px-2 py-1 rounded-lg border border-stone-200 bg-white font-editorial font-bold text-stone-800 text-xs"
                 >

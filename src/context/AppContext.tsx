@@ -79,8 +79,8 @@ interface AppContextType {
   resetSimulation: () => void;
 
   // Driver Operations
-  handleStartTrip: (tripId: string) => void;
-  handleEndTrip: (tripId: string) => void;
+  handleStartTrip: (tripId: string) => Promise<{ success: boolean; error?: string; trip?: Trip }>;
+  handleEndTrip: (tripId: string) => Promise<{ success: boolean; error?: string }>;
   handleToggleCapacity: (tripId: string) => void;
   markNotificationAsRead: (notificationId: string) => void;
   markAllNotificationsAsRead: (driverId: string) => void;
@@ -97,7 +97,7 @@ interface AppContextType {
     assigned_driver_id?: string;
     start_time?: string;
     instructions?: string;
-  }) => { success: boolean; error?: string; route?: Route; trip?: Trip };
+  }) => Promise<{ success: boolean; error?: string; route?: Route; trip?: Trip }>;
   createRouteWithAssignment: (routeData: {
     route_id: string;
     route_name: string;
@@ -109,13 +109,13 @@ interface AppContextType {
     assigned_driver_id?: string;
     start_time?: string;
     instructions?: string;
-  }) => { success: boolean; error?: string; route?: Route; trip?: Trip };
+  }) => Promise<{ success: boolean; error?: string; route?: Route; trip?: Trip }>;
   updateRoute: (
     route: Route,
     stop_ids?: string[],
     newAssignedDriverId?: string,
     newAssignedShuttleId?: string
-  ) => { success: boolean; error?: string };
+  ) => Promise<{ success: boolean; error?: string }>;
   cancelRoute: (routeId: string) => { success: boolean; error?: string };
   deleteRoute: (routeId: string) => { success: boolean; error?: string };
 
@@ -145,9 +145,9 @@ interface AppContextType {
     driver_id: string;
     start_time: string;
     end_time?: string | null;
-  }) => { success: boolean; error?: string; trip?: Trip };
-  updateTrip: (trip: Trip) => { success: boolean; error?: string };
-  cancelTrip: (tripId: string) => void;
+  }) => Promise<{ success: boolean; error?: string; trip?: Trip }>;
+  updateTrip: (trip: Trip) => Promise<{ success: boolean; error?: string; trip?: Trip }>;
+  cancelTrip: (tripId: string) => Promise<void>;
   updateTripCapacity: (tripId: string, capacity: 'AVAILABLE' | 'MODERATE' | 'FULL') => void;
   updateTripStopArrivalStatus: (tripId: string, stopId: string, status: TripStop['arrival_status']) => void;
 
@@ -329,10 +329,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    socketService.onTripCreated((data: any) => {
+      if (data?.trip) {
+        setTrips((prev) => {
+          const exists = prev.some((t) => t.trip_id === data.trip.trip_id);
+          return exists
+            ? prev.map((t) => (t.trip_id === data.trip.trip_id ? { ...t, ...data.trip } : t))
+            : [data.trip, ...prev];
+        });
+      }
+    });
+
+    socketService.onTripUpdated((data: any) => {
+      if (data?.trip) {
+        setTrips((prev) =>
+          prev.map((t) => (t.trip_id === data.trip.trip_id ? { ...t, ...data.trip } : t))
+        );
+      }
+    });
+
+    socketService.onTripCancelled((data: any) => {
+      if (data?.trip_id) {
+        setTrips((prev) =>
+          prev.map((t) => (t.trip_id === data.trip_id ? { ...t, running_status: 'CANCELLED' } : t))
+        );
+      }
+    });
+
     socketService.onTripStarted((data: any) => {
       if (data?.trip_id) {
         setTrips((prev) =>
-          prev.map((t) => (t.trip_id === data.trip_id ? { ...t, running_status: 'RUNNING' } : t))
+          prev.map((t) => (t.trip_id === data.trip_id ? { ...t, running_status: 'RUNNING', ...(data.trip || {}) } : t))
         );
       }
     });
@@ -340,42 +367,95 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     socketService.onTripEnded((data: any) => {
       if (data?.trip_id) {
         setTrips((prev) =>
-          prev.map((t) => (t.trip_id === data.trip_id ? { ...t, running_status: 'COMPLETED' } : t))
+          prev.map((t) => (t.trip_id === data.trip_id ? { ...t, running_status: 'COMPLETED', ...(data.trip || {}) } : t))
         );
         setShuttleLocations((prev) =>
           prev.filter((loc) => loc.trip_id !== data.trip_id && loc.shuttle_id !== data.shuttle_id)
         );
       }
     });
+
+    socketService.onRouteCreated((data: any) => {
+      if (data?.route) {
+        setRoutes((prev) => {
+          const exists = prev.some((r) => r.route_id === data.route.route_id);
+          return exists ? prev.map((r) => (r.route_id === data.route.route_id ? data.route : r)) : [...prev, data.route];
+        });
+      }
+    });
+
+    socketService.onRouteUpdated((data: any) => {
+      if (data?.route) {
+        setRoutes((prev) =>
+          prev.map((r) => (r.route_id === data.route.route_id ? { ...r, ...data.route } : r))
+        );
+      }
+    });
   }, []);
 
   // ================= Hydrate Initial State from Live Supabase Database =================
-  useEffect(() => {
-    let isMounted = true;
-    Promise.all([
-      apiService.getRoutes().catch(() => null),
-      apiService.getShuttles().catch(() => null),
-      apiService.getTrips().catch(() => null),
-      apiService.getDrivers().catch(() => null),
-      apiService.getAllStops().catch(() => null),
-      apiService.getAllRouteStops().catch(() => null)
-    ]).then(([liveRoutes, liveShuttles, liveTrips, liveDrivers, liveStops, liveRouteStops]) => {
-      if (!isMounted) return;
+  const refreshDatabaseRecords = useCallback(async () => {
+    try {
+      const [liveRoutes, liveShuttles, liveTrips, liveDrivers, liveStops, liveRouteStops, liveTripStops] = await Promise.all([
+        apiService.getRoutes().catch(() => null),
+        apiService.getShuttles().catch(() => null),
+        apiService.getTrips().catch(() => null),
+        apiService.getDrivers().catch(() => null),
+        apiService.getAllStops().catch(() => null),
+        apiService.getAllRouteStops().catch(() => null),
+        apiService.getTripStops().catch(() => null)
+      ]);
+
+      const normalizedStops: Stop[] | undefined =
+        liveStops && Array.isArray(liveStops) && liveStops.length > 0
+          ? liveStops.map((s: any) => ({
+              ...s,
+              latitude: Number(s.latitude),
+              longitude: Number(s.longitude)
+            }))
+          : undefined;
+
       if (liveRoutes && Array.isArray(liveRoutes) && liveRoutes.length > 0) {
-        setRoutes(liveRoutes);
-        // Hydrate real road geometry from database
         const coordsMap: Record<string, [number, number][]> = {};
-        liveRoutes.forEach((r: any) => {
-          if (r.route_coordinates && Array.isArray(r.route_coordinates)) {
-            coordsMap[r.route_id] = r.route_coordinates;
+        const parsedRoutes = liveRoutes.map((r: any) => {
+          let coords = r.route_coordinates;
+          if (typeof coords === 'string') {
+            try { coords = JSON.parse(coords); } catch {}
           }
+          if (Array.isArray(coords) && coords.length > 0) {
+            coordsMap[r.route_id] = coords;
+            return { ...r, route_coordinates: coords };
+          }
+          return r;
         });
+
+        // Ensure every route has pathway coordinates by connecting ordered stops if needed
+        if (normalizedStops && liveRouteStops) {
+          parsedRoutes.forEach((r: any) => {
+            if (!coordsMap[r.route_id] || coordsMap[r.route_id].length === 0) {
+              const ordered = liveRouteStops
+                .filter((rs: any) => rs.route_id === r.route_id)
+                .sort((a: any, b: any) => a.sequence_number - b.sequence_number)
+                .map((rs: any) => {
+                  const s = normalizedStops.find((st: any) => st.stop_id === rs.stop_id);
+                  return s ? [Number(s.latitude), Number(s.longitude)] as [number, number] : null;
+                })
+                .filter(Boolean) as [number, number][];
+              if (ordered.length > 1) {
+                coordsMap[r.route_id] = ordered;
+                r.route_coordinates = ordered;
+              }
+            }
+          });
+        }
+
+        setRoutes(parsedRoutes);
         if (Object.keys(coordsMap).length > 0) {
           setRouteCoordinates((prev) => ({ ...prev, ...coordsMap }));
         }
       }
-      if (liveStops && Array.isArray(liveStops) && liveStops.length > 0) {
-        setStops(liveStops);
+      if (normalizedStops && normalizedStops.length > 0) {
+        setStops(normalizedStops);
       }
       if (liveRouteStops && Array.isArray(liveRouteStops) && liveRouteStops.length > 0) {
         setRouteStops(liveRouteStops);
@@ -389,20 +469,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (liveDrivers && Array.isArray(liveDrivers) && liveDrivers.length > 0) {
         setDrivers(liveDrivers);
       }
+      if (liveTripStops && Array.isArray(liveTripStops) && liveTripStops.length > 0) {
+        setTripStops(liveTripStops);
+      }
 
       databaseService.syncFromLiveDatabase({
         routes: liveRoutes && Array.isArray(liveRoutes) ? liveRoutes : undefined,
-        stops: liveStops && Array.isArray(liveStops) ? liveStops : undefined,
+        stops: normalizedStops,
         routeStops: liveRouteStops && Array.isArray(liveRouteStops) ? liveRouteStops : undefined,
         shuttles: liveShuttles && Array.isArray(liveShuttles) ? liveShuttles : undefined,
         trips: liveTrips && Array.isArray(liveTrips) ? liveTrips : undefined,
         drivers: liveDrivers && Array.isArray(liveDrivers) ? liveDrivers : undefined
       });
-    });
+    } catch (err) {
+      console.warn('Failed to refresh database records:', err);
+    }
+  }, []);
+
+  // Ensure that if user is in Admin portal, the active JWT token is an admin token
+  useEffect(() => {
+    if (isAuthenticated && currentUserRole === 'admin') {
+      const storedUser = localStorage.getItem('user');
+      let roleInStorage = '';
+      try {
+        roleInStorage = storedUser ? JSON.parse(storedUser).role : '';
+      } catch (e) {}
+
+      if (roleInStorage !== 'admin') {
+        authService.logout();
+        authService.login('admin@jklu.edu.in', 'admin@jklu').catch((err) => {
+          console.warn('Auto admin token sync failed:', err);
+        });
+      }
+    }
+  }, [isAuthenticated, currentUserRole]);
+
+  useEffect(() => {
+    let isMounted = true;
+    refreshDatabaseRecords();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [refreshDatabaseRecords]);
 
 
   // Quick navigation helpers
@@ -435,49 +543,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUserRole]);
 
-  // Driver operations
+  // Driver & Admin operations
   const handleStartTrip = useCallback(
     async (tripId: string) => {
-      databaseService.updateTripRunningStatus(tripId, 'RUNNING');
-      setTrips((prev) =>
-        prev.map((t) => (t.trip_id === tripId ? { ...t, running_status: 'RUNNING' } : t))
-      );
       try {
-        await apiService.startTrip(tripId);
-      } catch (err) {
-        console.warn('API error in startTrip:', err);
-      }
+        const res = await apiService.startTrip(tripId);
+        if (res && res.success === false) {
+          const errMsg = res.error || res.message || 'Failed to start trip in database.';
+          triggerNotification('START TRIP REJECTED', errMsg, 'full');
+          return { success: false, error: errMsg };
+        }
 
-      triggerNotification(
-        'JKLU SHUTTLE',
-        `Trip ${tripId} has commenced. Real driver GPS telemetry is active.`,
-        'info'
-      );
+        databaseService.updateTripRunningStatus(tripId, 'RUNNING');
+        setTrips((prev) =>
+          prev.map((t) => (t.trip_id === tripId ? { ...t, running_status: 'RUNNING', ...(res?.trip || {}) } : t))
+        );
+
+        triggerNotification(
+          'JKLU SHUTTLE',
+          `Trip ${tripId} has commenced. Real driver GPS telemetry is active.`,
+          'info'
+        );
+
+        await refreshDatabaseRecords();
+        return { success: true, trip: res?.trip };
+      } catch (err: any) {
+        const errMsg = err?.response?.data?.message || err?.message || 'Database error starting trip.';
+        console.error('API error in startTrip:', err);
+        triggerNotification('START TRIP REJECTED', errMsg, 'full');
+        return { success: false, error: errMsg };
+      }
     },
-    [triggerNotification]
+    [triggerNotification, refreshDatabaseRecords]
   );
 
   const handleEndTrip = useCallback(
     async (tripId: string) => {
-      databaseService.updateTripRunningStatus(tripId, 'COMPLETED');
-      setTrips((prev) =>
-        prev.map((t) => (t.trip_id === tripId ? { ...t, running_status: 'COMPLETED' } : t))
-      );
-      // Remove shuttle from active live tracking
-      setShuttleLocations((prev) => prev.filter((loc) => loc.trip_id !== tripId));
       try {
-        await apiService.endTrip(tripId);
-      } catch (err) {
-        console.warn('API error in endTrip:', err);
-      }
+        const res = await apiService.endTrip(tripId);
+        if (res && res.success === false) {
+          const errMsg = res.error || res.message || 'Failed to end trip in database.';
+          triggerNotification('END TRIP REJECTED', errMsg, 'full');
+          return { success: false, error: errMsg };
+        }
 
-      triggerNotification(
-        'JKLU SHUTTLE',
-        `Trip ${tripId} completed at JK Lakshmipat University. Live tracking ended.`,
-        'info'
-      );
+        databaseService.updateTripRunningStatus(tripId, 'COMPLETED');
+        setTrips((prev) =>
+          prev.map((t) => (t.trip_id === tripId ? { ...t, running_status: 'COMPLETED', ...(res?.trip || {}) } : t))
+        );
+        // Remove shuttle from active live tracking
+        setShuttleLocations((prev) => prev.filter((loc) => loc.trip_id !== tripId));
+
+        triggerNotification(
+          'JKLU SHUTTLE',
+          `Trip ${tripId} completed at JK Lakshmipat University. Live tracking ended.`,
+          'info'
+        );
+
+        await refreshDatabaseRecords();
+        return { success: true };
+      } catch (err: any) {
+        const errMsg = err?.response?.data?.message || err?.message || 'Database error ending trip.';
+        console.error('API error in endTrip:', err);
+        triggerNotification('END TRIP REJECTED', errMsg, 'full');
+        return { success: false, error: errMsg };
+      }
     },
-    [triggerNotification]
+    [triggerNotification, refreshDatabaseRecords]
   );
 
 
@@ -508,7 +640,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     databaseService.markAllNotificationsAsRead(driverId);
   }, []);
 
-  const createRoute = useCallback((routeData: {
+  const createRoute = useCallback(async (routeData: {
     route_id: string;
     route_name: string;
     route_code: string;
@@ -520,40 +652,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     start_time?: string;
     instructions?: string;
   }) => {
-    const res = databaseService.createRouteWithAssignment(routeData);
-    if (res.success && res.route) {
-      // Async hit backend with generated trip_id if assigned
-      apiService.createRoute({
-        ...routeData,
-        trip_id: res.trip?.trip_id
-      }).catch(err => console.warn('API error in createRoute:', err));
+    try {
+      const res = await apiService.createRoute(routeData);
+      const createdRoute: Route = res?.route || res;
+
+      setRoutes((prev) => {
+        const exists = prev.some((r) => r.route_id === createdRoute.route_id);
+        return exists ? prev.map((r) => (r.route_id === createdRoute.route_id ? createdRoute : r)) : [...prev, createdRoute];
+      });
 
       triggerNotification(
         'ROUTE CREATED & SAVED',
-        `Route ${res.route.route_code} (${res.route.route_name}) created with ${res.route.total_stops} stops.`,
+        `Route ${createdRoute.route_code} (${createdRoute.route_name}) created with ${createdRoute.total_stops} stops.`,
         'info'
       );
+
+      await refreshDatabaseRecords();
+      return { success: true, route: createdRoute };
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Database error creating route';
+      console.error('API error in createRoute:', err);
+      triggerNotification('ROUTE CREATION FAILED', errMsg, 'full');
+      return { success: false, error: errMsg };
     }
-    return res;
-  }, [triggerNotification]);
+  }, [triggerNotification, refreshDatabaseRecords]);
 
   const createRouteWithAssignment = createRoute;
 
-  const updateRoute = useCallback((
+  const updateRoute = useCallback(async (
     updated: Route,
     stop_ids?: string[],
     newAssignedDriverId?: string,
     newAssignedShuttleId?: string
   ) => {
-    const res = databaseService.updateRoute(updated, stop_ids, newAssignedDriverId, newAssignedShuttleId);
-    if (res.success) {
-      // Async hit backend
-      apiService.updateRoute(updated.route_id, { updated, stop_ids }).catch(err => console.warn('API error', err));
+    try {
+      await apiService.updateRoute(updated.route_id, {
+        route_name: updated.route_name,
+        route_code: updated.route_code,
+        description: updated.description,
+        color: updated.color,
+        status: updated.status,
+        stop_ids,
+        assigned_driver_id: newAssignedDriverId,
+        assigned_shuttle_id: newAssignedShuttleId
+      });
+
+      setRoutes((prev) =>
+        prev.map((r) => (r.route_id === updated.route_id ? { ...r, ...updated, assigned_driver_id: newAssignedDriverId, assigned_shuttle_id: newAssignedShuttleId } : r))
+      );
 
       triggerNotification('ROUTE UPDATED', `Route ${updated.route_code} updated successfully.`, 'info');
+      await refreshDatabaseRecords();
+      return { success: true };
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to update route';
+      console.error('API error in updateRoute:', err);
+      triggerNotification('UPDATE FAILED', errMsg, 'full');
+      return { success: false, error: errMsg };
     }
-    return res;
-  }, [triggerNotification]);
+  }, [triggerNotification, refreshDatabaseRecords]);
 
   const cancelRoute = useCallback((routeId: string) => {
     const res = databaseService.cancelRoute(routeId);
@@ -699,42 +856,81 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [triggerNotification]);
 
   // ================= ADMIN TRIP MANAGEMENT =================
-  const createTrip = useCallback((data: {
+  const createTrip = useCallback(async (data: {
     route_id: string;
     shuttle_id: string;
     driver_id: string;
     start_time: string;
     end_time?: string | null;
   }) => {
-    const res = databaseService.createTrip(data);
-    if (res.success && res.trip) {
-      apiService.createTrip({
-        ...data,
-        trip_id: res.trip.trip_id
-      }).catch(err => console.warn('API error in createTrip:', err));
+    try {
+      const res = await apiService.createTrip(data);
+      if (!res || !res.success) {
+        const errMsg = res?.error || res?.message || 'Failed to schedule trip in database.';
+        triggerNotification('CREATION FAILED', errMsg, 'full');
+        return { success: false, error: errMsg };
+      }
+
+      const createdTrip: Trip = res.trip;
+      setTrips((prev) => {
+        const exists = prev.some((t) => t.trip_id === createdTrip.trip_id);
+        return exists ? prev.map((t) => (t.trip_id === createdTrip.trip_id ? createdTrip : t)) : [createdTrip, ...prev];
+      });
+
       triggerNotification(
         'TRIP SCHEDULED',
-        `Trip ${res.trip.trip_id} on ${data.route_id} scheduled for ${data.start_time}.`,
+        `Trip ${createdTrip.trip_id} on ${createdTrip.route_id} scheduled for ${createdTrip.start_time}.`,
         'info'
       );
-    }
-    return res;
-  }, [triggerNotification]);
 
-  const updateTrip = useCallback((updatedTrip: Trip) => {
-    const res = databaseService.updateTrip(updatedTrip);
-    if (res.success) {
-      apiService.updateTrip(updatedTrip.trip_id, updatedTrip).catch(err => console.warn('API error in updateTrip:', err));
-      triggerNotification('TRIP UPDATED', `Trip ${updatedTrip.trip_id} updated.`, 'info');
+      await refreshDatabaseRecords();
+      return { success: true, trip: createdTrip };
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Server error creating trip.';
+      console.error('API error in createTrip:', err);
+      triggerNotification('CREATION FAILED', errMsg, 'full');
+      return { success: false, error: errMsg };
     }
-    return res;
-  }, [triggerNotification]);
+  }, [triggerNotification, refreshDatabaseRecords]);
 
-  const cancelTrip = useCallback((tripId: string) => {
-    databaseService.cancelTrip(tripId);
-    apiService.cancelTrip(tripId).catch(err => console.warn('API error in cancelTrip:', err));
-    triggerNotification('TRIP CANCELLED', `Trip ${tripId} has been cancelled.`, 'info');
-  }, [triggerNotification]);
+  const updateTrip = useCallback(async (updatedTrip: Trip) => {
+    try {
+      const res = await apiService.updateTrip(updatedTrip.trip_id, updatedTrip);
+      if (res && res.success === false) {
+        const errMsg = res.error || res.message || 'Failed to update trip.';
+        triggerNotification('UPDATE FAILED', errMsg, 'full');
+        return { success: false, error: errMsg };
+      }
+
+      const tripToSave = res?.trip || updatedTrip;
+      setTrips((prev) =>
+        prev.map((t) => (t.trip_id === tripToSave.trip_id ? tripToSave : t))
+      );
+      triggerNotification('TRIP UPDATED', `Trip ${tripToSave.trip_id} updated.`, 'info');
+      await refreshDatabaseRecords();
+      return { success: true, trip: tripToSave };
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Server error updating trip.';
+      console.error('API error in updateTrip:', err);
+      triggerNotification('UPDATE FAILED', errMsg, 'full');
+      return { success: false, error: errMsg };
+    }
+  }, [triggerNotification, refreshDatabaseRecords]);
+
+  const cancelTrip = useCallback(async (tripId: string) => {
+    try {
+      await apiService.cancelTrip(tripId);
+      setTrips((prev) =>
+        prev.map((t) => (t.trip_id === tripId ? { ...t, running_status: 'CANCELLED' } : t))
+      );
+      triggerNotification('TRIP CANCELLED', `Trip ${tripId} has been cancelled.`, 'info');
+      await refreshDatabaseRecords();
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to cancel trip.';
+      console.error('API error in cancelTrip:', err);
+      triggerNotification('CANCELLATION FAILED', errMsg, 'full');
+    }
+  }, [triggerNotification, refreshDatabaseRecords]);
 
   const updateTripCapacity = useCallback((tripId: string, capacity: 'AVAILABLE' | 'MODERATE' | 'FULL') => {
     databaseService.updateTripCapacity(tripId, capacity);
@@ -760,13 +956,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const loginUser = async (email: string, password?: string, forceRole?: 'student' | 'driver' | 'admin'): Promise<boolean> => {
     let role: 'student' | 'driver' | 'admin' = 'student';
     
-    try {
-      await authService.login(email, password || 'password123');
-      socketService.connect();
-    } catch (e) {
-      console.warn("Backend auth notice:", e);
-    }
-
     if (forceRole) {
       role = forceRole;
     } else if (email.toLowerCase().includes('admin')) {
@@ -777,6 +966,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       role = 'student';
     }
 
+    try {
+      let pwd = password;
+      if (!pwd) {
+        if (role === 'admin') pwd = 'admin@jklu';
+        else if (role === 'driver') pwd = 'driver@8821';
+        else pwd = 'jklu@2024';
+      }
+      authService.logout();
+      await authService.login(email, pwd);
+      socketService.connect();
+      await refreshDatabaseRecords();
+    } catch (e) {
+      console.warn("Backend auth notice:", e);
+    }
+
     setIsAuthenticated(true);
     setCurrentUserRole(role);
 
@@ -785,8 +989,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentScreen('admin-dashboard');
       triggerNotification('ADMIN AUTHENTICATED', 'Welcome Prof. Anurag Sharma! Admin Control Center Active.', 'info');
     } else if (role === 'driver') {
-      // Find matching driver from drivers table
-      const matched = drivers.find((d) =>
+      // Find matching driver from live database drivers table
+      const currentDrivers = databaseService.getState().drivers.length > 0 ? databaseService.getState().drivers : drivers;
+      const matched = currentDrivers.find((d) =>
         email.toLowerCase().includes(d.name.toLowerCase().split(' ')[0]) ||
         email.toLowerCase().includes(d.driver_id.toLowerCase())
       );
@@ -808,6 +1013,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logoutUser = () => {
+    authService.logout();
     setIsAuthenticated(false);
     setIsDriverMode(false);
     setCurrentUserRole('student');

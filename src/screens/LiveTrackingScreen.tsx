@@ -273,7 +273,7 @@ export const LiveTrackingScreen: React.FC = () => {
                 activeShuttles={activeShuttlesForMap}
                 highlightRouteId={route.route_id}
                 routeCoordinates={routeCoordinates}
-                activeRoutePolyline={liveTripData?.route_coordinates || route?.route_coordinates}
+                activeRoutePolyline={liveTripData?.route_coordinates || route?.route_coordinates || (routeCoordinates && routeCoordinates[route.route_id])}
                 selectedStopId={selectedStopId}
                 onSelectShuttle={(tripId) => setSelectedTripId(tripId)}
                 heightClass="h-[55vh] lg:h-[620px]"

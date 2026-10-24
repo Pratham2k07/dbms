@@ -179,7 +179,11 @@ class CentralDatabaseService {
       hasChanges = true;
     }
     if (data.stops && Array.isArray(data.stops)) {
-      this.state.stops = data.stops;
+      this.state.stops = data.stops.map((s: any) => ({
+        ...s,
+        latitude: Number(s.latitude),
+        longitude: Number(s.longitude)
+      }));
       hasChanges = true;
     }
     if (data.routeStops && Array.isArray(data.routeStops)) {

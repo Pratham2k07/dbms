@@ -239,8 +239,8 @@ export const AdminStopsScreen: React.FC<AdminStopsScreenProps> = ({
                     </td>
 
                     <td className="py-3.5 pr-3 font-mono text-stone-700">
-                      <div>Lat: {stop.latitude.toFixed(4)}</div>
-                      <div>Lng: {stop.longitude.toFixed(4)}</div>
+                      <div>Lat: {Number(stop.latitude).toFixed(4)}</div>
+                      <div>Lng: {Number(stop.longitude).toFixed(4)}</div>
                     </td>
 
                     <td className="py-3.5 pr-3">

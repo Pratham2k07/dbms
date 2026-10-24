@@ -163,7 +163,7 @@ export const createRoute = async (routeData: any) => {
       // Ensure shuttle exists
       await client.query(
         `INSERT INTO shuttles (shuttle_id, registration_number, capacity, status)
-         VALUES ($1, 'RJ 14 PA ' || RIGHT($1, 4), 32, 'ACTIVE')
+         VALUES ($1::varchar, 'RJ 14 PA ' || RIGHT($1::text, 4), 32, 'ACTIVE')
          ON CONFLICT (shuttle_id) DO NOTHING;`,
         [routeData.assigned_shuttle_id]
       );
@@ -171,13 +171,13 @@ export const createRoute = async (routeData: any) => {
       // Ensure driver exists
       await client.query(
         `INSERT INTO users (user_id, name, email, password_hash, role)
-         VALUES ($1, 'Assigned Driver', $1 || '@jklu.edu.in', 'hash', 'driver')
+         VALUES ($1::varchar, 'Assigned Driver', $1::text || '@jklu.edu.in', 'hash', 'driver')
          ON CONFLICT (user_id) DO NOTHING;`,
         [routeData.assigned_driver_id]
       );
       await client.query(
         `INSERT INTO drivers (driver_id, license_no)
-         VALUES ($1, 'RJ14-DL-' || RIGHT($1, 4))
+         VALUES ($1::varchar, 'RJ14-DL-' || RIGHT($1::text, 4))
          ON CONFLICT (driver_id) DO NOTHING;`,
         [routeData.assigned_driver_id]
       );

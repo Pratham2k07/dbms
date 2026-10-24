@@ -1,12 +1,8 @@
 import { Router } from 'express';
-import { getDashboardStats } from '../controllers/admin.controller';
-import { authenticateToken, requireRole } from '../middlewares/auth.middleware';
+import { getAdminStats } from '../controllers/admin.controller.js';
 
 const router = Router();
 
-// Protect admin routes
-router.use(authenticateToken, requireRole(['admin']));
-
-router.get('/stats', getDashboardStats);
+router.get('/stats', getAdminStats);
 
 export default router;

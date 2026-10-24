@@ -34,6 +34,14 @@ export const HomeScreen: React.FC = () => {
     return running ? running.shuttle_id : (shuttles[0]?.shuttle_id || 'SHT-01');
   });
 
+  // Automatically switch focus to newly running shuttle when a trip is dispatched
+  React.useEffect(() => {
+    const running = trips.find((t) => t.running_status === 'RUNNING');
+    if (running && (!selectedShuttleId || !trips.some(t => t.shuttle_id === selectedShuttleId && t.running_status === 'RUNNING'))) {
+      setSelectedShuttleId(running.shuttle_id);
+    }
+  }, [trips, selectedShuttleId]);
+
   // Toggle to view all 40 stops across Jaipur vs only the active corridor
   const [showAllStopsOnMap, setShowAllStopsOnMap] = useState<boolean>(true);
 
@@ -79,6 +87,40 @@ export const HomeScreen: React.FC = () => {
       routes.find((r) => r.route_id === activeTripForSelectedShuttle?.route_id) || routes[0]
     );
   }, [routes, activeTripForSelectedShuttle]);
+
+  // Real road pathway coordinates for the active route
+  const activeRoutePolyline = useMemo(() => {
+    const routeId = activeRouteForSelectedShuttle?.route_id || 'ROUTE-01';
+
+    // 1. Check routeCoordinates map from AppContext
+    if (routeCoordinates && routeCoordinates[routeId] && routeCoordinates[routeId].length > 0) {
+      return routeCoordinates[routeId];
+    }
+
+    // 2. Check route.route_coordinates property
+    const rCoords = activeRouteForSelectedShuttle?.route_coordinates;
+    if (rCoords) {
+      if (Array.isArray(rCoords) && rCoords.length > 0) return rCoords;
+      if (typeof rCoords === 'string') {
+        try {
+          const parsed = JSON.parse(rCoords);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch {}
+      }
+    }
+
+    // 3. Fallback: derive pathway by connecting ordered route stops
+    const ordered = routeStops
+      .filter((rs) => rs.route_id === routeId)
+      .sort((a, b) => a.sequence_number - b.sequence_number)
+      .map((rs) => {
+        const s = stops.find((st) => st.stop_id === rs.stop_id);
+        return s ? ([Number(s.latitude), Number(s.longitude)] as [number, number]) : null;
+      })
+      .filter(Boolean) as [number, number][];
+
+    return ordered.length > 1 ? ordered : undefined;
+  }, [activeRouteForSelectedShuttle, routeCoordinates, routeStops, stops]);
 
   // 4. Format active shuttle for map rendering - STRICTLY 1 SHUTTLE AT A TIME
   const activeShuttlesForMap = useMemo(() => {
@@ -255,7 +297,7 @@ export const HomeScreen: React.FC = () => {
                 activeShuttles={activeShuttlesForMap}
                 highlightRouteId={activeTripForSelectedShuttle?.route_id || 'ROUTE-02'}
                 routeCoordinates={routeCoordinates}
-                activeRoutePolyline={activeRouteForSelectedShuttle?.route_coordinates}
+                activeRoutePolyline={activeRoutePolyline}
                 selectedStopId={selectedStopId}
                 onSelectStop={(stopId) => handleSelectStop(stopId)}
                 onSelectShuttle={(tripId) => {

@@ -4,10 +4,10 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node backend/dist/index.js",
-    "dev:vite": "vite",
+    "dev": "vite",
+    "dev:backend": "npm run dev --prefix backend",
+    "build:backend": "npm run build --prefix backend",
     "build": "tsc && vite build",
-    "start": "node backend/dist/index.js",
     "preview": "vite preview"
   },
   "dependencies": {

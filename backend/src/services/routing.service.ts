@@ -2,7 +2,7 @@ import https from 'https';
 
 export interface RouteGeometryResult {
   success: boolean;
-  coordinates: [number, number][]; // [latitude, longitude] for Leaflet
+  coordinates: [number, number][];
   total_distance_km: number;
   stopDistances: {
     stop_id: string;
@@ -12,9 +12,6 @@ export interface RouteGeometryResult {
   source: 'osrm' | 'geodesic_fallback';
 }
 
-/**
- * Calculates Great Circle distance between two coordinates in meters
- */
 export function haversineDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371e3;
   const phi1 = (lat1 * Math.PI) / 180;
@@ -29,19 +26,18 @@ export function haversineDistanceMeters(lat1: number, lon1: number, lat2: number
   return R * c;
 }
 
-/**
- * Fetches actual road-following route geometry and segment distances from OSRM
- */
 export async function getRoadRouteGeometry(
-  stops: { stop_id: string; latitude: number; longitude: number }[]
+  stops: { stop_id: string; latitude: number | string; longitude: number | string }[]
 ): Promise<RouteGeometryResult> {
   if (!stops || stops.length < 2) {
     return {
       success: false,
       coordinates: stops ? stops.map((s) => [Number(s.latitude), Number(s.longitude)]) : [],
       total_distance_km: 0,
-      stopDistances: stops ? stops.map((s) => ({ stop_id: s.stop_id, distance_from_prev_km: 0, cumulative_distance_km: 0 })) : [],
-      source: 'geodesic_fallback'
+      stopDistances: stops
+        ? stops.map((s) => ({ stop_id: s.stop_id, distance_from_prev_km: 0, cumulative_distance_km: 0 }))
+        : [],
+      source: 'geodesic_fallback',
     };
   }
 
@@ -55,9 +51,9 @@ export async function getRoadRouteGeometry(
         url,
         {
           headers: {
-            'User-Agent': 'JKLUShuttleSystem/2.0 (University Mobility Transport Operations)'
+            'User-Agent': 'JKLUShuttleSystem/2.0 (University Mobility Transport Operations)',
           },
-          timeout: 6000
+          timeout: 4000,
         },
         (res) => {
           let data = '';
@@ -81,7 +77,6 @@ export async function getRoadRouteGeometry(
       );
       const total_distance_km = Number((route.distance / 1000).toFixed(2));
 
-      // Compute stop-to-stop distances from legs
       const stopDistances: RouteGeometryResult['stopDistances'] = [];
       let cumulative = 0;
 
@@ -90,7 +85,7 @@ export async function getRoadRouteGeometry(
           stopDistances.push({
             stop_id: stops[i].stop_id,
             distance_from_prev_km: 0,
-            cumulative_distance_km: 0
+            cumulative_distance_km: 0,
           });
         } else {
           const leg = route.legs && route.legs[i - 1];
@@ -99,7 +94,7 @@ export async function getRoadRouteGeometry(
           stopDistances.push({
             stop_id: stops[i].stop_id,
             distance_from_prev_km: distKm,
-            cumulative_distance_km: cumulative
+            cumulative_distance_km: cumulative,
           });
         }
       }
@@ -109,11 +104,11 @@ export async function getRoadRouteGeometry(
         coordinates,
         total_distance_km,
         stopDistances,
-        source: 'osrm'
+        source: 'osrm',
       };
     }
   } catch (err) {
-    console.warn('[ROUTING] OSRM live routing failed, falling back to geodesic road approximation:', err);
+    console.warn('[ROUTING] OSRM live routing failed, using geodesic road interpolation:', err);
   }
 
   // Geodesic fallback
@@ -121,7 +116,7 @@ export async function getRoadRouteGeometry(
 }
 
 function buildGeodesicFallback(
-  stops: { stop_id: string; latitude: number; longitude: number }[]
+  stops: { stop_id: string; latitude: number | string; longitude: number | string }[]
 ): RouteGeometryResult {
   const coordinates: [number, number][] = [];
   const stopDistances: RouteGeometryResult['stopDistances'] = [];
@@ -134,7 +129,7 @@ function buildGeodesicFallback(
       stopDistances.push({
         stop_id: curr.stop_id,
         distance_from_prev_km: 0,
-        cumulative_distance_km: 0
+        cumulative_distance_km: 0,
       });
     } else {
       const prev = stops[i - 1];
@@ -146,8 +141,8 @@ function buildGeodesicFallback(
       );
       totalMeters += legMeters;
 
-      // Interpolate fine steps
-      const steps = 10;
+      // Fine step interpolation between sequential stops for smooth pathway
+      const steps = 15;
       for (let step = 1; step <= steps; step++) {
         const frac = step / steps;
         const lat = Number(prev.latitude) + (Number(curr.latitude) - Number(prev.latitude)) * frac;
@@ -158,7 +153,7 @@ function buildGeodesicFallback(
       stopDistances.push({
         stop_id: curr.stop_id,
         distance_from_prev_km: Number((legMeters / 1000).toFixed(2)),
-        cumulative_distance_km: Number((totalMeters / 1000).toFixed(2))
+        cumulative_distance_km: Number((totalMeters / 1000).toFixed(2)),
       });
     }
   }
@@ -168,19 +163,15 @@ function buildGeodesicFallback(
     coordinates,
     total_distance_km: Number((totalMeters / 1000).toFixed(2)),
     stopDistances,
-    source: 'geodesic_fallback'
+    source: 'geodesic_fallback',
   };
 }
 
-/**
- * Map-matching: Projects a vehicle's GPS position onto the route polyline.
- * Returns the projected position, progress percentage, and cumulative road distance in km.
- */
 export function projectVehicleOnRoute(
   vehicleLat: number,
   vehicleLng: number,
   routeCoordinates: [number, number][],
-  totalDistanceKm: number
+  totalDistanceKm: number = 0
 ): {
   projectedLat: number;
   projectedLng: number;
@@ -194,7 +185,7 @@ export function projectVehicleOnRoute(
       projectedLng: vehicleLng,
       distanceFromStartKm: 0,
       progressPercentage: 0,
-      distanceToRouteMeters: 0
+      distanceToRouteMeters: 0,
     };
   }
 
@@ -209,7 +200,6 @@ export function projectVehicleOnRoute(
 
     const segLengthMeters = haversineDistanceMeters(p1[0], p1[1], p2[0], p2[1]);
 
-    // Vector projection parameter t
     const dx = p2[1] - p1[1];
     const dy = p2[0] - p1[0];
     const lenSq = dx * dx + dy * dy;
@@ -243,13 +233,10 @@ export function projectVehicleOnRoute(
     projectedLng: bestProjected[1],
     distanceFromStartKm,
     progressPercentage,
-    distanceToRouteMeters: Math.round(minDistanceMeters)
+    distanceToRouteMeters: Math.round(minDistanceMeters),
   };
 }
 
-/**
- * Calculates theoretical ETA in minutes based on 25 km/h agreed transit baseline
- */
 export function calculateTheoreticalEtaMinutes(
   remainingDistanceKm: number,
   averageSpeedKmh: number = 25

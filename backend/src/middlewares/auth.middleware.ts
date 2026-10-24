@@ -1,48 +1,82 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_change_in_production';
+const JWT_SECRET = process.env.JWT_SECRET || 'jklu_shuttle_super_secret_jwt_key_2026';
 
-// Extend Express Request interface to include user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: any;
-    }
-  }
+export interface AuthUser {
+  user_id: string;
+  email: string;
+  role: 'student' | 'driver' | 'admin';
+  name?: string;
 }
 
-export const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Format: "Bearer <token>"
+export interface AuthenticatedRequest extends Request {
+  user?: AuthUser;
+}
 
-  if (!token) {
-    // In local development, gracefully default to admin permissions so frontend isn't blocked
-    if (process.env.NODE_ENV === 'development') {
-      req.user = { id: 'USR-ADM-001', role: 'admin', email: 'admin@jklu.edu.in' };
-      return next();
-    }
-    return res.status(401).json({ message: 'Access denied. No token provided.' });
+export const authenticateJWT = (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    res.status(401).json({ success: false, message: 'Authorization header missing' });
+    return;
   }
 
+  const token = authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7).trim()
+    : authHeader.trim();
+
   try {
-    const verified = jwt.verify(token, JWT_SECRET);
-    req.user = verified;
+    const decoded = jwt.verify(token, JWT_SECRET) as AuthUser;
+    req.user = decoded;
     next();
-  } catch (err) {
-    if (process.env.NODE_ENV === 'development') {
-      req.user = { id: 'USR-ADM-001', role: 'admin', email: 'admin@jklu.edu.in' };
-      return next();
-    }
-    res.status(403).json({ message: 'Invalid or expired token.' });
+  } catch (error) {
+    res.status(403).json({ success: false, message: 'Invalid or expired token' });
   }
 };
 
-export const requireRole = (roles: string[]) => {
-  return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.user || (!roles.includes(req.user.role) && req.user.role !== 'admin')) {
-      return res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
+export const optionalAuth = (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  const authHeader = req.headers.authorization;
+
+  if (authHeader) {
+    const token = authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7).trim()
+      : authHeader.trim();
+
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as AuthUser;
+      req.user = decoded;
+    } catch {
+      // Ignore invalid token for optional auth
     }
+  }
+
+  next();
+};
+
+export const requireRole = (allowedRoles: ('student' | 'driver' | 'admin')[]) => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Authentication required' });
+      return;
+    }
+
+    if (!allowedRoles.includes(req.user.role)) {
+      res.status(403).json({
+        success: false,
+        message: `Forbidden: Access restricted to roles [${allowedRoles.join(', ')}]`,
+      });
+      return;
+    }
+
     next();
   };
 };

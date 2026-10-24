@@ -1,36 +1,34 @@
 import { Router } from 'express';
 import {
-  getAllTrips,
-  getTripById,
-  getLiveTrip,
+  getTrips,
+  getAllTripStops,
+  getLiveTripDetails,
   createTrip,
   updateTrip,
   startTrip,
   endTrip,
   cancelTrip,
   updateTripCapacity,
-  updateTripStopStatus
-} from '../controllers/trips.controller';
-import { authenticateToken, requireRole } from '../middlewares/auth.middleware';
+  updateTripStopStatus,
+} from '../controllers/trips.controller.js';
+import { optionalAuth } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
-// Public routes for student and passenger tracking
-router.get('/', getAllTrips);
-router.get('/:id/live', getLiveTrip);
-router.get('/:id', getTripById);
+// Collections
+router.get('/trip-stops/all', getAllTripStops);
+router.get('/:id/live', getLiveTripDetails);
+router.get('/', getTrips);
 
-// Driver & Admin operational controls
-router.post('/:id/start', authenticateToken, requireRole(['admin', 'driver']), startTrip);
-router.patch('/:id/start', authenticateToken, requireRole(['admin', 'driver']), startTrip);
-router.post('/:id/end', authenticateToken, requireRole(['admin', 'driver']), endTrip);
-router.patch('/:id/end', authenticateToken, requireRole(['admin', 'driver']), endTrip);
-router.patch('/:id/capacity', authenticateToken, requireRole(['admin', 'driver']), updateTripCapacity);
-router.patch('/:id/stops/:stopId', authenticateToken, requireRole(['admin', 'driver']), updateTripStopStatus);
+// Create & Update
+router.post('/', optionalAuth, createTrip);
+router.put('/:id', optionalAuth, updateTrip);
 
-// Admin-only management
-router.post('/', authenticateToken, requireRole(['admin']), createTrip);
-router.put('/:id', authenticateToken, requireRole(['admin']), updateTrip);
-router.patch('/:id/cancel', authenticateToken, requireRole(['admin']), cancelTrip);
+// Lifecycle Operations
+router.post('/:id/start', optionalAuth, startTrip);
+router.post('/:id/end', optionalAuth, endTrip);
+router.patch('/:id/cancel', optionalAuth, cancelTrip);
+router.patch('/:id/capacity', optionalAuth, updateTripCapacity);
+router.patch('/:tripId/stops/:stopId', optionalAuth, updateTripStopStatus);
 
 export default router;
