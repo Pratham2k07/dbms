@@ -23,11 +23,11 @@ export const CURRENT_ADMIN: Admin = {
   department: 'JKLU Transport & Mobility Cell'
 };
 
-// Default initial student campus coordinates (replaced dynamically when real browser GPS is granted)
+// Default initial student campus coordinates (Academic Lawn & Hostel Plaza)
 export const INITIAL_STUDENT_LOCATION: StudentLocation = {
   student_id: 'USR-STU-001',
-  latitude: 26.8373,
-  longitude: 75.6499,
+  latitude: 26.8386,
+  longitude: 75.6518,
   timestamp: new Date().toISOString(),
-  location_name: 'JK Lakshmipat University Campus'
+  location_name: 'JK Lakshmipat University • Academic Plaza'
 };

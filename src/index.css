@@ -27,6 +27,12 @@
   }
 }
 
+/* Leaflet Custom DivIcon Resets (remove default border and background) */
+.leaflet-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
 /* Custom Minimal Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;

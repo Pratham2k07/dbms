@@ -224,7 +224,7 @@ INSERT INTO shuttles (shuttle_id, registration_number, capacity, status, shuttle
 -- STOPS (40 Real Jaipur & JKLU Campus transit points)
 INSERT INTO stops (stop_id, stop_name, latitude, longitude, is_destination, description) VALUES
   ('STOP-JKLU-START', 'JKLU CAMPUS (ORIGIN)', 26.837300, 75.649900, FALSE, 'JKLU Departure Bus Bay • University Mobility Origin'),
-  ('STOP-JKLU', 'JKLU CAMPUS (TERMINUS)', 26.837300, 75.649900, TRUE, 'JK Lakshmipat University • Final Arrival Terminus'),
+  ('STOP-JKLU', 'JKLU CAMPUS (TERMINUS)', 26.836500, 75.650800, TRUE, 'JK Lakshmipat University • Final Arrival Terminus'),
   ('STOP-MANSAROVAR', 'MANSAROVAR', 26.873200, 75.766800, FALSE, 'Pillar 34, New Sanganer Road & Metro Hub'),
   ('STOP-VAISHALI', 'VAISHALI NAGAR', 26.907500, 75.748500, FALSE, 'Amrapali Circle & Gandhi Path Junction'),
   ('STOP-DCM', 'DCM', 26.886500, 75.742000, FALSE, 'DCM Flyover Junction & Ajmer Expressway Hub'),
