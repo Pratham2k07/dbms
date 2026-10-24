@@ -228,7 +228,9 @@ export const HomeScreen: React.FC = () => {
                     ? 'Acquiring device GPS satellite fix...'
                     : locationError
                     ? `Notice: ${locationError}`
-                    : `Signal: ${studentLocation.latitude.toFixed(4)}, ${studentLocation.longitude.toFixed(4)}`}
+                    : `Signal: ${studentLocation.latitude.toFixed(4)}, ${studentLocation.longitude.toFixed(4)}${
+                        studentLocation.accuracy_m ? ` (±${Math.round(studentLocation.accuracy_m)}m)` : ''
+                      }`}
                 </span>
               </div>
 
