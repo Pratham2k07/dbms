@@ -1,6 +1,19 @@
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5000';
+const getSocketUrl = (): string => {
+  const envSocketUrl = (import.meta as any).env?.VITE_SOCKET_URL;
+  if (envSocketUrl) return envSocketUrl;
+  const envApiUrl = (import.meta as any).env?.VITE_API_URL;
+  if (envApiUrl && typeof envApiUrl === 'string' && envApiUrl.startsWith('http')) {
+    try {
+      const url = new URL(envApiUrl);
+      return url.origin;
+    } catch {}
+  }
+  return typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5000';
+};
+
+const SOCKET_URL = getSocketUrl();
 
 class SocketService {
   private socket: Socket | null = null;
