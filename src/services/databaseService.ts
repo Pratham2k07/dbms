@@ -10,8 +10,9 @@ import {
   DriverAssignment,
   DriverNotification
 } from '../types/database';
+import { DEFAULT_DATABASE_STATE } from '../data/defaultSeedData';
 
-const STORAGE_KEY = 'JKLU_SHUTTLE_DATABASE_V3';
+const STORAGE_KEY = 'JKLU_SHUTTLE_DATABASE_V4';
 const CHANNEL_NAME = 'JKLU_SHUTTLE_REALTIME_SYNC';
 
 export interface DatabaseState {
@@ -108,13 +109,20 @@ class CentralDatabaseService {
     }
 
     try {
-      // Purge old mock storage versions if present
+      // Purge old storage versions
+      localStorage.removeItem('JKLU_SHUTTLE_DATABASE_V3');
       localStorage.removeItem('JKLU_SHUTTLE_DATABASE_V2');
       localStorage.removeItem('JKLU_SHUTTLE_DATABASE_V1');
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed && Array.isArray(parsed.routes)) {
+        if (
+          parsed &&
+          Array.isArray(parsed.routes) &&
+          parsed.routes.length > 0 &&
+          Array.isArray(parsed.stops) &&
+          parsed.stops.length > 0
+        ) {
           return parsed;
         }
       }
@@ -128,20 +136,7 @@ class CentralDatabaseService {
   }
 
   private generateDefaultSeedState(): DatabaseState {
-    return {
-      routes: [],
-      stops: [],
-      routeStops: [],
-      shuttles: [],
-      drivers: [],
-      trips: [],
-      tripStops: [],
-      driverAssignments: [],
-      driverNotifications: [],
-      shuttleLocations: [],
-      routeCoordinates: {},
-      version: 3
-    };
+    return JSON.parse(JSON.stringify(DEFAULT_DATABASE_STATE)) as unknown as DatabaseState;
   }
 
   private saveStateToStorage(stateToSave: DatabaseState) {

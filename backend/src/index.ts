@@ -8,32 +8,9 @@ import { pool } from './config/db.js';
 
 dotenv.config();
 
-const app = express();
+import app from './app.js';
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS for frontend Vite dev server and production clients
-app.use(
-  cors({
-    origin: '*',
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  })
-);
-
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Request Logger in development
-if (process.env.NODE_ENV !== 'production') {
-  app.use((req: Request, _res: Response, next: NextFunction) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    next();
-  });
-}
-
-// Mount API routes
-app.use('/api', apiRoutes);
 
 // Serve frontend static assets from dist
 import path from 'path';
