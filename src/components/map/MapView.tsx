@@ -175,7 +175,13 @@ export const MapView: React.FC<MapViewProps> = ({
     const activeCoords =
       (activeRoutePolyline && activeRoutePolyline.length > 0)
         ? activeRoutePolyline
-        : (routeCoordinates && routeCoordinates[highlightRouteId]);
+        : (routeCoordinates && highlightRouteId && routeCoordinates[highlightRouteId] && routeCoordinates[highlightRouteId].length > 0)
+          ? routeCoordinates[highlightRouteId]
+          : (routeCoordinates && Object.values(routeCoordinates).find((coords) => coords && coords.length > 0))
+            ? Object.values(routeCoordinates).find((coords) => coords && coords.length > 0)
+            : (stops && stops.length >= 2)
+              ? (stops.map((s) => [Number(s.latitude), Number(s.longitude)] as [number, number]))
+              : undefined;
 
 
     if (activeCoords && activeCoords.length > 0) {

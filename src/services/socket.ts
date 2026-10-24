@@ -28,6 +28,36 @@ class SocketService {
     }
   }
 
+  onTripCreated(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('trip_created', callback);
+    }
+  }
+
+  onTripUpdated(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('trip_updated', callback);
+    }
+  }
+
+  onTripCancelled(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('trip_cancelled', callback);
+    }
+  }
+
+  onRouteCreated(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('route_created', callback);
+    }
+  }
+
+  onRouteUpdated(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('route_updated', callback);
+    }
+  }
+
   onTripStarted(callback: (data: any) => void) {
     if (this.socket) {
       this.socket.on('trip_started', callback);
@@ -44,6 +74,12 @@ class SocketService {
   onStopArrival(callback: (data: any) => void) {
     if (this.socket) {
       this.socket.on('stop_arrival', callback);
+    }
+  }
+
+  on(event: string, callback: (...args: any[]) => void) {
+    if (this.socket) {
+      this.socket.on(event, callback);
     }
   }
 

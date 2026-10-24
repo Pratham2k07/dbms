@@ -1,0 +1,203 @@
+Formal Relational Schema Notation
+1. Strong Entities
+USERS (
+user_id
+‾
+user_id
+	​
+
+, name, email, password_hash, phone_number, role)
+SHUTTLES (
+shuttle_id
+‾
+shuttle_id
+	​
+
+, registration_number, capacity, status)
+ROUTES (
+route_id
+‾
+route_id
+	​
+
+, route_name, total_stops, description, color, status)
+STOPS (
+stop_id
+‾
+stop_id
+	​
+
+, stop_name, latitude, longitude, is_destination, description)
+2. Subclasses (IS-A Specialization of USERS)
+
+STUDENTS (
+student_id
+‾
+student_id
+	​
+
+, roll_no)
+
+Foreign Key: 
+student_id
+→
+USERS(user_id)
+student_id→USERS(user_id) on delete cascade
+
+DRIVERS (
+driver_id
+‾
+driver_id
+	​
+
+, license_no)
+
+Foreign Key: 
+driver_id
+→
+USERS(user_id)
+driver_id→USERS(user_id) on delete cascade
+
+ADMINS (
+admin_id
+‾
+admin_id
+	​
+
+, designation, department)
+
+Foreign Key: 
+admin_id
+→
+USERS(user_id)
+admin_id→USERS(user_id) on delete cascade
+3. Operational Entities
+TRIPS (
+trip_id
+‾
+trip_id
+	​
+
+, shuttle_id, route_id, driver_id, start_time, end_time, running_status, capacity_status, speed_kmh)
+Foreign Key: 
+shuttle_id
+→
+SHUTTLES(shuttle_id)
+shuttle_id→SHUTTLES(shuttle_id)
+Foreign Key: 
+route_id
+→
+ROUTES(route_id)
+route_id→ROUTES(route_id)
+Foreign Key: 
+driver_id
+→
+DRIVERS(driver_id)
+driver_id→DRIVERS(driver_id)
+4. Relationship Relations (Associative Tables with Composite Keys)
+
+ROUTE_STOPS (
+route_id
+‾
+,
+stop_id
+‾
+route_id
+	​
+
+,
+stop_id
+	​
+
+, sequence_number, scheduled_arrival, scheduled_departure, cumulative_distance_km)
+
+Primary Key: Composite 
+(
+route_id
+,
+stop_id
+)
+(route_id,stop_id)
+Foreign Key: 
+route_id
+→
+ROUTES(route_id)
+route_id→ROUTES(route_id) on delete cascade
+Foreign Key: 
+stop_id
+→
+STOPS(stop_id)
+stop_id→STOPS(stop_id) on delete cascade
+
+TRIP_STOPS (
+trip_id
+‾
+,
+stop_id
+‾
+trip_id
+	​
+
+,
+stop_id
+	​
+
+, estimated_arrival, actual_arrival, actual_departure, arrival_status)
+
+Primary Key: Composite 
+(
+trip_id
+,
+stop_id
+)
+(trip_id,stop_id)
+Foreign Key: 
+trip_id
+→
+TRIPS(trip_id)
+trip_id→TRIPS(trip_id) on delete cascade
+Foreign Key: 
+stop_id
+→
+STOPS(stop_id)
+stop_id→STOPS(stop_id) on delete cascade
+5. Weak Entities (Telemetry & Audit Records)
+
+SHUTTLE_LOCATIONS (
+location_id
+‾
+location_id
+	​
+
+, shuttle_id, trip_id, latitude, longitude, bearing, speed_kmh, progress_percentage, recorded_at)
+
+Primary Key: 
+location_id
+location_id (Surrogate key)
+Foreign Key: 
+shuttle_id
+→
+SHUTTLES(shuttle_id)
+shuttle_id→SHUTTLES(shuttle_id)
+Foreign Key: 
+trip_id
+→
+TRIPS(trip_id)
+trip_id→TRIPS(trip_id) on delete cascade
+
+STUDENT_LOCATIONS (
+location_id
+‾
+location_id
+	​
+
+, student_id, latitude, longitude, recorded_at)
+
+Primary Key: 
+location_id
+location_id (Surrogate key)
+Foreign Key: 
+student_id
+→
+STUDENTS(student_id)
+student_id→STUDENTS(student_id) on delete cascade

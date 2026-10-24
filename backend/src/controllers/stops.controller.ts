@@ -1,99 +1,123 @@
 import { Request, Response } from 'express';
-import * as stopsQueries from '../db/queries/stops.queries';
+import { query } from '../config/db.js';
+import { socketEvents } from '../services/socket.service.js';
 
-export const getRoutes = async (req: Request, res: Response) => {
+export const getAllStops = async (_req: Request, res: Response): Promise<void> => {
   try {
-    const routes = await stopsQueries.fetchAllRoutes();
-    res.status(200).json(routes);
-  } catch (error) {
-    res.status(500).json({ message: 'Internal Server Error' });
+    const result = await query(
+      'SELECT * FROM stops ORDER BY stop_name ASC'
+    );
+    res.json(result.rows);
+  } catch (error: any) {
+    console.error('Error fetching stops:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch stops', error: error.message });
   }
 };
 
-export const getStopsByRouteId = async (req: Request, res: Response) => {
+export const getStopById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const routeId = req.params.routeId as string;
-    const stops = await stopsQueries.fetchStopsForRoute(routeId);
-    res.status(200).json(stops);
-  } catch (error) {
-    res.status(500).json({ message: 'Internal Server Error' });
+    const { id } = req.params;
+    const result = await query('SELECT * FROM stops WHERE stop_id = $1', [id]);
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Stop not found' });
+      return;
+    }
+    res.json(result.rows[0]);
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Failed to fetch stop', error: error.message });
   }
 };
 
-export const createRoute = async (req: Request, res: Response) => {
+export const createStop = async (req: Request, res: Response): Promise<void> => {
   try {
-    const result = await stopsQueries.createRoute(req.body);
-    res.status(201).json(result);
-  } catch (error) {
-    res.status(500).json({ message: 'Internal Server Error' });
+    const { stop_id, stop_name, latitude, longitude, is_destination = false, description } = req.body;
+
+    if (!stop_name || latitude === undefined || longitude === undefined) {
+      res.status(400).json({ success: false, message: 'stop_name, latitude, and longitude are required' });
+      return;
+    }
+
+    const finalStopId =
+      stop_id || `STOP-${stop_name.trim().toUpperCase().replace(/[^A-Z0-9]/g, '-')}`;
+
+    const insertSql = `
+      INSERT INTO stops (stop_id, stop_name, latitude, longitude, is_destination, description)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (stop_id) DO UPDATE SET
+        stop_name = EXCLUDED.stop_name,
+        latitude = EXCLUDED.latitude,
+        longitude = EXCLUDED.longitude,
+        description = EXCLUDED.description
+      RETURNING *
+    `;
+
+    const result = await query(insertSql, [
+      finalStopId,
+      stop_name.trim().toUpperCase(),
+      parseFloat(latitude),
+      parseFloat(longitude),
+      Boolean(is_destination),
+      description || null,
+    ]);
+
+    const createdStop = result.rows[0];
+    socketEvents.emitStopCreated(createdStop);
+
+    res.status(201).json({ success: true, stop: createdStop });
+  } catch (error: any) {
+    console.error('Error creating stop:', error);
+    res.status(500).json({ success: false, message: 'Failed to create stop', error: error.message });
   }
 };
 
-export const updateRoute = async (req: Request, res: Response) => {
+export const updateStop = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { stop_name, latitude, longitude, is_destination, description } = req.body;
+
+    const updateSql = `
+      UPDATE stops
+      SET stop_name = COALESCE($1, stop_name),
+          latitude = COALESCE($2, latitude),
+          longitude = COALESCE($3, longitude),
+          is_destination = COALESCE($4, is_destination),
+          description = COALESCE($5, description)
+      WHERE stop_id = $6
+      RETURNING *
+    `;
+
+    const result = await query(updateSql, [
+      stop_name !== undefined ? stop_name.trim().toUpperCase() : null,
+      latitude !== undefined ? parseFloat(latitude) : null,
+      longitude !== undefined ? parseFloat(longitude) : null,
+      is_destination !== undefined ? Boolean(is_destination) : null,
+      description !== undefined ? description : null,
+      id,
+    ]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Stop not found' });
+      return;
+    }
+
+    const updatedStop = result.rows[0];
+    socketEvents.emitStopUpdated(updatedStop);
+
+    res.json({ success: true, stop: updatedStop });
+  } catch (error: any) {
+    console.error('Error updating stop:', error);
+    res.status(500).json({ success: false, message: 'Failed to update stop', error: error.message });
+  }
+};
+
+export const deleteStop = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = req.params.id as string;
-    const result = await stopsQueries.updateRoute(id, req.body);
-    res.status(200).json(result);
-  } catch (error) {
-    res.status(500).json({ message: 'Internal Server Error' });
+    await query('DELETE FROM stops WHERE stop_id = $1', [id]);
+    socketEvents.emitStopDeleted(id);
+    res.json({ success: true, message: `Stop ${id} deleted successfully` });
+  } catch (error: any) {
+    console.error('Error deleting stop:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete stop', error: error.message });
   }
 };
-
-export const deleteRoute = async (req: Request, res: Response) => {
-  try {
-    const id = req.params.id as string;
-    const result = await stopsQueries.deleteRoute(id);
-    res.status(200).json(result);
-  } catch (error) {
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-};
-
-export const createStop = async (req: Request, res: Response) => {
-  try {
-    const result = await stopsQueries.createStop(req.body);
-    res.status(201).json(result);
-  } catch (error) {
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-};
-
-export const updateStop = async (req: Request, res: Response) => {
-  try {
-    const id = req.params.id as string;
-    const result = await stopsQueries.updateStop(id, req.body);
-    res.status(200).json(result);
-  } catch (error) {
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-};
-
-export const deleteStop = async (req: Request, res: Response) => {
-  try {
-    const id = req.params.id as string;
-    const result = await stopsQueries.deleteStop(id);
-    res.status(200).json(result);
-  } catch (error) {
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-};
-
-export const getAllStops = async (req: Request, res: Response) => {
-  try {
-    const stops = await stopsQueries.fetchAllStops();
-    res.status(200).json(stops);
-  } catch (error) {
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-};
-
-export const getAllRouteStops = async (req: Request, res: Response) => {
-  try {
-    const routeStops = await stopsQueries.fetchAllRouteStops();
-    res.status(200).json(routeStops);
-  } catch (error) {
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-};
-
-

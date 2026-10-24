@@ -261,7 +261,7 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
   };
 
   // Route Creator - Submit
-  const handleCreateRouteSubmit = (e: React.FormEvent) => {
+  const handleCreateRouteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreateError('');
     setCreateSuccessMsg('');
@@ -272,7 +272,7 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
     }
 
     setIsSubmitting(true);
-    const res = createRouteWithAssignment({
+    const res = await createRouteWithAssignment({
       route_id: newRouteId,
       route_name: newRouteName,
       route_code: newRouteCode,
@@ -709,7 +709,7 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
                           {item.stop_name}
                         </div>
                         <div className="text-[10px] font-mono text-stone-400">
-                          {item.stop_id} • Lat: {item.lat?.toFixed(4)}, Lng: {item.lng?.toFixed(4)}
+                          {item.stop_id} • Lat: {item.lat != null ? Number(item.lat).toFixed(4) : '—'}, Lng: {item.lng != null ? Number(item.lng).toFixed(4) : '—'}
                         </div>
                       </div>
                     </div>

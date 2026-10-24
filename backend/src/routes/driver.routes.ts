@@ -1,36 +1,26 @@
 import { Router } from 'express';
 import {
-  getAllDrivers,
+  getDrivers,
   createDriver,
   updateDriver,
   deleteDriver,
+  getDriverAssignedTrip,
   startShift,
   endShift,
-  getAssignedTrip,
-  startTrip,
-  endTrip,
-  submitDriverLocation
-} from '../controllers/driver.controller';
-import { authenticateToken, requireRole } from '../middlewares/auth.middleware';
+  submitDriverLocation,
+} from '../controllers/driver.controller.js';
+import { optionalAuth } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
-router.use(authenticateToken);
+router.get('/assigned-trip', optionalAuth, getDriverAssignedTrip);
+router.post('/start-shift', optionalAuth, startShift);
+router.post('/end-shift', optionalAuth, endShift);
+router.post('/location', optionalAuth, submitDriverLocation);
 
-// Driver operational routes (driver and admin)
-router.get('/assigned-trip', requireRole(['admin', 'driver']), getAssignedTrip);
-router.post('/start-trip', requireRole(['admin', 'driver']), startTrip);
-router.post('/trips/:tripId/start', requireRole(['admin', 'driver']), startTrip);
-router.post('/end-trip', requireRole(['admin', 'driver']), endTrip);
-router.post('/trips/:tripId/end', requireRole(['admin', 'driver']), endTrip);
-router.post('/location', requireRole(['admin', 'driver']), submitDriverLocation);
-router.post('/start-shift', requireRole(['admin', 'driver']), startShift);
-router.post('/end-shift', requireRole(['admin', 'driver']), endShift);
-
-// Admin-only CRUD routes
-router.get('/', requireRole(['admin']), getAllDrivers);
-router.post('/', requireRole(['admin']), createDriver);
-router.put('/:id', requireRole(['admin']), updateDriver);
-router.delete('/:id', requireRole(['admin']), deleteDriver);
+router.get('/', getDrivers);
+router.post('/', optionalAuth, createDriver);
+router.put('/:id', optionalAuth, updateDriver);
+router.delete('/:id', optionalAuth, deleteDriver);
 
 export default router;

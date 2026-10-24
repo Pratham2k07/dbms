@@ -1,98 +1,109 @@
 import { Request, Response } from 'express';
-import * as studentQueries from '../db/queries/student.queries';
-import * as tripsQueries from '../db/queries/trips.queries';
+import { query } from '../config/db.js';
+import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
 
-export const recordLocation = async (req: Request, res: Response) => {
+export const recordStudentLocation = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const studentId = req.user?.id || 'USR-STU-001';
-    const { latitude, longitude, accuracy_m, gps_timestamp } = req.body;
+    const { latitude, longitude } = req.body;
+    const studentId = req.user?.user_id || 'USR-STU-001';
 
     if (latitude === undefined || longitude === undefined) {
-      return res.status(400).json({ message: 'Latitude and longitude are required' });
+      res.status(400).json({ success: false, message: 'latitude and longitude are required' });
+      return;
     }
 
-    const recorded = await studentQueries.recordStudentLocation({
-      student_id: studentId,
-      latitude: Number(latitude),
-      longitude: Number(longitude),
-      accuracy_m: accuracy_m ? Number(accuracy_m) : undefined,
-      gps_timestamp: gps_timestamp || new Date().toISOString()
-    });
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
 
-    // Optionally retrieve top 5 nearby stops for immediate context
-    const nearbyStops = await studentQueries.getNearbyStops(Number(latitude), Number(longitude), 20, 5);
-
-    res.status(200).json({
-      success: true,
-      data: recorded,
-      nearbyStops
-    });
-  } catch (error: any) {
-    console.error('Error recording student location:', error);
-    res.status(500).json({ message: error.message || 'Internal Server Error' });
-  }
-};
-
-export const getNearbyStops = async (req: Request, res: Response) => {
-  try {
-    let lat = Number(req.query.lat);
-    let lng = Number(req.query.lng);
-    const radius = req.query.radius ? Number(req.query.radius) : 20;
-    const limit = req.query.limit ? Number(req.query.limit) : 10;
-
-    // If coordinates not provided in query, lookup student's last recorded location
-    if (isNaN(lat) || isNaN(lng)) {
-      const studentId = req.user?.id || 'USR-STU-001';
-      const lastLoc = await studentQueries.getLatestStudentLocation(studentId);
-      if (lastLoc) {
-        lat = Number(lastLoc.latitude);
-        lng = Number(lastLoc.longitude);
-      } else {
-        // Fallback default: JKLU Campus Origin
-        lat = 26.837300;
-        lng = 75.649900;
-      }
-    }
-
-    const stops = await studentQueries.getNearbyStops(lat, lng, radius, limit);
-    res.status(200).json(stops);
-  } catch (error) {
-    console.error('Error fetching nearby stops:', error);
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-};
-
-export const getLatestLocation = async (req: Request, res: Response) => {
-  try {
-    const studentId = req.user?.id || 'USR-STU-001';
-    const loc = await studentQueries.getLatestStudentLocation(studentId);
-    res.status(200).json(loc || null);
-  } catch (error) {
-    console.error('Error fetching latest student location:', error);
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-};
-
-export const getActiveStudentTrips = async (req: Request, res: Response) => {
-  try {
-    const allTrips = await tripsQueries.fetchAllTrips();
-    // Filter trips that are active (RUNNING) or scheduled for today
-    const activeTrips = allTrips.filter((t: any) => t.running_status === 'RUNNING' || t.running_status === 'SCHEDULED');
-    
-    // Enrich running trips with live telemetry details
-    const enrichedTrips = await Promise.all(
-      activeTrips.map(async (trip: any) => {
-        if (trip.running_status === 'RUNNING') {
-          const liveDetails = await tripsQueries.getLiveTripDetails(trip.trip_id);
-          return liveDetails || trip;
-        }
-        return trip;
-      })
+    const result = await query(
+      `INSERT INTO student_locations (student_id, latitude, longitude)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [studentId, lat, lng]
     );
 
-    res.status(200).json(enrichedTrips);
-  } catch (error) {
-    console.error('Error fetching active student trips:', error);
-    res.status(500).json({ message: 'Internal Server Error' });
+    res.json({ success: true, location: result.rows[0] });
+  } catch (error: any) {
+    console.error('Error recording student location:', error);
+    res.status(500).json({ success: false, message: 'Failed to record student location', error: error.message });
+  }
+};
+
+export const getStudentNearbyStops = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const lat = req.query.lat ? parseFloat(req.query.lat as string) : 26.8373;
+    const lng = req.query.lng ? parseFloat(req.query.lng as string) : 75.6499;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+
+    const stopsRes = await query('SELECT * FROM stops');
+
+    const calculated = stopsRes.rows.map((stop: any) => {
+      const dLat = (stop.latitude - lat) * (Math.PI / 180);
+      const dLng = (stop.longitude - lng) * (Math.PI / 180);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat * (Math.PI / 180)) * Math.cos(stop.latitude * (Math.PI / 180)) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distanceKm = parseFloat((6371 * c).toFixed(2));
+
+      return {
+        ...stop,
+        distance_km: distanceKm,
+        walking_time_mins: Math.round(distanceKm * 12),
+      };
+    });
+
+    calculated.sort((a: any, b: any) => a.distance_km - b.distance_km);
+
+    res.json(calculated.slice(0, limit));
+  } catch (error: any) {
+    console.error('Error fetching nearby stops:', error);
+    res.status(500).json({ success: false, message: 'Failed to calculate nearby stops', error: error.message });
+  }
+};
+
+export const getLatestStudentLocation = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const studentId = req.user?.user_id || 'USR-STU-001';
+    const result = await query(
+      `SELECT * FROM student_locations 
+       WHERE student_id = $1 
+       ORDER BY recorded_at DESC LIMIT 1`,
+      [studentId]
+    );
+
+    res.json({
+      success: true,
+      location: result.rows[0] || {
+        latitude: 26.8373,
+        longitude: 75.6499,
+        recorded_at: new Date().toISOString(),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Failed to fetch student location', error: error.message });
+  }
+};
+
+export const getActiveStudentTrips = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await query(
+      `SELECT t.*,
+        r.route_name, r.route_code, r.color as route_color, r.total_stops,
+        s.shuttle_number, s.registration_number,
+        u.name as driver_name, u.phone_number as driver_phone
+       FROM trips t
+       JOIN routes r ON t.route_id = r.route_id
+       JOIN shuttles s ON t.shuttle_id = s.shuttle_id
+       JOIN drivers d ON t.driver_id = d.driver_id
+       JOIN users u ON d.driver_id = u.user_id
+       WHERE t.running_status IN ('RUNNING', 'SCHEDULED')
+       ORDER BY CASE WHEN t.running_status = 'RUNNING' THEN 0 ELSE 1 END, t.start_time ASC`
+    );
+
+    res.json(result.rows);
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Failed to fetch student active trips', error: error.message });
   }
 };

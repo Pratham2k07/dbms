@@ -24,6 +24,7 @@ export const updateShuttleLocation = (id: string, lat: number, lng: number, opti
 
 // Trips
 export const getTrips = () => api.get('/trips').then(res => res.data);
+export const getTripStops = () => api.get('/trips/trip-stops/all').then(res => res.data);
 export const getLiveTripDetails = (tripId: string) => api.get(`/trips/${tripId}/live`).then(res => res.data);
 export const startTrip = (tripId: string) => api.post(`/trips/${tripId}/start`).then(res => res.data);
 export const endTrip = (tripId: string) => api.post(`/trips/${tripId}/end`).then(res => res.data);

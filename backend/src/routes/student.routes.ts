@@ -1,13 +1,17 @@
 import { Router } from 'express';
-import { recordLocation, getNearbyStops, getLatestLocation, getActiveStudentTrips } from '../controllers/student.controller';
-import { authenticateToken } from '../middlewares/auth.middleware';
+import {
+  recordStudentLocation,
+  getStudentNearbyStops,
+  getLatestStudentLocation,
+  getActiveStudentTrips,
+} from '../controllers/student.controller.js';
+import { optionalAuth } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
-// Student authenticated endpoints
-router.post('/location', authenticateToken, recordLocation);
-router.get('/location/latest', authenticateToken, getLatestLocation);
-router.get('/nearby-stops', authenticateToken, getNearbyStops);
-router.get('/active-trips', authenticateToken, getActiveStudentTrips);
+router.post('/location', optionalAuth, recordStudentLocation);
+router.get('/nearby-stops', getStudentNearbyStops);
+router.get('/location/latest', optionalAuth, getLatestStudentLocation);
+router.get('/active-trips', getActiveStudentTrips);
 
 export default router;

@@ -83,19 +83,41 @@ export const DriverDashboardScreen: React.FC = () => {
     return driverNotifs;
   }, [driverNotifs, notificationFilter]);
 
+  const [backendAssignedTrip, setBackendAssignedTrip] = useState<Trip | null>(null);
+
+  // Directly sync authenticated driver assigned trip from Supabase backend
+  useEffect(() => {
+    let isMounted = true;
+    apiService.getDriverAssignedTrip().then((res: any) => {
+      if (isMounted && res) {
+        const t = res.trip || res;
+        if (t && t.trip_id) {
+          setBackendAssignedTrip(t);
+        }
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, [driver.driver_id, trips]);
+
   // Determine currently active or selected trip
   const activeTrip: Trip | undefined = useMemo(() => {
     if (selectedTripIdOverride) {
       const match = assignedTrips.find((t) => t.trip_id === selectedTripIdOverride);
       if (match) return match;
     }
-    // Prefer running trip, then scheduled trip, then first assigned trip
+    // Prefer running trip, then scheduled trip, then backend assigned trip, then first assigned trip
     const running = assignedTrips.find((t) => t.running_status === 'RUNNING');
     if (running) return running;
+    if (backendAssignedTrip && backendAssignedTrip.driver_id === driver.driver_id && backendAssignedTrip.running_status === 'RUNNING') {
+      return backendAssignedTrip;
+    }
     const scheduled = assignedTrips.find((t) => t.running_status === 'SCHEDULED');
     if (scheduled) return scheduled;
+    if (backendAssignedTrip && backendAssignedTrip.driver_id === driver.driver_id) {
+      return backendAssignedTrip;
+    }
     return assignedTrips[0];
-  }, [assignedTrips, selectedTripIdOverride]);
+  }, [assignedTrips, selectedTripIdOverride, backendAssignedTrip, driver.driver_id]);
 
   const assignedShuttle = shuttles.find((s) => s.shuttle_id === activeTrip?.shuttle_id);
   const assignedRoute = routes.find((r) => r.route_id === activeTrip?.route_id);
