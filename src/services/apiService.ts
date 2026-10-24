@@ -16,6 +16,8 @@ export const deleteStop = (id: string) => api.delete(`/routes/stops/${id}`).then
 
 // Shuttles
 export const getShuttles = () => api.get('/shuttles').then(res => res.data);
+export const getLatestShuttleLocations = () =>
+  api.get('/shuttles/locations/latest').then(res => (Array.isArray(res.data) ? res.data : res.data?.locations || []));
 export const createShuttle = (data: any) => api.post('/shuttles', data).then(res => res.data);
 export const updateShuttle = (id: string, data: any) => api.put(`/shuttles/${id}`, data).then(res => res.data);
 export const updateShuttleStatus = (id: string, status: string) => api.patch(`/shuttles/${id}/status`, { status }).then(res => res.data);

@@ -49,59 +49,72 @@ export const locationService = {
    * Never fabricates fake coordinates.
    */
   async getCurrentLocation(): Promise<StudentLocation> {
-    if (!navigator.geolocation) {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
       throw new Error('Geolocation is not supported by your browser.');
     }
 
-    return new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const { latitude, longitude, accuracy } = position.coords;
-          const timestamp = new Date(position.timestamp).toISOString();
+    const tryGetPosition = (highAccuracy: boolean, timeoutMs: number): Promise<GeolocationPosition> => {
+      return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: highAccuracy,
+          timeout: timeoutMs,
+          maximumAge: 30000,
+        });
+      });
+    };
 
-          const studentLoc: StudentLocation = {
-            student_id: 'USR-STU-001',
-            latitude,
-            longitude,
-            accuracy_m: accuracy,
-            timestamp,
-            location_name: accuracy < 50 ? 'Current GPS Location' : 'Approximate Device Location'
-          };
-
-          // Persist to database asynchronously
-          try {
-            await recordStudentLocation({
-              latitude,
-              longitude,
-              accuracy_m: accuracy,
-              gps_timestamp: timestamp
-            });
-            lastPersistedTime = Date.now();
-            lastPersistedCoords = { lat: latitude, lng: longitude };
-          } catch (err) {
-            console.warn('Failed to persist student location to backend:', err);
-          }
-
-          resolve(studentLoc);
-        },
-        (error) => {
-          let errorMsg = 'Failed to obtain device location.';
-          if (error.code === error.PERMISSION_DENIED) {
-            errorMsg = 'Location permission was denied. Please allow location access to track shuttles.';
-          } else if (error.code === error.POSITION_UNAVAILABLE) {
-            errorMsg = 'GPS location is currently unavailable.';
-          } else if (error.code === error.TIMEOUT) {
-            errorMsg = 'Location request timed out. Please check device GPS.';
-          }
-          reject(new Error(errorMsg));
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 12000,
-          maximumAge: 10000
+    let position: GeolocationPosition;
+    try {
+      // 1. Try high accuracy first (5s timeout)
+      position = await tryGetPosition(true, 5000);
+    } catch (err: any) {
+      // If user explicitly denied permission, don't retry - surface error
+      if (err && err.code === 1) {
+        throw new Error('Location permission was denied. Please allow location access in your browser.');
+      }
+      // 2. Fall back to standard accuracy (Wi-Fi / IP / Cell network positioning)
+      try {
+        position = await tryGetPosition(false, 8000);
+      } catch (fallbackErr: any) {
+        if (fallbackErr && fallbackErr.code === 1) {
+          throw new Error('Location permission was denied. Please allow location access in your browser.');
         }
-      );
+        throw new Error(fallbackErr?.message || 'Unable to obtain GPS fix from device.');
+      }
+    }
+
+    const { latitude, longitude, accuracy } = position.coords;
+    const timestamp = new Date(position.timestamp).toISOString();
+
+    // Determine location name based on coordinates
+    const distToCampus = calculateHaversineDistance(latitude, longitude, 26.8373, 75.6499);
+    const locationName =
+      distToCampus < 1500
+        ? 'JK Lakshmipat University Campus'
+        : accuracy < 100
+        ? `Live GPS Location (±${Math.round(accuracy)}m)`
+        : `Approximate Device Location (±${Math.round(accuracy)}m)`;
+
+    const studentLoc: StudentLocation = {
+      student_id: 'USR-STU-001',
+      latitude,
+      longitude,
+      accuracy_m: accuracy,
+      timestamp,
+      location_name: locationName,
+    };
+
+    // Persist to backend database asynchronously
+    recordStudentLocation({
+      latitude,
+      longitude,
+      accuracy_m: accuracy,
+      gps_timestamp: timestamp,
+    }).catch((err) => {
+      console.warn('Failed to persist student location to backend:', err);
     });
+
+    return studentLoc;
   },
 
   /**

@@ -39,8 +39,11 @@ export const LiveTrackingScreen: React.FC = () => {
       if (!selectedTripId) return;
       try {
         const data = await apiService.getLiveTripDetails(selectedTripId);
-        if (isMounted && data && data.trip_id) {
-          setLiveTripData(data);
+        if (isMounted && data) {
+          const tId = data.trip_id || data.trip?.trip_id;
+          if (tId) {
+            setLiveTripData(data);
+          }
         }
       } catch (err) {
         // Fallback gracefully
@@ -48,7 +51,7 @@ export const LiveTrackingScreen: React.FC = () => {
     };
 
     fetchLive();
-    const interval = setInterval(fetchLive, 4000);
+    const interval = setInterval(fetchLive, 3500);
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -73,10 +76,15 @@ export const LiveTrackingScreen: React.FC = () => {
   // Formatted active shuttles for the map (renders all moving shuttles when toggle is active)
   const activeShuttlesForMap = useMemo(() => {
     if (!trip) return [];
+    const directLiveLoc = liveTripData?.latest_location || liveTripData?.latestLocation;
+
     if (!showAllShuttlesOnMap) {
-      const loc = shuttleLocations.find(
-        (item) => item.trip_id === trip.trip_id || item.shuttle_id === shuttle?.shuttle_id
-      );
+      const loc =
+        directLiveLoc ||
+        shuttleLocations.find(
+          (item) => item.trip_id === trip.trip_id || item.shuttle_id === shuttle?.shuttle_id
+        ) ||
+        shuttleLocations[0];
       if (!loc) return [];
       return [
         {
@@ -89,17 +97,17 @@ export const LiveTrackingScreen: React.FC = () => {
 
     return shuttleLocations
       .map((loc) => {
-        const t = trips.find((item) => item.trip_id === loc.trip_id);
-        const s = shuttles.find((item) => item.shuttle_id === loc.shuttle_id);
-        if (!t || !s) return null;
+        const s = shuttles.find((item) => item.shuttle_id === loc.shuttle_id) || shuttles[0];
+        const t = trips.find((item) => item.trip_id === loc.trip_id || item.shuttle_id === loc.shuttle_id);
+        if (!s) return null;
         return {
           location: loc,
           number: s.shuttle_number,
-          routeId: t.route_id
+          routeId: t ? t.route_id : 'ROUTE-01'
         };
       })
       .filter(Boolean) as { location: (typeof shuttleLocations)[0]; number: string; routeId: string }[];
-  }, [shuttleLocations, trips, shuttles, trip, shuttle, route, showAllShuttlesOnMap]);
+  }, [shuttleLocations, trips, shuttles, trip, shuttle, route, showAllShuttlesOnMap, liveTripData]);
 
   // Stops belonging to this route and active corridors
   const mapStops = useMemo(() => {

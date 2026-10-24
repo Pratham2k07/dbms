@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   getShuttles,
+  getLatestShuttleLocations,
   createShuttle,
   updateShuttle,
   updateShuttleStatus,
@@ -10,6 +11,7 @@ import { optionalAuth } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
+router.get('/locations/latest', getLatestShuttleLocations);
 router.get('/', getShuttles);
 router.post('/', optionalAuth, createShuttle);
 router.put('/:id', optionalAuth, updateShuttle);

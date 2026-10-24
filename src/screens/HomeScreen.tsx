@@ -4,12 +4,15 @@ import { MapView } from '../components/map/MapView';
 import { NearbyStopList } from '../components/stops/NearbyStopList';
 import { locationService } from '../services/locationService';
 import { stopService } from '../services/stopService';
-import { MapPin, Compass, Bus } from 'lucide-react';
+import { MapPin, Compass, Bus, RefreshCw } from 'lucide-react';
 
 export const HomeScreen: React.FC = () => {
   const {
     student,
     studentLocation,
+    isAcquiringLocation,
+    locationError,
+    requestStudentLocation,
     stops,
     trips,
     tripStops,
@@ -23,6 +26,12 @@ export const HomeScreen: React.FC = () => {
     setSelectedStopId,
     routeCoordinates
   } = useApp();
+
+  // Proactively request device live GPS on screen mount
+  React.useEffect(() => {
+    requestStudentLocation();
+  }, [requestStudentLocation]);
+
 
 
   // Inline stop selection on Home & Map (toggles dropdown box inside the stop item)
@@ -124,12 +133,13 @@ export const HomeScreen: React.FC = () => {
 
   // 4. Format active shuttle for map rendering - STRICTLY 1 SHUTTLE AT A TIME
   const activeShuttlesForMap = useMemo(() => {
-    const loc = shuttleLocations.find(
-      (l) =>
-        l.shuttle_id === selectedShuttleId ||
-        (activeTripForSelectedShuttle && l.trip_id === activeTripForSelectedShuttle.trip_id)
-    );
-    const shuttle = shuttles.find((s) => s.shuttle_id === selectedShuttleId);
+    const loc =
+      shuttleLocations.find(
+        (l) =>
+          l.shuttle_id === selectedShuttleId ||
+          (activeTripForSelectedShuttle && l.trip_id === activeTripForSelectedShuttle.trip_id)
+      ) || shuttleLocations[0];
+    const shuttle = shuttles.find((s) => s.shuttle_id === (loc ? loc.shuttle_id : selectedShuttleId)) || shuttles[0];
     if (!loc || !shuttle) return [];
     return [
       {
@@ -204,22 +214,47 @@ export const HomeScreen: React.FC = () => {
           {/* Left Column (PC: 7 cols) - Interactive Map */}
           <div className="lg:col-span-7 space-y-4">
             {/* Current Location Badge (Desktop/Mobile responsive) */}
-            <div className="p-4 rounded-2xl bg-white border border-stone-200 shadow-subtle flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-white border border-stone-200 shadow-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-0.5">
                 <span className="text-[10px] font-editorial font-bold tracking-wider text-stone-400 uppercase block">
                   YOUR CURRENT LOCATION
                 </span>
                 <div className="flex items-center gap-2 font-editorial font-bold text-base text-[#121316]">
-                  <MapPin className="w-4 h-4 text-jklu-orange" />
+                  <MapPin className="w-4 h-4 text-jklu-orange shrink-0" />
                   <span>{studentLocation.location_name}</span>
                 </div>
                 <span className="text-[11px] font-mono text-stone-400 block">
-                  Last updated just now • Signal Accurate (±3m)
+                  {isAcquiringLocation
+                    ? 'Acquiring device GPS satellite fix...'
+                    : locationError
+                    ? `Notice: ${locationError}`
+                    : `Signal: ${studentLocation.latitude.toFixed(4)}, ${studentLocation.longitude.toFixed(4)}`}
                 </span>
               </div>
 
-              <div className="px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-mono font-semibold">
-                ● GPS ACTIVE
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => requestStudentLocation()}
+                  disabled={isAcquiringLocation}
+                  className="px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-mono font-semibold flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                  title="Acquire live GPS location from device"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isAcquiringLocation ? 'animate-spin text-[#E8590C]' : ''}`} />
+                  <span>{isAcquiringLocation ? 'Locating...' : 'Refresh GPS'}</span>
+                </button>
+
+                <div className={`px-2.5 py-1 rounded-full text-xs font-mono font-semibold flex items-center gap-1.5 ${
+                  locationError
+                    ? 'bg-amber-50 border border-amber-200 text-amber-700'
+                    : isAcquiringLocation
+                    ? 'bg-blue-50 border border-blue-200 text-blue-700'
+                    : 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    locationError ? 'bg-amber-500' : isAcquiringLocation ? 'bg-blue-500 animate-ping' : 'bg-emerald-500'
+                  }`} />
+                  <span>{locationError ? 'DEFAULT FIX' : isAcquiringLocation ? 'ACQUIRING' : 'GPS LOCKED'}</span>
+                </div>
               </div>
             </div>
 
