@@ -90,9 +90,12 @@ export const getLiveTripDetails = async (req: Request, res: Response): Promise<v
 
     res.json({
       success: true,
+      trip_id: trip.trip_id,
       trip,
       stops: stopsRes.rows,
       latestLocation: locRes.rows[0] || null,
+      latest_location: locRes.rows[0] || null,
+      route_coordinates: trip.route_coordinates,
     });
   } catch (error: any) {
     console.error('Error fetching live trip details:', error);

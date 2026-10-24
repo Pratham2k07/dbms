@@ -153,6 +153,8 @@ interface AppContextType {
 
   updateStudentLocation: (loc: StudentLocation) => void;
   requestStudentLocation: () => Promise<void>;
+  isAcquiringLocation: boolean;
+  locationError: string | null;
 
   // General Notification Helpers & Navigation
   dismissNotification: (id: string) => void;
@@ -184,19 +186,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [student] = useState<Student>(CURRENT_STUDENT);
   const [admin] = useState<Admin>(CURRENT_ADMIN);
   const [studentLocation, setStudentLocation] = useState<StudentLocation>(INITIAL_STUDENT_LOCATION);
+  const [isAcquiringLocation, setIsAcquiringLocation] = useState<boolean>(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   const updateStudentLocation = useCallback((loc: StudentLocation) => {
     setStudentLocation(loc);
   }, []);
 
   const requestStudentLocation = useCallback(async () => {
+    setIsAcquiringLocation(true);
+    setLocationError(null);
     try {
       const loc = await locationService.getCurrentLocation();
       setStudentLocation(loc);
-    } catch (err) {
-      console.warn('Geolocation permission not granted:', err);
+      setIsAcquiringLocation(false);
+    } catch (err: any) {
+      console.warn('Geolocation notice:', err?.message || err);
+      setLocationError(err?.message || 'Unable to obtain GPS fix.');
+      setIsAcquiringLocation(false);
     }
   }, []);
+
+  // Request live device GPS location on mount
+  useEffect(() => {
+    requestStudentLocation();
+  }, [requestStudentLocation]);
 
 
   // Central Database synchronized state
@@ -396,14 +410,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // ================= Hydrate Initial State from Live Supabase Database =================
   const refreshDatabaseRecords = useCallback(async () => {
     try {
-      const [liveRoutes, liveShuttles, liveTrips, liveDrivers, liveStops, liveRouteStops, liveTripStops] = await Promise.all([
+      const [liveRoutes, liveShuttles, liveTrips, liveDrivers, liveStops, liveRouteStops, liveTripStops, liveLocations] = await Promise.all([
         apiService.getRoutes().catch(() => null),
         apiService.getShuttles().catch(() => null),
         apiService.getTrips().catch(() => null),
         apiService.getDrivers().catch(() => null),
         apiService.getAllStops().catch(() => null),
         apiService.getAllRouteStops().catch(() => null),
-        apiService.getTripStops().catch(() => null)
+        apiService.getTripStops().catch(() => null),
+        apiService.getLatestShuttleLocations().catch(() => null)
       ]);
 
       const normalizedStops: Stop[] | undefined =
@@ -472,6 +487,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (liveTripStops && Array.isArray(liveTripStops) && liveTripStops.length > 0) {
         setTripStops(liveTripStops);
       }
+      if (liveLocations && Array.isArray(liveLocations) && liveLocations.length > 0) {
+        setShuttleLocations(liveLocations);
+      }
 
       databaseService.syncFromLiveDatabase({
         routes: liveRoutes && Array.isArray(liveRoutes) ? liveRoutes : undefined,
@@ -485,6 +503,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Failed to refresh database records:', err);
     }
   }, []);
+
+  // Continuous polling for real-time shuttle coordinates (vital for serverless deployments)
+  useEffect(() => {
+    let active = true;
+    const pollTelemetry = async () => {
+      try {
+        const locs = await apiService.getLatestShuttleLocations();
+        if (active && Array.isArray(locs) && locs.length > 0) {
+          setShuttleLocations(locs);
+        }
+      } catch {}
+    };
+
+    const interval = setInterval(pollTelemetry, 3500);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
+
 
   // Ensure that if user is in Admin portal, the active JWT token is an admin token
   useEffect(() => {
@@ -1097,6 +1135,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateTripStopArrivalStatus,
         updateStudentLocation,
         requestStudentLocation,
+        isAcquiringLocation,
+        locationError,
 
         dismissNotification,
         triggerNotification,

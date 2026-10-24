@@ -12,6 +12,29 @@ export const getShuttles = async (_req: Request, res: Response): Promise<void> =
   }
 };
 
+export const getLatestShuttleLocations = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await query(`
+      SELECT DISTINCT ON (shuttle_id)
+        location_id,
+        shuttle_id,
+        trip_id,
+        latitude,
+        longitude,
+        bearing,
+        speed_kmh,
+        progress_percentage,
+        recorded_at
+      FROM shuttle_locations
+      ORDER BY shuttle_id, recorded_at DESC
+    `);
+    res.json(result.rows);
+  } catch (error: any) {
+    console.error('Error fetching latest shuttle locations:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch shuttle locations', error: error.message });
+  }
+};
+
 export const createShuttle = async (req: Request, res: Response): Promise<void> => {
   try {
     const { shuttle_id, registration_number, capacity = 32, status = 'ACTIVE', shuttle_number } = req.body;
