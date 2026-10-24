@@ -1,5 +1,5 @@
-import pool from '../connection';
-import { haversineDistanceMeters } from '../../services/routing.service';
+import pool from '../connection.js';
+import { haversineDistanceMeters } from '../../services/routing.service.js';
 
 export interface StudentLocationInput {
   student_id: string;
@@ -16,8 +16,11 @@ export interface StudentLocationInput {
 export const recordStudentLocation = async (data: StudentLocationInput) => {
   const { student_id, latitude, longitude, accuracy_m, gps_timestamp } = data;
 
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+
   // Validate coordinates
-  if (isNaN(latitude) || isNaN(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
     throw new Error('Invalid GPS coordinates provided');
   }
 
@@ -46,17 +49,35 @@ export const recordStudentLocation = async (data: StudentLocationInput) => {
     RETURNING location_id, student_id, latitude, longitude, accuracy_m, gps_timestamp, recorded_at;
   `;
 
-  const parsedGpsTime = gps_timestamp ? new Date(gps_timestamp) : new Date();
+  let parsedGpsTime: Date;
+  if (gps_timestamp) {
+    const t = new Date(gps_timestamp);
+    parsedGpsTime = isNaN(t.getTime()) ? new Date() : t;
+  } else {
+    parsedGpsTime = new Date();
+  }
+
+  const parsedAccuracy = accuracy_m !== undefined && accuracy_m !== null && !isNaN(Number(accuracy_m))
+    ? Math.max(0, Math.round(Number(accuracy_m) * 100) / 100)
+    : null;
 
   const result = await pool.query(query, [
     student_id,
-    latitude,
-    longitude,
-    accuracy_m || null,
+    lat,
+    lng,
+    parsedAccuracy,
     parsedGpsTime
   ]);
 
-  return result.rows[0];
+  const row = result.rows[0];
+  if (!row) return null;
+
+  return {
+    ...row,
+    latitude: parseFloat(row.latitude),
+    longitude: parseFloat(row.longitude),
+    accuracy_m: row.accuracy_m !== null && row.accuracy_m !== undefined ? parseFloat(row.accuracy_m) : null,
+  };
 };
 
 /**
@@ -74,12 +95,20 @@ export const getLatestStudentLocation = async (studentId: string) => {
       recorded_at
     FROM student_locations
     WHERE student_id = $1
-    ORDER BY recorded_at DESC
+    ORDER BY recorded_at DESC, location_id DESC
     LIMIT 1;
   `;
 
   const result = await pool.query(query, [studentId]);
-  return result.rows[0] || null;
+  const row = result.rows[0];
+  if (!row) return null;
+
+  return {
+    ...row,
+    latitude: parseFloat(row.latitude),
+    longitude: parseFloat(row.longitude),
+    accuracy_m: row.accuracy_m !== null && row.accuracy_m !== undefined ? parseFloat(row.accuracy_m) : null,
+  };
 };
 
 /**

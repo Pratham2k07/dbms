@@ -197,18 +197,72 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsAcquiringLocation(true);
     setLocationError(null);
     try {
-      const loc = await locationService.getCurrentLocation();
+      const loc = await locationService.getCurrentLocation({ highAccuracy: true, forcePersist: true });
       setStudentLocation(loc);
       setIsAcquiringLocation(false);
     } catch (err: any) {
       console.warn('Geolocation notice:', err?.message || err);
-      setLocationError(err?.message || 'Unable to obtain GPS fix.');
+      setLocationError(err?.message || 'Unable to obtain GPS fix from device.');
       setIsAcquiringLocation(false);
     }
   }, []);
 
-  // Request live device GPS location on mount
+  // Continuous live GPS tracking for student portal (listens to device movements & DevTools Sensors changes)
   useEffect(() => {
+    if (currentUserRole !== 'student') return;
+
+    const watchId = locationService.watchLocation(
+      (loc) => {
+        setStudentLocation(loc);
+        setLocationError(null);
+      },
+      (err) => {
+        console.warn('Student GPS telemetry watch notice:', err?.message || err);
+      }
+    );
+
+    return () => {
+      if (watchId !== null) {
+        locationService.clearWatch(watchId);
+      }
+    };
+  }, [currentUserRole]);
+
+  // Hydrate last recorded location from backend database and request fresh GPS fix on mount
+  useEffect(() => {
+    apiService.getLatestStudentLocation()
+      .then((res) => {
+        if (res?.success && res.location) {
+          const loc = res.location;
+          setStudentLocation((prev) => {
+            // Only update if fresh device GPS reading has not already overwritten it
+            if (!prev.accuracy_m || prev.latitude === INITIAL_STUDENT_LOCATION.latitude) {
+              const distToCampus = locationService.calculateHaversineDistance(
+                Number(loc.latitude),
+                Number(loc.longitude),
+                26.8373,
+                75.6499
+              );
+              return {
+                student_id: loc.student_id,
+                latitude: Number(loc.latitude),
+                longitude: Number(loc.longitude),
+                accuracy_m: loc.accuracy_m ? Number(loc.accuracy_m) : undefined,
+                timestamp: loc.gps_timestamp || loc.recorded_at,
+                location_name:
+                  distToCampus < 1500
+                    ? 'JKLU Campus (Last Known)'
+                    : `Last Recorded Location (${Number(loc.latitude).toFixed(4)}, ${Number(loc.longitude).toFixed(4)})`,
+              };
+            }
+            return prev;
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn('Backend student location check notice:', err?.message || err);
+      });
+
     requestStudentLocation();
   }, [requestStudentLocation]);
 

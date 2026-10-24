@@ -38,6 +38,7 @@ export function calculateWalkingTimeMinutes(distanceMeters: number): number {
 
 let lastPersistedTime = 0;
 let lastPersistedCoords: { lat: number; lng: number } | null = null;
+let activeLocationPromise: Promise<StudentLocation> | null = null;
 
 export const locationService = {
   calculateHaversineDistance,
@@ -45,12 +46,18 @@ export const locationService = {
 
   /**
    * Requests real browser geolocation permission and obtains actual device coordinates.
-   * Persists valid coordinates to the backend database.
+   * Uses maximumAge: 0 to ensure a fresh hardware GPS fix is obtained.
+   * Deduplicates concurrent in-flight calls and throttles redundant backend writes.
    * Never fabricates fake coordinates.
    */
-  async getCurrentLocation(): Promise<StudentLocation> {
+  async getCurrentLocation(options?: { highAccuracy?: boolean; timeoutMs?: number; forcePersist?: boolean }): Promise<StudentLocation> {
     if (typeof window === 'undefined' || !navigator.geolocation) {
       throw new Error('Geolocation is not supported by your browser.');
+    }
+
+    // Deduplicate concurrent requests so simultaneous component mounts share the same in-flight GPS fix
+    if (activeLocationPromise) {
+      return activeLocationPromise;
     }
 
     const tryGetPosition = (highAccuracy: boolean, timeoutMs: number): Promise<GeolocationPosition> => {
@@ -58,74 +65,101 @@ export const locationService = {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: highAccuracy,
           timeout: timeoutMs,
-          maximumAge: 30000,
+          maximumAge: 0, // CRITICAL: Always request fresh reading from device hardware, no stale browser cache
         });
       });
     };
 
-    let position: GeolocationPosition;
-    try {
-      // 1. Try high accuracy first (5s timeout)
-      position = await tryGetPosition(true, 5000);
-    } catch (err: any) {
-      // If user explicitly denied permission, don't retry - surface error
-      if (err && err.code === 1) {
-        throw new Error('Location permission was denied. Please allow location access in your browser.');
-      }
-      // 2. Fall back to standard accuracy (Wi-Fi / IP / Cell network positioning)
+    activeLocationPromise = (async () => {
+      let position: GeolocationPosition;
+      const useHighAccuracy = options?.highAccuracy ?? true;
+      const timeoutLimit = options?.timeoutMs ?? 8000;
+
       try {
-        position = await tryGetPosition(false, 8000);
-      } catch (fallbackErr: any) {
-        if (fallbackErr && fallbackErr.code === 1) {
-          throw new Error('Location permission was denied. Please allow location access in your browser.');
+        // 1. Primary GPS fix: High accuracy with maximumAge: 0
+        position = await tryGetPosition(useHighAccuracy, timeoutLimit);
+      } catch (err: any) {
+        // If user explicitly denied permission, do not retry - surface immediately
+        if (err && err.code === 1) {
+          throw new Error('Location permission was denied. Please allow location access in your browser settings.');
         }
-        throw new Error(fallbackErr?.message || 'Unable to obtain GPS fix from device.');
+
+        // 2. If timed out or position unavailable, fall back once to standard network/Wi-Fi positioning with fresh reading
+        try {
+          position = await tryGetPosition(false, 7000);
+        } catch (fallbackErr: any) {
+          if (fallbackErr && fallbackErr.code === 1) {
+            throw new Error('Location permission was denied. Please allow location access in your browser settings.');
+          }
+          if (fallbackErr && fallbackErr.code === 3) {
+            throw new Error('GPS satellite request timed out. Please verify your device location/GPS is enabled.');
+          }
+          throw new Error(fallbackErr?.message || 'Unable to obtain GPS fix from device.');
+        }
       }
-    }
 
-    const { latitude, longitude, accuracy } = position.coords;
-    const timestamp = new Date(position.timestamp).toISOString();
+      const { latitude, longitude, accuracy } = position.coords;
+      const timestamp = new Date(position.timestamp).toISOString();
 
-    // Determine location name based on coordinates
-    const distToCampus = calculateHaversineDistance(latitude, longitude, 26.8373, 75.6499);
-    const locationName =
-      distToCampus < 1500
-        ? 'JK Lakshmipat University Campus'
-        : accuracy < 100
-        ? `Live GPS Location (±${Math.round(accuracy)}m)`
-        : `Approximate Device Location (±${Math.round(accuracy)}m)`;
+      // Determine human-readable location label
+      const distToCampus = calculateHaversineDistance(latitude, longitude, 26.8373, 75.6499);
+      const locationName =
+        distToCampus < 1500
+          ? 'JK Lakshmipat University Campus'
+          : accuracy < 100
+          ? `Live Device Location (±${Math.round(accuracy)}m)`
+          : `Approximate Device Location (±${Math.round(accuracy)}m)`;
 
-    const studentLoc: StudentLocation = {
-      student_id: 'USR-STU-001',
-      latitude,
-      longitude,
-      accuracy_m: accuracy,
-      timestamp,
-      location_name: locationName,
-    };
+      const studentLoc: StudentLocation = {
+        student_id: 'USR-STU-001',
+        latitude,
+        longitude,
+        accuracy_m: accuracy,
+        timestamp,
+        location_name: locationName,
+      };
 
-    // Persist to backend database asynchronously
-    recordStudentLocation({
-      latitude,
-      longitude,
-      accuracy_m: accuracy,
-      gps_timestamp: timestamp,
-    }).catch((err) => {
-      console.warn('Failed to persist student location to backend:', err);
+      // Persist to backend database (immediate if forcePersist or coordinates changed > 5m)
+      const now = Date.now();
+      const distMoved = lastPersistedCoords
+        ? calculateHaversineDistance(lastPersistedCoords.lat, lastPersistedCoords.lng, latitude, longitude)
+        : 999;
+
+      if (options?.forcePersist || now - lastPersistedTime > 4000 || distMoved > 5) {
+        lastPersistedTime = now;
+        lastPersistedCoords = { lat: latitude, lng: longitude };
+
+        try {
+          await recordStudentLocation({
+            latitude,
+            longitude,
+            accuracy_m: accuracy,
+            gps_timestamp: timestamp,
+          });
+          console.log('[GPS Service] Persisted fresh GPS location to backend:', latitude, longitude);
+        } catch (err) {
+          console.warn('Failed to persist student location to backend:', err);
+        }
+      }
+
+      return studentLoc;
+    })().finally(() => {
+      activeLocationPromise = null;
     });
 
-    return studentLoc;
+    return activeLocationPromise;
   },
 
   /**
    * Watch real student location changes with sensible database write policy
+   * Enables continuous live tracking across device movements and DevTools Sensors emulation.
    */
   watchLocation(
     onLocation: (loc: StudentLocation) => void,
     onError: (err: Error) => void
   ): number | null {
-    if (!navigator.geolocation) {
-      onError(new Error('Geolocation is not supported.'));
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      onError(new Error('Geolocation is not supported by your browser.'));
       return null;
     }
 
@@ -134,24 +168,33 @@ export const locationService = {
         const { latitude, longitude, accuracy } = pos.coords;
         const timestamp = new Date(pos.timestamp).toISOString();
 
+        const distToCampus = calculateHaversineDistance(latitude, longitude, 26.8373, 75.6499);
+        const locationName =
+          distToCampus < 1500
+            ? 'JK Lakshmipat University Campus'
+            : accuracy < 100
+            ? `Live Device Location (±${Math.round(accuracy)}m)`
+            : `Approximate Device Location (±${Math.round(accuracy)}m)`;
+
         const loc: StudentLocation = {
           student_id: 'USR-STU-001',
           latitude,
           longitude,
           accuracy_m: accuracy,
           timestamp,
-          location_name: 'Current Device Location'
+          location_name: locationName
         };
 
+        console.log('[GPS Watcher] Live coordinate update received:', latitude, longitude, `(±${Math.round(accuracy)}m)`);
         onLocation(loc);
 
-        // Sensible persistence policy: at most once every 15s or if moved > 25m
+        // Immediate persistence if position moved > 5m or elapsed > 4s
         const now = Date.now();
         const distMoved = lastPersistedCoords
           ? calculateHaversineDistance(lastPersistedCoords.lat, lastPersistedCoords.lng, latitude, longitude)
           : 999;
 
-        if (now - lastPersistedTime > 15000 || distMoved > 25) {
+        if (now - lastPersistedTime > 4000 || distMoved > 5) {
           lastPersistedTime = now;
           lastPersistedCoords = { lat: latitude, lng: longitude };
           try {
@@ -161,24 +204,31 @@ export const locationService = {
               accuracy_m: accuracy,
               gps_timestamp: timestamp
             });
+            console.log('[GPS Watcher] Saved updated coordinates to backend database:', latitude, longitude);
           } catch (e) {
-            // Non-blocking
+            console.warn('[GPS Watcher] Failed to persist location to backend:', e);
           }
         }
       },
       (err) => {
-        onError(new Error(err.message || 'Location watch error'));
+        const msg =
+          err.code === 1
+            ? 'Location permission denied. Please allow location access in your browser settings.'
+            : err.code === 3
+            ? 'Location watch timed out'
+            : err.message || 'Location watch error';
+        onError(new Error(msg));
       },
       {
         enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 5000
+        timeout: 10000,
+        maximumAge: 0 // Fresh GPS updates only
       }
     );
   },
 
   clearWatch(watchId: number) {
-    if (navigator.geolocation && watchId !== null && watchId !== undefined) {
+    if (typeof window !== 'undefined' && navigator.geolocation && watchId !== null && watchId !== undefined) {
       navigator.geolocation.clearWatch(watchId);
     }
   },

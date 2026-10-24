@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Stop, ShuttleLocation } from '../../types/database';
-import { ZoomIn, ZoomOut, Compass } from 'lucide-react';
+import { ZoomIn, ZoomOut, Compass, Navigation } from 'lucide-react';
 
 interface MapViewProps {
   stops?: Stop[];
@@ -453,11 +453,32 @@ export const MapView: React.FC<MapViewProps> = ({
     if (mapInstanceRef.current) mapInstanceRef.current.zoomOut();
   };
 
+  // Auto-center map smoothly when student location updates (e.g. from GPS or DevTools Sensors)
+  const lastCenteredStudentLoc = useRef<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    if (!mapInstanceRef.current || !studentLocation) return;
+    const { latitude, longitude } = studentLocation;
+    const prev = lastCenteredStudentLoc.current;
+    if (!prev || Math.abs(prev.lat - latitude) > 0.002 || Math.abs(prev.lng - longitude) > 0.002) {
+      lastCenteredStudentLoc.current = { lat: latitude, lng: longitude };
+      mapInstanceRef.current.panTo([latitude, longitude], { animate: true, duration: 1.0 });
+    }
+  }, [studentLocation]);
+
   // Recenter to JKLU Campus / Corridor
   const handleRecenter = () => {
     if (mapInstanceRef.current) {
       const center: [number, number] = centerCoords || [26.8680, 75.7200];
       mapInstanceRef.current.flyTo(center, 13, { duration: 1.2 });
+    }
+  };
+
+  // Focus directly on Student's Live Location pin
+  const handleFocusStudent = () => {
+    if (mapInstanceRef.current && studentLocation) {
+      mapInstanceRef.current.flyTo([studentLocation.latitude, studentLocation.longitude], 15, {
+        duration: 1.2,
+      });
     }
   };
 
@@ -496,6 +517,15 @@ export const MapView: React.FC<MapViewProps> = ({
 
       {/* Bottom Right: Clean Controls */}
       <div className="absolute bottom-4 right-4 z-[400] flex flex-col gap-1.5">
+        {studentLocation && (
+          <button
+            onClick={handleFocusStudent}
+            className="w-9 h-9 rounded-xl bg-blue-50/95 backdrop-blur-md hover:bg-blue-100 text-[#1E3A8A] border border-blue-200 shadow-md flex items-center justify-center transition-all active:scale-95"
+            title="Focus On My GPS Location"
+          >
+            <Navigation className="w-4 h-4 text-[#1D4ED8]" />
+          </button>
+        )}
         <button
           onClick={handleRecenter}
           className="w-9 h-9 rounded-xl bg-white/95 backdrop-blur-md hover:bg-white text-stone-700 hover:text-[#2B4A7E] border border-stone-200 shadow-md flex items-center justify-center transition-all active:scale-95"
