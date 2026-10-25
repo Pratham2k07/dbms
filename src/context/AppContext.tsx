@@ -532,13 +532,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (liveShuttles && Array.isArray(liveShuttles) && liveShuttles.length > 0) {
         setShuttles(liveShuttles);
       }
-      if (liveTrips && Array.isArray(liveTrips) && liveTrips.length > 0) {
+      if (liveTrips && Array.isArray(liveTrips)) {
         setTrips(liveTrips);
       }
       if (liveDrivers && Array.isArray(liveDrivers) && liveDrivers.length > 0) {
         setDrivers(liveDrivers);
       }
-      if (liveTripStops && Array.isArray(liveTripStops) && liveTripStops.length > 0) {
+      if (liveTripStops && Array.isArray(liveTripStops)) {
         setTripStops(liveTripStops);
       }
       if (liveLocations && Array.isArray(liveLocations) && liveLocations.length > 0) {

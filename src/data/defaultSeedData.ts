@@ -14328,99 +14328,11 @@ export const DEFAULT_DATABASE_STATE = {
   {
     "trip_id": "TRIP-01",
     "shuttle_id": "SHT-01",
-    "route_id": "ROUTE-01",
+    "route_id": "ROUTE-06",
     "driver_id": "DRV-101",
-    "start_time": "09:45 AM",
-    "end_time": null,
-    "running_status": "CANCELLED",
-    "capacity_status": "AVAILABLE",
-    "speed_kmh": "0.00"
-  },
-  {
-    "trip_id": "TRIP-02",
-    "shuttle_id": "SHT-02",
-    "route_id": "ROUTE-02",
-    "driver_id": "DRV-102",
-    "start_time": "09:30 AM",
-    "end_time": null,
-    "running_status": "CANCELLED",
-    "capacity_status": "AVAILABLE",
-    "speed_kmh": "0.00"
-  },
-  {
-    "trip_id": "TRIP-03",
-    "shuttle_id": "SHT-03",
-    "route_id": "ROUTE-03",
-    "driver_id": "DRV-103",
-    "start_time": "09:40 AM",
-    "end_time": null,
-    "running_status": "CANCELLED",
-    "capacity_status": "AVAILABLE",
-    "speed_kmh": "0.00"
-  },
-  {
-    "trip_id": "TRIP-04",
-    "shuttle_id": "SHT-01",
-    "route_id": "ROUTE-04",
-    "driver_id": "DRV-101",
-    "start_time": "05:08 PM",
-    "end_time": null,
-    "running_status": "CANCELLED",
-    "capacity_status": "AVAILABLE",
-    "speed_kmh": "0.00"
-  },
-  {
-    "trip_id": "TRIP-05",
-    "shuttle_id": "SHT-01",
-    "route_id": "ROUTE-04",
-    "driver_id": "DRV-101",
-    "start_time": "05:08 PM",
-    "end_time": null,
-    "running_status": "CANCELLED",
-    "capacity_status": "AVAILABLE",
-    "speed_kmh": "0.00"
-  },
-  {
-    "trip_id": "TRIP-06",
-    "shuttle_id": "SHT-01",
-    "route_id": "ROUTE-04",
-    "driver_id": "DRV-101",
-    "start_time": "05:08 PM",
-    "end_time": null,
-    "running_status": "CANCELLED",
-    "capacity_status": "AVAILABLE",
-    "speed_kmh": "0.00"
-  },
-  {
-    "trip_id": "TRIP-08",
-    "shuttle_id": "SHT-03",
-    "route_id": "ROUTE-04",
-    "driver_id": "DRV-101",
-    "start_time": "05:39 PM",
-    "end_time": null,
-    "running_status": "CANCELLED",
-    "capacity_status": "AVAILABLE",
-    "speed_kmh": "0.00"
-  },
-  {
-    "trip_id": "TRIP-09",
-    "shuttle_id": "SHT-03",
-    "route_id": "ROUTE-04",
-    "driver_id": "DRV-101",
-    "start_time": "05:39 PM",
+    "start_time": "12:20 PM",
     "end_time": null,
     "running_status": "RUNNING",
-    "capacity_status": "AVAILABLE",
-    "speed_kmh": "0.00"
-  },
-  {
-    "trip_id": "TRIP-5565",
-    "shuttle_id": "SHT-01",
-    "route_id": "ROUTE-03",
-    "driver_id": "DRV-102",
-    "start_time": "05:36 PM",
-    "end_time": "05:38 pm",
-    "running_status": "COMPLETED",
     "capacity_status": "AVAILABLE",
     "speed_kmh": "0.00"
   }
@@ -14428,323 +14340,39 @@ export const DEFAULT_DATABASE_STATE = {
   tripStops: [
   {
     "trip_id": "TRIP-01",
-    "stop_id": "STOP-AIRPORT",
-    "estimated_arrival": "10:35 AM",
-    "actual_arrival": null,
+    "stop_id": "STOP-JKLU-START",
+    "estimated_arrival": "12:20 PM",
+    "actual_arrival": "2026-10-25 06:48:55.59839+00",
     "actual_departure": null,
-    "arrival_status": "SCHEDULED"
+    "arrival_status": "ARRIVED",
+    "sequence_number": 1
   },
   {
     "trip_id": "TRIP-01",
-    "stop_id": "STOP-DCM",
-    "estimated_arrival": "10:55 AM",
+    "stop_id": "STOP-AJMER-ROAD",
+    "estimated_arrival": "12:20 PM",
     "actual_arrival": null,
     "actual_departure": null,
-    "arrival_status": "SCHEDULED"
+    "arrival_status": "SCHEDULED",
+    "sequence_number": 2
   },
   {
     "trip_id": "TRIP-01",
-    "stop_id": "STOP-JKLU",
-    "estimated_arrival": "11:15 AM",
+    "stop_id": "STOP-CHANDPOLE",
+    "estimated_arrival": "12:20 PM",
     "actual_arrival": null,
     "actual_departure": null,
-    "arrival_status": "SCHEDULED"
+    "arrival_status": "SCHEDULED",
+    "sequence_number": 3
   },
   {
     "trip_id": "TRIP-01",
-    "stop_id": "STOP-JKLU-START",
-    "estimated_arrival": "09:45 AM",
+    "stop_id": "STOP-HAWA-MAHAL",
+    "estimated_arrival": "12:20 PM",
     "actual_arrival": null,
     "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-01",
-    "stop_id": "STOP-MALVIYA-NAGAR",
-    "estimated_arrival": "10:15 AM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-02",
-    "stop_id": "STOP-DCM",
-    "estimated_arrival": "10:35 AM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-02",
-    "stop_id": "STOP-JKLU",
-    "estimated_arrival": "10:55 AM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-02",
-    "stop_id": "STOP-JKLU-START",
-    "estimated_arrival": "09:30 AM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-02",
-    "stop_id": "STOP-MANSAROVAR",
-    "estimated_arrival": "10:00 AM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-02",
-    "stop_id": "STOP-VAISHALI",
-    "estimated_arrival": "10:20 AM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-03",
-    "stop_id": "STOP-DCM",
-    "estimated_arrival": "10:45 AM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-03",
-    "stop_id": "STOP-JKLU",
-    "estimated_arrival": "11:05 AM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-03",
-    "stop_id": "STOP-JKLU-START",
-    "estimated_arrival": "09:40 AM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-03",
-    "stop_id": "STOP-RAILWAY-STN",
-    "estimated_arrival": "10:10 AM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-03",
-    "stop_id": "STOP-VAISHALI",
-    "estimated_arrival": "10:30 AM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-04",
-    "stop_id": "STOP-AJMERI-GATE",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-04",
-    "stop_id": "STOP-BANI-PARK",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-04",
-    "stop_id": "STOP-JKLU-START",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-04",
-    "stop_id": "STOP-SITAPURA",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-05",
-    "stop_id": "STOP-AJMERI-GATE",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-05",
-    "stop_id": "STOP-BANI-PARK",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-05",
-    "stop_id": "STOP-JKLU-START",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-05",
-    "stop_id": "STOP-SITAPURA",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-06",
-    "stop_id": "STOP-AJMERI-GATE",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-06",
-    "stop_id": "STOP-BANI-PARK",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-06",
-    "stop_id": "STOP-JKLU-START",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-06",
-    "stop_id": "STOP-SITAPURA",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-08",
-    "stop_id": "STOP-AJMERI-GATE",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-08",
-    "stop_id": "STOP-BANI-PARK",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-08",
-    "stop_id": "STOP-JKLU-START",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-08",
-    "stop_id": "STOP-SITAPURA",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-09",
-    "stop_id": "STOP-AJMERI-GATE",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-09",
-    "stop_id": "STOP-BANI-PARK",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-09",
-    "stop_id": "STOP-JKLU-START",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": "2026-10-24 12:09:57.155492+00",
-    "actual_departure": null,
-    "arrival_status": "ARRIVED"
-  },
-  {
-    "trip_id": "TRIP-09",
-    "stop_id": "STOP-SITAPURA",
-    "estimated_arrival": "05:07 PM",
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "SCHEDULED"
-  },
-  {
-    "trip_id": "TRIP-5565",
-    "stop_id": "STOP-DCM",
-    "estimated_arrival": null,
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "COMPLETED"
-  },
-  {
-    "trip_id": "TRIP-5565",
-    "stop_id": "STOP-JKLU",
-    "estimated_arrival": null,
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "COMPLETED"
-  },
-  {
-    "trip_id": "TRIP-5565",
-    "stop_id": "STOP-JKLU-START",
-    "estimated_arrival": null,
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "COMPLETED"
-  },
-  {
-    "trip_id": "TRIP-5565",
-    "stop_id": "STOP-RAILWAY-STN",
-    "estimated_arrival": null,
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "COMPLETED"
-  },
-  {
-    "trip_id": "TRIP-5565",
-    "stop_id": "STOP-VAISHALI",
-    "estimated_arrival": null,
-    "actual_arrival": null,
-    "actual_departure": null,
-    "arrival_status": "COMPLETED"
+    "arrival_status": "SCHEDULED",
+    "sequence_number": 4
   }
 ],
   driverAssignments: [

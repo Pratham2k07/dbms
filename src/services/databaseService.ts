@@ -12,7 +12,7 @@ import {
 } from '../types/database';
 import { DEFAULT_DATABASE_STATE } from '../data/defaultSeedData';
 
-const STORAGE_KEY = 'JKLU_SHUTTLE_DATABASE_V4';
+const STORAGE_KEY = 'JKLU_SHUTTLE_DATABASE_V5';
 const CHANNEL_NAME = 'JKLU_SHUTTLE_REALTIME_SYNC';
 
 export interface DatabaseState {
@@ -110,6 +110,7 @@ class CentralDatabaseService {
 
     try {
       // Purge old storage versions
+      localStorage.removeItem('JKLU_SHUTTLE_DATABASE_V4');
       localStorage.removeItem('JKLU_SHUTTLE_DATABASE_V3');
       localStorage.removeItem('JKLU_SHUTTLE_DATABASE_V2');
       localStorage.removeItem('JKLU_SHUTTLE_DATABASE_V1');
