@@ -28,14 +28,28 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
-// Health check on root
-app.get('/health', (_req: Request, res: Response) => {
+// URL path normalization for Vercel and serverless environments
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  const matchedHeader = (req.headers['x-matched-path'] as string) || (req.headers['x-forwarded-uri'] as string);
+  if (matchedHeader && (req.url === '/api/index' || req.url === '/api' || req.url.startsWith('/api/index?'))) {
+    req.url = matchedHeader;
+  } else if (req.query?.__path && typeof req.query.__path === 'string') {
+    const rawPath = req.query.__path.startsWith('/') ? req.query.__path : `/${req.query.__path}`;
+    req.url = rawPath;
+  }
+  next();
+});
+
+// Health check on root and /api
+const healthHandler = (_req: Request, res: Response) => {
   res.json({
     status: 'ONLINE',
     service: 'JKLU Shuttle Transit Backend API',
     timestamp: new Date().toISOString(),
   });
-});
+};
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
 
 // Mount API routes on both /api and root level for flexible serverless hosting
 app.use('/api', apiRoutes);
