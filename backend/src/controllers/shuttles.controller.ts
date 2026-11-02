@@ -15,18 +15,15 @@ export const getShuttles = async (_req: Request, res: Response): Promise<void> =
 export const getLatestShuttleLocations = async (_req: Request, res: Response): Promise<void> => {
   try {
     const result = await query(`
-      SELECT DISTINCT ON (shuttle_id)
-        location_id,
-        shuttle_id,
-        trip_id,
-        latitude,
-        longitude,
-        bearing,
-        speed_kmh,
-        progress_percentage,
-        recorded_at
-      FROM shuttle_locations
-      ORDER BY shuttle_id, recorded_at DESC
+      SELECT sl.location_id, sl.shuttle_id, sl.trip_id, sl.latitude, sl.longitude,
+             sl.bearing, sl.speed_kmh, sl.progress_percentage, sl.recorded_at
+      FROM shuttle_locations sl
+      INNER JOIN (
+        SELECT shuttle_id, MAX(location_id) AS max_loc
+        FROM shuttle_locations
+        GROUP BY shuttle_id
+      ) latest ON sl.location_id = latest.max_loc
+      ORDER BY sl.shuttle_id ASC
     `);
     res.json(result.rows);
   } catch (error: any) {

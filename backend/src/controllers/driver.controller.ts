@@ -49,14 +49,14 @@ export const createDriver = async (req: Request, res: Response): Promise<void> =
     await client.query(
       `INSERT INTO users (user_id, name, email, password_hash, phone_number, role)
        VALUES ($1, $2, $3, $4, $5, 'driver')
-       ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name`,
+       ON DUPLICATE KEY UPDATE name = VALUES(name)`,
       [driverId, name, cleanEmail, passwordHash, phone_number || null]
     );
 
-    const driverRes = await client.query(
+    await client.query(
       `INSERT INTO drivers (driver_id, license_no)
        VALUES ($1, $2)
-       ON CONFLICT (driver_id) DO UPDATE SET license_no = EXCLUDED.license_no
+       ON DUPLICATE KEY UPDATE license_no = VALUES(license_no)
        RETURNING *`,
       [driverId, license_no]
     );
@@ -72,16 +72,18 @@ export const createDriver = async (req: Request, res: Response): Promise<void> =
 
     await client.query('COMMIT');
 
+    const createdDriver = {
+      driver_id: driverId,
+      name,
+      email: cleanEmail,
+      phone_number,
+      license_no,
+      assigned_shuttle_id,
+    };
+
     res.status(201).json({
       success: true,
-      driver: {
-        driver_id: driverId,
-        name,
-        email: cleanEmail,
-        phone_number,
-        license_no,
-        assigned_shuttle_id,
-      },
+      driver: createdDriver,
     });
   } catch (error: any) {
     await client.query('ROLLBACK');
@@ -139,24 +141,57 @@ export const updateDriver = async (req: Request, res: Response): Promise<void> =
 };
 
 export const deleteDriver = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
   try {
     const { id } = req.params;
-    await query('DELETE FROM users WHERE user_id = $1', [id]);
-    res.json({ success: true, message: `Driver ${id} deleted` });
+
+    // Check if driver has active/scheduled trips
+    const activeTrips = await client.query(
+      "SELECT trip_id FROM trips WHERE driver_id = $1 AND running_status IN ('RUNNING', 'SCHEDULED')",
+      [id]
+    );
+    if (activeTrips.rows.length > 0) {
+      res.status(400).json({
+        success: false,
+        message: `Cannot delete driver ${id}: Currently assigned to active/scheduled trip ${activeTrips.rows[0].trip_id}.`,
+      });
+      return;
+    }
+
+    // Check if driver has completed/cancelled trip history
+    const allTrips = await client.query('SELECT COUNT(*) FROM trips WHERE driver_id = $1', [id]);
+    if (parseInt(allTrips.rows[0].count, 10) > 0) {
+      res.status(400).json({
+        success: false,
+        message: `Cannot delete driver ${id}: Driver is referenced by ${allTrips.rows[0].count} historical trip record(s). Delete or reassign historical trips first.`,
+      });
+      return;
+    }
+
+    await client.query('BEGIN');
+    await client.query('DELETE FROM driver_assignments WHERE driver_id = $1', [id]);
+    await client.query('DELETE FROM driver_notifications WHERE driver_id = $1', [id]);
+    await client.query('DELETE FROM drivers WHERE driver_id = $1', [id]);
+    await client.query('DELETE FROM users WHERE user_id = $1', [id]);
+    await client.query('COMMIT');
+
+    res.json({ success: true, message: `Driver ${id} deleted successfully` });
   } catch (error: any) {
+    await client.query('ROLLBACK');
     res.status(500).json({ success: false, message: 'Failed to delete driver', error: error.message });
+  } finally {
+    client.release();
   }
 };
 
 export const getDriverAssignedTrip = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    // Identify driver: prefer authenticated user, fallback to query param or first driver
+    // Identify driver: prefer authenticated user, fallback to query param or default
     let driverId = req.user?.user_id;
     if (!driverId && req.query.driver_id) {
       driverId = String(req.query.driver_id);
     }
     if (!driverId) {
-      // Default to first active driver DRV-101
       driverId = 'DRV-101';
     }
 

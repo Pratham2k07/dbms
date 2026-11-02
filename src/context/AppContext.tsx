@@ -116,28 +116,28 @@ interface AppContextType {
     newAssignedDriverId?: string,
     newAssignedShuttleId?: string
   ) => Promise<{ success: boolean; error?: string }>;
-  cancelRoute: (routeId: string) => { success: boolean; error?: string };
-  deleteRoute: (routeId: string) => { success: boolean; error?: string };
+  cancelRoute: (routeId: string) => Promise<{ success: boolean; error?: string }>;
+  deleteRoute: (routeId: string) => Promise<{ success: boolean; error?: string }>;
 
-  createStop: (stopData: Stop) => { success: boolean; error?: string };
-  updateStop: (stop: Stop) => { success: boolean; error?: string };
-  deleteStop: (stopId: string) => { success: boolean; error?: string };
-  assignStopToRoute: (routeId: string, stopId: string, sequenceNumber?: number) => void;
-  removeStopFromRoute: (routeId: string, stopId: string) => void;
+  createStop: (stopData: Stop) => Promise<{ success: boolean; error?: string }>;
+  updateStop: (stop: Stop) => Promise<{ success: boolean; error?: string }>;
+  deleteStop: (stopId: string) => Promise<{ success: boolean; error?: string }>;
+  assignStopToRoute: (routeId: string, stopId: string, sequenceNumber?: number) => Promise<void>;
+  removeStopFromRoute: (routeId: string, stopId: string) => Promise<void>;
   reorderRouteStops: (routeId: string, stopIdsInOrder: string[]) => void;
 
-  createShuttle: (shuttle: Shuttle) => { success: boolean; error?: string };
-  updateShuttle: (shuttle: Shuttle) => { success: boolean; error?: string };
-  setShuttleStatus: (shuttleId: string, status: Shuttle['status']) => void;
+  createShuttle: (shuttle: Shuttle) => Promise<{ success: boolean; error?: string }>;
+  updateShuttle: (shuttle: Shuttle) => Promise<{ success: boolean; error?: string }>;
+  setShuttleStatus: (shuttleId: string, status: Shuttle['status']) => Promise<void>;
 
   createDriver: (data: {
     name: string;
     phone_number: string;
     license_no: string;
     assigned_shuttle_id?: string;
-  }) => { success: boolean; error?: string };
-  updateDriver: (driver: Driver) => { success: boolean; error?: string };
-  deleteDriver: (driverId: string) => { success: boolean; error?: string };
+  }) => Promise<{ success: boolean; error?: string }>;
+  updateDriver: (driver: Driver) => Promise<{ success: boolean; error?: string }>;
+  deleteDriver: (driverId: string) => Promise<{ success: boolean; error?: string }>;
 
   createTrip: (data: {
     route_id: string;
@@ -149,7 +149,7 @@ interface AppContextType {
   updateTrip: (trip: Trip) => Promise<{ success: boolean; error?: string; trip?: Trip }>;
   cancelTrip: (tripId: string) => Promise<void>;
   updateTripCapacity: (tripId: string, capacity: 'AVAILABLE' | 'MODERATE' | 'FULL') => void;
-  updateTripStopArrivalStatus: (tripId: string, stopId: string, status: TripStop['arrival_status']) => void;
+  updateTripStopArrivalStatus: (tripId: string, stopId: string, status: TripStop['arrival_status']) => Promise<void>;
 
   updateStudentLocation: (loc: StudentLocation) => void;
   requestStudentLocation: () => Promise<void>;
@@ -458,6 +458,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           prev.map((r) => (r.route_id === data.route.route_id ? { ...r, ...data.route } : r))
         );
       }
+    });
+
+    socketService.onRouteDeleted((data: any) => {
+      if (data?.route_id) {
+        setRoutes((prev) => prev.filter((r) => r.route_id !== data.route_id));
+      }
+    });
+
+    socketService.onStopCreated((data: any) => {
+      if (data?.stop) {
+        setStops((prev) => {
+          const exists = prev.some((s) => s.stop_id === data.stop.stop_id);
+          return exists ? prev.map((s) => (s.stop_id === data.stop.stop_id ? data.stop : s)) : [...prev, data.stop];
+        });
+      }
+    });
+
+    socketService.onStopUpdated((data: any) => {
+      if (data?.stop) {
+        setStops((prev) => prev.map((s) => (s.stop_id === data.stop.stop_id ? { ...s, ...data.stop } : s)));
+      }
+    });
+
+    socketService.onStopDeleted((data: any) => {
+      if (data?.stop_id) {
+        setStops((prev) => prev.filter((s) => s.stop_id !== data.stop_id));
+      }
+    });
+
+    socketService.onShuttleCreated((data: any) => {
+      if (data?.shuttle) {
+        setShuttles((prev) => {
+          const exists = prev.some((s) => s.shuttle_id === data.shuttle.shuttle_id);
+          return exists ? prev.map((s) => (s.shuttle_id === data.shuttle.shuttle_id ? data.shuttle : s)) : [...prev, data.shuttle];
+        });
+      }
+    });
+
+    socketService.onShuttleUpdated((data: any) => {
+      if (data?.shuttle) {
+        setShuttles((prev) => prev.map((s) => (s.shuttle_id === data.shuttle.shuttle_id ? { ...s, ...data.shuttle } : s)));
+      }
+    });
+
+    socketService.onShuttleStatusChanged((data: any) => {
+      if (data?.shuttle_id && data?.status) {
+        setShuttles((prev) => prev.map((s) => (s.shuttle_id === data.shuttle_id ? { ...s, status: data.status } : s)));
+      }
+    });
+
+    socketService.onDriverAssigned(() => {
+      refreshDatabaseRecords();
     });
   }, []);
 
@@ -804,54 +856,86 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [triggerNotification, refreshDatabaseRecords]);
 
-  const cancelRoute = useCallback((routeId: string) => {
-    const res = databaseService.cancelRoute(routeId);
-    if (res.success) {
+  const cancelRoute = useCallback(async (routeId: string) => {
+    try {
+      await apiService.cancelRoute(routeId);
+      databaseService.cancelRoute(routeId);
+      setRoutes((prev) => prev.map((r) => (r.route_id === routeId ? { ...r, status: 'INACTIVE' } : r)));
       triggerNotification('ROUTE CANCELLED', `Route ${routeId} cancelled by admin dispatch.`, 'full');
+      await refreshDatabaseRecords();
+      return { success: true };
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to cancel route in database';
+      triggerNotification('CANCEL FAILED', errMsg, 'full');
+      return { success: false, error: errMsg };
     }
-    return res;
-  }, [triggerNotification]);
+  }, [triggerNotification, refreshDatabaseRecords]);
 
-  const deleteRoute = useCallback((routeId: string) => {
-    const res = databaseService.deleteRoute(routeId);
-    if (res.success) {
-      // Async hit backend
-      apiService.deleteRoute(routeId).catch(err => console.warn('API error', err));
-
+  const deleteRoute = useCallback(async (routeId: string) => {
+    try {
+      await apiService.deleteRoute(routeId);
+      databaseService.deleteRoute(routeId);
+      setRoutes((prev) => prev.filter((r) => r.route_id !== routeId));
       triggerNotification('ROUTE DELETED', `Route ${routeId} has been removed.`, 'info');
+      await refreshDatabaseRecords();
+      return { success: true };
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to delete route in database';
+      triggerNotification('DELETE FAILED', errMsg, 'full');
+      return { success: false, error: errMsg };
     }
-    return res;
-  }, [triggerNotification]);
+  }, [triggerNotification, refreshDatabaseRecords]);
 
   // ================= ADMIN STOP CRUD =================
-  const createStop = useCallback((stopData: Stop) => {
-    const res = databaseService.createStop(stopData);
-    if (res.success) {
-      apiService.createStop(stopData).catch(err => console.warn('API error in createStop:', err));
+  const createStop = useCallback(async (stopData: Stop) => {
+    try {
+      await apiService.createStop(stopData);
+      databaseService.createStop(stopData);
+      setStops((prev) => {
+        const exists = prev.some((s) => s.stop_id === stopData.stop_id);
+        return exists ? prev.map((s) => (s.stop_id === stopData.stop_id ? stopData : s)) : [...prev, stopData];
+      });
       triggerNotification('STOP CREATED', `Stop '${stopData.stop_name}' added.`, 'info');
+      await refreshDatabaseRecords();
+      return { success: true };
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to create stop in database';
+      triggerNotification('STOP CREATION FAILED', errMsg, 'full');
+      return { success: false, error: errMsg };
     }
-    return res;
-  }, [triggerNotification]);
+  }, [triggerNotification, refreshDatabaseRecords]);
 
-  const updateStop = useCallback((stopData: Stop) => {
-    const res = databaseService.updateStop(stopData);
-    if (res.success) {
-      apiService.updateStop(stopData.stop_id, stopData).catch(err => console.warn('API error in updateStop:', err));
+  const updateStop = useCallback(async (stopData: Stop) => {
+    try {
+      await apiService.updateStop(stopData.stop_id, stopData);
+      databaseService.updateStop(stopData);
+      setStops((prev) => prev.map((s) => (s.stop_id === stopData.stop_id ? stopData : s)));
       triggerNotification('STOP UPDATED', `Stop '${stopData.stop_name}' updated.`, 'info');
+      await refreshDatabaseRecords();
+      return { success: true };
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to update stop in database';
+      triggerNotification('STOP UPDATE FAILED', errMsg, 'full');
+      return { success: false, error: errMsg };
     }
-    return res;
-  }, [triggerNotification]);
+  }, [triggerNotification, refreshDatabaseRecords]);
 
-  const deleteStop = useCallback((stopId: string) => {
-    const res = databaseService.deleteStop(stopId);
-    if (res.success) {
-      apiService.deleteStop(stopId).catch(err => console.warn('API error in deleteStop:', err));
+  const deleteStop = useCallback(async (stopId: string) => {
+    try {
+      await apiService.deleteStop(stopId);
+      databaseService.deleteStop(stopId);
+      setStops((prev) => prev.filter((s) => s.stop_id !== stopId));
       triggerNotification('STOP DELETED', `Stop ${stopId} has been removed.`, 'info');
+      await refreshDatabaseRecords();
+      return { success: true };
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to delete stop in database';
+      triggerNotification('STOP DELETE FAILED', errMsg, 'full');
+      return { success: false, error: errMsg };
     }
-    return res;
-  }, [triggerNotification]);
+  }, [triggerNotification, refreshDatabaseRecords]);
 
-  const assignStopToRoute = useCallback((routeId: string, stopId: string, sequenceNumber?: number) => {
+  const assignStopToRoute = useCallback(async (routeId: string, stopId: string, sequenceNumber?: number) => {
     const existingStops = routeStops
       .filter((rs) => rs.route_id === routeId)
       .sort((a, b) => a.sequence_number - b.sequence_number)
@@ -865,11 +949,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const targetRoute = routes.find((r) => r.route_id === routeId);
     if (targetRoute) {
       databaseService.updateRoute(targetRoute, updatedIds);
+      try {
+        await apiService.updateRoute(routeId, { stop_ids: updatedIds });
+      } catch (err) {
+        console.warn('Backend updateRoute failed in assignStopToRoute:', err);
+      }
       triggerNotification('STOP ASSIGNED', `Stop added to Route ${routeId}.`, 'info');
+      await refreshDatabaseRecords();
     }
-  }, [routeStops, routes, triggerNotification]);
+  }, [routeStops, routes, triggerNotification, refreshDatabaseRecords]);
 
-  const removeStopFromRoute = useCallback((routeId: string, stopId: string) => {
+  const removeStopFromRoute = useCallback(async (routeId: string, stopId: string) => {
     const existingStops = routeStops
       .filter((rs) => rs.route_id === routeId)
       .sort((a, b) => a.sequence_number - b.sequence_number)
@@ -878,9 +968,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const targetRoute = routes.find((r) => r.route_id === routeId);
     if (targetRoute) {
       databaseService.updateRoute(targetRoute, remaining);
+      try {
+        await apiService.updateRoute(routeId, { stop_ids: remaining });
+      } catch (err) {
+        console.warn('Backend updateRoute failed in removeStopFromRoute:', err);
+      }
       triggerNotification('STOP REMOVED', `Stop removed from Route ${routeId}.`, 'info');
+      await refreshDatabaseRecords();
     }
-  }, [routeStops, routes, triggerNotification]);
+  }, [routeStops, routes, triggerNotification, refreshDatabaseRecords]);
 
   const reorderRouteStops = useCallback((routeId: string, stopIdsInOrder: string[]) => {
     const targetRoute = routes.find((r) => r.route_id === routeId);
@@ -890,62 +986,101 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [routes]);
 
   // ================= ADMIN SHUTTLE CRUD =================
-  const createShuttle = useCallback((shuttleData: Shuttle) => {
-    const res = databaseService.createShuttle(shuttleData);
-    if (res.success) {
-      apiService.createShuttle(shuttleData).catch(err => console.warn('API error in createShuttle:', err));
+  const createShuttle = useCallback(async (shuttleData: Shuttle) => {
+    try {
+      await apiService.createShuttle(shuttleData);
+      databaseService.createShuttle(shuttleData);
+      setShuttles((prev) => {
+        const exists = prev.some((s) => s.shuttle_id === shuttleData.shuttle_id);
+        return exists ? prev.map((s) => (s.shuttle_id === shuttleData.shuttle_id ? shuttleData : s)) : [...prev, shuttleData];
+      });
       triggerNotification('SHUTTLE ADDED', `${shuttleData.shuttle_number} added to fleet.`, 'info');
+      await refreshDatabaseRecords();
+      return { success: true };
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to create shuttle in database';
+      triggerNotification('SHUTTLE CREATION FAILED', errMsg, 'full');
+      return { success: false, error: errMsg };
     }
-    return res;
-  }, [triggerNotification]);
+  }, [triggerNotification, refreshDatabaseRecords]);
 
-  const updateShuttle = useCallback((shuttleData: Shuttle) => {
-    const res = databaseService.updateShuttle(shuttleData);
-    if (res.success) {
-      apiService.updateShuttle(shuttleData.shuttle_id, shuttleData).catch(err => console.warn('API error in updateShuttle:', err));
+  const updateShuttle = useCallback(async (shuttleData: Shuttle) => {
+    try {
+      await apiService.updateShuttle(shuttleData.shuttle_id, shuttleData);
+      databaseService.updateShuttle(shuttleData);
+      setShuttles((prev) => prev.map((s) => (s.shuttle_id === shuttleData.shuttle_id ? shuttleData : s)));
       triggerNotification('SHUTTLE UPDATED', `${shuttleData.shuttle_number} details updated.`, 'info');
+      await refreshDatabaseRecords();
+      return { success: true };
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to update shuttle in database';
+      triggerNotification('SHUTTLE UPDATE FAILED', errMsg, 'full');
+      return { success: false, error: errMsg };
     }
-    return res;
-  }, [triggerNotification]);
+  }, [triggerNotification, refreshDatabaseRecords]);
 
-  const setShuttleStatus = useCallback((shuttleId: string, status: Shuttle['status']) => {
-    databaseService.setShuttleStatus(shuttleId, status);
-    apiService.updateShuttleStatus(shuttleId, status).catch(err => console.warn('API error in updateShuttleStatus:', err));
-    triggerNotification('FLEET STATUS UPDATED', `Shuttle ${shuttleId} status changed to ${status}.`, 'info');
-  }, [triggerNotification]);
+  const setShuttleStatus = useCallback(async (shuttleId: string, status: Shuttle['status']) => {
+    try {
+      await apiService.updateShuttleStatus(shuttleId, status);
+      databaseService.setShuttleStatus(shuttleId, status);
+      setShuttles((prev) => prev.map((s) => (s.shuttle_id === shuttleId ? { ...s, status } : s)));
+      triggerNotification('FLEET STATUS UPDATED', `Shuttle ${shuttleId} status changed to ${status}.`, 'info');
+      await refreshDatabaseRecords();
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to update shuttle status';
+      triggerNotification('STATUS UPDATE FAILED', errMsg, 'full');
+    }
+  }, [triggerNotification, refreshDatabaseRecords]);
 
   // ================= ADMIN DRIVER CRUD =================
-  const createDriver = useCallback((data: {
+  const createDriver = useCallback(async (data: {
     name: string;
     phone_number: string;
     license_no: string;
     assigned_shuttle_id?: string;
   }) => {
-    const res = databaseService.createDriver(data);
-    if (res.success) {
-      apiService.createDriver(data).catch(err => console.warn('API error in createDriver:', err));
+    try {
+      await apiService.createDriver(data);
+      databaseService.createDriver(data);
       triggerNotification('DRIVER ADDED', `Captain ${data.name} enrolled into transport system.`, 'info');
+      await refreshDatabaseRecords();
+      return { success: true };
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to create driver in database';
+      triggerNotification('DRIVER CREATION FAILED', errMsg, 'full');
+      return { success: false, error: errMsg };
     }
-    return res;
-  }, [triggerNotification]);
+  }, [triggerNotification, refreshDatabaseRecords]);
 
-  const updateDriver = useCallback((driverData: Driver) => {
-    const res = databaseService.updateDriver(driverData);
-    if (res.success) {
-      apiService.updateDriver(driverData.driver_id, driverData).catch(err => console.warn('API error in updateDriver:', err));
+  const updateDriver = useCallback(async (driverData: Driver) => {
+    try {
+      await apiService.updateDriver(driverData.driver_id, driverData);
+      databaseService.updateDriver(driverData);
+      setDrivers((prev) => prev.map((d) => (d.driver_id === driverData.driver_id ? driverData : d)));
       triggerNotification('DRIVER UPDATED', `Captain ${driverData.name} record updated.`, 'info');
+      await refreshDatabaseRecords();
+      return { success: true };
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to update driver in database';
+      triggerNotification('DRIVER UPDATE FAILED', errMsg, 'full');
+      return { success: false, error: errMsg };
     }
-    return res;
-  }, [triggerNotification]);
+  }, [triggerNotification, refreshDatabaseRecords]);
 
-  const deleteDriver = useCallback((driverId: string) => {
-    const res = databaseService.deleteDriver(driverId);
-    if (res.success) {
-      apiService.deleteDriver(driverId).catch(err => console.warn('API error in deleteDriver:', err));
+  const deleteDriver = useCallback(async (driverId: string) => {
+    try {
+      await apiService.deleteDriver(driverId);
+      databaseService.deleteDriver(driverId);
+      setDrivers((prev) => prev.filter((d) => d.driver_id !== driverId));
       triggerNotification('DRIVER REMOVED', `Driver ${driverId} deactivated.`, 'info');
+      await refreshDatabaseRecords();
+      return { success: true };
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to delete driver in database';
+      triggerNotification('DRIVER DELETION FAILED', errMsg, 'full');
+      return { success: false, error: errMsg };
     }
-    return res;
-  }, [triggerNotification]);
+  }, [triggerNotification, refreshDatabaseRecords]);
 
   // ================= ADMIN TRIP MANAGEMENT =================
   const createTrip = useCallback(async (data: {
@@ -1030,8 +1165,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const updateTripStopArrivalStatus = useCallback(
-    (tripId: string, stopId: string, status: TripStop['arrival_status']) => {
+    async (tripId: string, stopId: string, status: TripStop['arrival_status']) => {
       setTripStops((prev) => tripService.updateTripStopStatus(prev, tripId, stopId, status));
+      try {
+        await apiService.updateTripStopStatus(tripId, stopId, status);
+      } catch (err) {
+        console.warn('API error in updateTripStopStatus:', err);
+      }
     },
     []
   );
@@ -1046,62 +1186,66 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Fake movement loops and simulation intervals have been decommissioned.
 
   const loginUser = async (email: string, password?: string, forceRole?: 'student' | 'driver' | 'admin'): Promise<boolean> => {
-    let role: 'student' | 'driver' | 'admin' = 'student';
-    
-    if (forceRole) {
-      role = forceRole;
-    } else if (email.toLowerCase().includes('admin')) {
-      role = 'admin';
-    } else if (email.toLowerCase().includes('driver') || email.toLowerCase().includes('ramesh') || email.toLowerCase().includes('vikram') || email.toLowerCase().includes('rajesh') || email.toLowerCase().includes('devendra')) {
-      role = 'driver';
-    } else {
-      role = 'student';
+    let role: 'student' | 'driver' | 'admin' = forceRole || 'student';
+
+    // University standard demo credentials fallback if not provided
+    let pwd = password;
+    if (!pwd) {
+      if (email.toLowerCase().includes('admin')) {
+        role = 'admin';
+        pwd = 'admin@jklu';
+      } else if (
+        email.toLowerCase().includes('driver') ||
+        email.toLowerCase().includes('ramesh') ||
+        email.toLowerCase().includes('vikram') ||
+        email.toLowerCase().includes('rajesh') ||
+        email.toLowerCase().includes('devendra')
+      ) {
+        role = 'driver';
+        pwd = 'driver@8821';
+      } else {
+        role = 'student';
+        pwd = 'jklu@2024';
+      }
     }
 
     try {
-      let pwd = password;
-      if (!pwd) {
-        if (role === 'admin') pwd = 'admin@jklu';
-        else if (role === 'driver') pwd = 'driver@8821';
-        else pwd = 'jklu@2024';
-      }
       authService.logout();
-      await authService.login(email, pwd);
+      const loginRes = await authService.login(email, pwd);
+
+      if (loginRes?.user?.role) {
+        role = loginRes.user.role as 'student' | 'driver' | 'admin';
+      }
+
       socketService.connect();
       await refreshDatabaseRecords();
-    } catch (e) {
-      console.warn("Backend auth notice:", e);
-    }
 
-    setIsAuthenticated(true);
-    setCurrentUserRole(role);
+      setIsAuthenticated(true);
+      setCurrentUserRole(role);
 
-    if (role === 'admin') {
-      setIsDriverMode(false);
-      setCurrentScreen('admin-dashboard');
-      triggerNotification('ADMIN AUTHENTICATED', 'Welcome Prof. Anurag Sharma! Admin Control Center Active.', 'info');
-    } else if (role === 'driver') {
-      // Find matching driver from live database drivers table
-      const currentDrivers = databaseService.getState().drivers.length > 0 ? databaseService.getState().drivers : drivers;
-      const matched = currentDrivers.find((d) =>
-        email.toLowerCase().includes(d.name.toLowerCase().split(' ')[0]) ||
-        email.toLowerCase().includes(d.driver_id.toLowerCase())
-      );
-      if (matched) {
-        setActiveDriverId(matched.driver_id);
+      if (role === 'admin') {
+        setIsDriverMode(false);
+        setCurrentScreen('admin-dashboard');
+        triggerNotification('ADMIN AUTHENTICATED', `Welcome ${loginRes?.user?.name || 'Prof. Anurag Sharma'}! Admin Control Center Active.`, 'info');
+      } else if (role === 'driver') {
+        const assignedDriverId = loginRes?.user?.user_id || 'DRV-101';
+        setActiveDriverId(assignedDriverId);
+        setIsDriverMode(true);
+        setCurrentScreen('driver-dashboard');
+        triggerNotification('DRIVER AUTHENTICATED', `Welcome Captain ${loginRes?.user?.name || 'Driver'}! Driver Portal Active.`, 'info');
       } else {
-        setActiveDriverId('DRV-101');
+        setIsDriverMode(false);
+        setCurrentScreen('home');
+        triggerNotification('STUDENT AUTHENTICATED', `Welcome ${loginRes?.user?.name || 'Student'}! Student Portal Active.`, 'info');
       }
-      setIsDriverMode(true);
-      setCurrentScreen('driver-dashboard');
-      const activeDrv = matched || driver;
-      triggerNotification('DRIVER AUTHENTICATED', `Welcome Captain ${activeDrv.name}! Driver Portal Active.`, 'info');
-    } else {
-      setIsDriverMode(false);
-      setCurrentScreen('home');
-      triggerNotification('STUDENT AUTHENTICATED', 'Welcome Pratham Lalwani! Student Portal Active.', 'info');
+      return true;
+    } catch (e: any) {
+      console.warn('Backend auth failed:', e);
+      const errMsg = e?.response?.data?.message || e?.message || 'Login failed. Invalid credentials.';
+      triggerNotification('AUTHENTICATION FAILED', errMsg, 'full');
+      setIsAuthenticated(false);
+      return false;
     }
-    return true;
   };
 
   const logoutUser = () => {

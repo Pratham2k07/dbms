@@ -71,6 +71,54 @@ class SocketService {
     }
   }
 
+  onRouteDeleted(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('route_deleted', callback);
+    }
+  }
+
+  onStopCreated(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('stop_created', callback);
+    }
+  }
+
+  onStopUpdated(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('stop_updated', callback);
+    }
+  }
+
+  onStopDeleted(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('stop_deleted', callback);
+    }
+  }
+
+  onShuttleCreated(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('shuttle_created', callback);
+    }
+  }
+
+  onShuttleUpdated(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('shuttle_updated', callback);
+    }
+  }
+
+  onShuttleStatusChanged(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('shuttle_status_changed', callback);
+    }
+  }
+
+  onDriverAssigned(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('driver_assigned', callback);
+    }
+  }
+
   onTripStarted(callback: (data: any) => void) {
     if (this.socket) {
       this.socket.on('trip_started', callback);

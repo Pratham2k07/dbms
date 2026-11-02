@@ -127,7 +127,7 @@ export const createRoute = async (req: Request, res: Response): Promise<void> =>
         await client.query(
           `INSERT INTO route_stops (route_id, stop_id, sequence_number, scheduled_arrival, scheduled_departure, cumulative_distance_km)
            VALUES ($1, $2, $3, $4, $5, $6)
-           ON CONFLICT (route_id, stop_id) DO UPDATE SET sequence_number = EXCLUDED.sequence_number`,
+           ON DUPLICATE KEY UPDATE sequence_number = VALUES(sequence_number)`,
           [finalRouteId, stopId, seq, start_time, start_time, estDist]
         );
       }
@@ -150,7 +150,9 @@ export const createRoute = async (req: Request, res: Response): Promise<void> =>
       }
     }
 
-    // If driver and shuttle are assigned, create dispatch notification & assignment record
+    let createdTrip: any = null;
+
+    // If driver and shuttle are assigned, create dispatch notification, assignment record, and active trip
     if (assigned_driver_id) {
       const notifId = `NOTIF-${Date.now().toString(36).toUpperCase()}`;
       await client.query(
@@ -172,11 +174,37 @@ export const createRoute = async (req: Request, res: Response): Promise<void> =>
            VALUES ($1, $2, $3, $4, 'Today', 'Assigned Shift', 'ACTIVE')`,
           [asgId, assigned_driver_id, finalRouteId, assigned_shuttle_id]
         );
+
+        // Also schedule the initial Trip on this route in trips table
+        const countRes = await client.query('SELECT COUNT(*) FROM trips');
+        const nextTripNum = parseInt(countRes.rows[0].count, 10) + 1;
+        const autoTripId = `TRIP-${String(nextTripNum).padStart(2, '0')}`;
+        const insertTripRes = await client.query(
+          `INSERT INTO trips (trip_id, shuttle_id, route_id, driver_id, start_time, end_time, running_status, capacity_status, speed_kmh)
+           VALUES ($1, $2, $3, $4, $5, NULL, 'SCHEDULED', 'AVAILABLE', 0)
+           RETURNING *`,
+          [autoTripId, assigned_shuttle_id, finalRouteId, assigned_driver_id, start_time || '10:30 AM']
+        );
+        createdTrip = insertTripRes.rows[0];
+
+        // Populate trip_stops
+        if (Array.isArray(stop_ids) && stop_ids.length > 0) {
+          for (const sid of stop_ids) {
+            await client.query(
+              `INSERT INTO trip_stops (trip_id, stop_id, estimated_arrival, arrival_status)
+               VALUES ($1, $2, $3, 'SCHEDULED')
+               ON DUPLICATE KEY UPDATE trip_id = trip_id`,
+              [autoTripId, sid, start_time || '10:30 AM']
+            );
+          }
+        }
+        socketEvents.emitTripCreated(createdTrip);
       }
 
       socketEvents.emitDriverAssigned(assigned_driver_id, {
         route_id: finalRouteId,
         shuttle_id: assigned_shuttle_id,
+        trip: createdTrip,
       });
     }
 
@@ -188,6 +216,7 @@ export const createRoute = async (req: Request, res: Response): Promise<void> =>
     res.status(201).json({
       success: true,
       route: createdRoute,
+      trip: createdTrip,
     });
   } catch (error: any) {
     await client.query('ROLLBACK');
@@ -254,6 +283,14 @@ export const updateRoute = async (req: Request, res: Response): Promise<void> =>
 
     const updatedRoute = updatedRes.rows[0];
 
+    // If route was cancelled, update active/scheduled trips
+    if (status === 'CANCELLED') {
+      await client.query(
+        "UPDATE trips SET running_status = 'CANCELLED', speed_kmh = 0 WHERE route_id = $1 AND running_status IN ('RUNNING', 'SCHEDULED')",
+        [id]
+      );
+    }
+
     // If stop_ids provided, replace route_stops sequence
     if (Array.isArray(stop_ids)) {
       await client.query('DELETE FROM route_stops WHERE route_id = $1', [id]);
@@ -303,11 +340,87 @@ export const updateRoute = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
-export const deleteRoute = async (req: Request, res: Response): Promise<void> => {
+export const cancelRoute = async (req: Request, res: Response): Promise<void> => {
   const client = await pool.connect();
   try {
     const id = req.params.id as string;
     await client.query('BEGIN');
+    const routeRes = await client.query('SELECT * FROM routes WHERE route_id = $1', [id]);
+    if (routeRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ success: false, message: 'Route not found' });
+      return;
+    }
+    const currentRoute = routeRes.rows[0];
+
+    // Mark route CANCELLED
+    const updateRes = await client.query(
+      "UPDATE routes SET status = 'CANCELLED' WHERE route_id = $1 RETURNING *",
+      [id]
+    );
+
+    // Cancel all active and scheduled trips on this route
+    await client.query(
+      "UPDATE trips SET running_status = 'CANCELLED', speed_kmh = 0 WHERE route_id = $1 AND running_status IN ('RUNNING', 'SCHEDULED')",
+      [id]
+    );
+
+    // Notify driver if assigned
+    if (currentRoute.assigned_driver_id) {
+      const notifId = `NOTIF-${Date.now().toString(36).toUpperCase()}`;
+      await client.query(
+        `INSERT INTO driver_notifications (notification_id, driver_id, title, message, type, related_route_id)
+         VALUES ($1, $2, $3, $4, 'warning', $5)`,
+        [
+          notifId,
+          currentRoute.assigned_driver_id,
+          `Route Cancelled: ${currentRoute.route_code || id}`,
+          `Route ${currentRoute.route_code || id} (${currentRoute.route_name}) has been cancelled by Admin Dispatch.`,
+          id,
+        ]
+      );
+    }
+
+    await client.query('COMMIT');
+    socketEvents.emitRouteUpdated(updateRes.rows[0]);
+
+    res.json({ success: true, route: updateRes.rows[0], message: `Route ${id} cancelled successfully` });
+  } catch (error: any) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ success: false, message: 'Failed to cancel route', error: error.message });
+  } finally {
+    client.release();
+  }
+};
+
+export const deleteRoute = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+  try {
+    const id = req.params.id as string;
+
+    // Check if any trip on this route is currently RUNNING
+    const runningRes = await client.query(
+      "SELECT trip_id FROM trips WHERE route_id = $1 AND running_status = 'RUNNING'",
+      [id]
+    );
+    if (runningRes.rows.length > 0) {
+      res.status(400).json({
+        success: false,
+        message: `Cannot delete Route ${id}: Trip ${runningRes.rows[0].trip_id} is currently RUNNING. End or cancel the trip first.`,
+      });
+      return;
+    }
+
+    await client.query('BEGIN');
+    await client.query(
+      'DELETE FROM trip_stops WHERE trip_id IN (SELECT trip_id FROM trips WHERE route_id = $1)',
+      [id]
+    );
+    await client.query(
+      'DELETE FROM shuttle_locations WHERE trip_id IN (SELECT trip_id FROM trips WHERE route_id = $1)',
+      [id]
+    );
+    await client.query('DELETE FROM driver_assignments WHERE route_id = $1', [id]);
     await client.query('DELETE FROM trips WHERE route_id = $1', [id]);
     await client.query('DELETE FROM route_stops WHERE route_id = $1', [id]);
     await client.query('DELETE FROM routes WHERE route_id = $1', [id]);

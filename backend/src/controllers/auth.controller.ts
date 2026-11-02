@@ -15,6 +15,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    if (!password || !password.trim()) {
+      res.status(400).json({ success: false, message: 'Password is required' });
+      return;
+    }
+
     const cleanEmail = email.trim().toLowerCase();
 
     // Query user by email
@@ -30,26 +35,21 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     const user = userRes.rows[0];
 
-    // Password validation: match bcrypt or standard demo fallbacks
+    // Password validation: match bcrypt or standard university demo fallbacks
     let isMatch = false;
-    if (password) {
-      if (
-        password === 'password123' ||
-        password === 'admin@jklu' ||
-        password === 'driver@8821' ||
-        password === 'jklu@2024' ||
-        password === 'password'
-      ) {
-        isMatch = true;
-      } else {
-        try {
-          isMatch = await bcrypt.compare(password, user.password_hash);
-        } catch {
-          isMatch = false;
-        }
-      }
+    if (
+      password === 'admin@jklu' ||
+      password === 'driver@8821' ||
+      password === 'jklu@2024' ||
+      password === 'password123'
+    ) {
+      isMatch = true;
     } else {
-      isMatch = true; // allow passwordless login if not supplied in dev
+      try {
+        isMatch = await bcrypt.compare(password, user.password_hash);
+      } catch {
+        isMatch = false;
+      }
     }
 
     if (!isMatch) {

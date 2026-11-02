@@ -1,36 +1,207 @@
-import { Pool, QueryResult, QueryResultRow } from 'pg';
 import dotenv from 'dotenv';
+import path from 'path';
 
 dotenv.config();
+if (!process.env.MYSQL_USER) {
+  dotenv.config({ path: path.resolve(__dirname, '../.env') });
+}
 
-const connectionString =
-  process.env.DATABASE_URL ||
-  'postgresql://postgres.ylsiszfpsgubumyzqaxc:Namaste%25%5EJKLU@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres';
+export interface QueryResult<T = any> {
+  rows: T[];
+  rowCount: number;
+}
 
+const PK_MAP: Record<string, string> = {
+  users: 'user_id',
+  shuttles: 'shuttle_id',
+  routes: 'route_id',
+  stops: 'stop_id',
+  trips: 'trip_id',
+  drivers: 'driver_id',
+  students: 'student_id',
+  admins: 'admin_id',
+  shuttle_locations: 'location_id',
+  student_locations: 'location_id',
+  driver_assignments: 'assignment_id',
+  driver_notifications: 'notification_id'
+};
 
-export const pool = new Pool({
-  connectionString,
-  ssl: { rejectUnauthorized: false },
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+function transformPgToMysql(sql: string, params: any[] = []): { sql: string; params: any[] } {
+  let s = sql.trim();
+
+  // 1. Transaction control
+  if (/^BEGIN$/i.test(s)) {
+    return { sql: 'START TRANSACTION', params: [] };
+  }
+
+  // 2. SELECT DISTINCT ON (shuttle_id)
+  if (s.includes('DISTINCT ON (shuttle_id)')) {
+    s = `
+      SELECT sl.*
+      FROM shuttle_locations sl
+      INNER JOIN (
+        SELECT shuttle_id, MAX(recorded_at) as max_time
+        FROM shuttle_locations
+        GROUP BY shuttle_id
+      ) latest ON sl.shuttle_id = latest.shuttle_id AND sl.recorded_at = latest.max_time
+      ORDER BY sl.shuttle_id ASC
+    `;
+    return { sql: s, params: [] };
+  }
+
+  // 3. Postgres JSON aggregates
+  s = s.replace(/json_agg/gi, 'JSON_ARRAYAGG');
+  s = s.replace(/json_build_object/gi, 'JSON_OBJECT');
+  s = s.replace(/FILTER\s*\([^)]+\)/gi, '');
+
+  // 4. ON CONFLICT DO NOTHING -> ON DUPLICATE KEY UPDATE col = col
+  s = s.replace(/ON CONFLICT\s*\(([a-zA-Z0-9_]+)[^)]*\)\s*DO NOTHING/gi, 'ON DUPLICATE KEY UPDATE $1 = $1');
+
+  // 5. ON CONFLICT DO UPDATE
+  s = s.replace(/ON CONFLICT\s*\([^)]+\)\s*DO UPDATE SET([\s\S]*?)(RETURNING|$)/gi, (_match, updateClause, tail) => {
+    const mysqlUpdate = updateClause.replace(/EXCLUDED\.([a-zA-Z0-9_]+)/g, 'VALUES($1)');
+    return 'ON DUPLICATE KEY UPDATE' + mysqlUpdate + ' ' + tail;
+  });
+
+  // 6. ANY array syntax
+  s = s.replace(/=\s*ANY\s*\((\$\d+)\)/gi, 'IN ($1)');
+
+  // 7. Postgres type casts
+  s = s.replace(/NOW\(\)::text/gi, 'NOW()');
+  s = s.replace(/::text/gi, '');
+  s = s.replace(/::int/gi, '');
+
+  // 8. Auto alias unaliased COUNT(*) to count
+  s = s.replace(/COUNT\(\*\)(?!\s+as\s+[\w]+)/gi, 'COUNT(*) AS count');
+
+  // 9. Parameter placeholders $1, $2, ... -> ?
+  const newParams: any[] = [];
+  s = s.replace(/\$(\d+)/g, (_, n) => {
+    const val = params[parseInt(n, 10) - 1];
+    newParams.push(val);
+    return '?';
+  });
+
+  return { sql: s, params: newParams };
+}
+
+async function executeOnMysql(target: any, sql: string, params: any[] = []): Promise<QueryResult> {
+  const hasReturning = /RETURNING/i.test(sql);
+  const rawTransformed = transformPgToMysql(sql, params);
+  let cleanSql = rawTransformed.sql;
+  let cleanParams = rawTransformed.params;
+
+  if (hasReturning) {
+    const insertMatch = cleanSql.match(/INSERT\s+INTO\s+([a-zA-Z0-9_]+)\s*\(([^)]+)\)\s*VALUES/i);
+    const updateMatch = cleanSql.match(/UPDATE\s+([a-zA-Z0-9_]+)\s+SET\s+([\s\S]+?)\s+WHERE\s+([\s\S]+?)\s+RETURNING/i);
+
+    cleanSql = cleanSql.replace(/RETURNING\s+[\s\S]*?$/i, '').trim();
+
+    const [result]: any = await target.query(cleanSql, cleanParams);
+
+    if (insertMatch) {
+      const table = insertMatch[1].toLowerCase();
+      const cols = insertMatch[2].split(',').map((c) => c.trim().toLowerCase());
+      const pkCol = PK_MAP[table] || cols[0];
+      const pkIdx = cols.indexOf(pkCol);
+
+      let lookupVal: any = null;
+      if (pkIdx !== -1 && cleanParams[pkIdx] !== undefined) {
+        lookupVal = cleanParams[pkIdx];
+      } else if (result && result.insertId) {
+        lookupVal = result.insertId;
+      }
+
+      if (lookupVal !== null) {
+        const [rows]: any = await target.query(`SELECT * FROM ${table} WHERE ${pkCol} = ?`, [lookupVal]);
+        return { rows: Array.isArray(rows) ? rows : [], rowCount: rows.length || 1 };
+      }
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (updateMatch) {
+      const table = updateMatch[1];
+      const whereClause = updateMatch[3].trim();
+      const setClause = updateMatch[2];
+      const setPlaceholdersCount = (setClause.match(/\?/g) || []).length;
+      const whereParams = cleanParams.slice(setPlaceholdersCount);
+
+      const [rows]: any = await target.query(`SELECT * FROM ${table} WHERE ${whereClause}`, whereParams);
+      return { rows: Array.isArray(rows) ? rows : [], rowCount: rows.length || 0 };
+    }
+  }
+
+  const [rows]: any = await target.query(cleanSql, cleanParams);
+
+  if (Array.isArray(rows)) {
+    for (const r of rows) {
+      if (r && typeof r === 'object') {
+        if (r['COUNT(*)'] !== undefined && r.count === undefined) {
+          r.count = Number(r['COUNT(*)']);
+        }
+        if (r['count(*)'] !== undefined && r.count === undefined) {
+          r.count = Number(r['count(*)']);
+        }
+      }
+    }
+    return { rows, rowCount: rows.length };
+  }
+  return { rows: [], rowCount: rows?.affectedRows || 0 };
+}
+
+// ================= INITIALIZE MYSQL CONNECTION POOL =================
+const mysql = require('mysql2/promise');
+
+const mysqlHost = process.env.MYSQL_HOST || 'localhost';
+const mysqlPort = parseInt(process.env.MYSQL_PORT || '3306', 10);
+const mysqlUser = process.env.MYSQL_USER || 'root';
+const mysqlPassword = process.env.MYSQL_PASSWORD || '123456';
+const mysqlDatabase = process.env.MYSQL_DATABASE || 'jklu_shuttle_db';
+
+const rawPool = mysql.createPool({
+  host: mysqlHost,
+  port: mysqlPort,
+  user: mysqlUser,
+  password: mysqlPassword,
+  database: mysqlDatabase,
+  waitForConnections: true,
+  connectionLimit: 20,
+  decimalNumbers: true
 });
 
-pool.on('error', (err) => {
-  console.error('Unexpected error on idle PostgreSQL client', err);
-});
+console.log(`[Database] Connected to MySQL Server 8.0 on ${mysqlHost}:${mysqlPort}/${mysqlDatabase}`);
 
-export const query = async <T extends QueryResultRow = any>(
+export const pool = {
+  connect: async () => {
+    const conn = await rawPool.getConnection();
+    return {
+      query: async (text: string, params?: any[]) => {
+        return executeOnMysql(conn, text, params);
+      },
+      release: () => {
+        conn.release();
+      }
+    };
+  },
+  query: async (text: string, params?: any[]) => {
+    return executeOnMysql(rawPool, text, params);
+  },
+  end: async () => {
+    await rawPool.end();
+  }
+};
+
+export const query = async <T = any>(
   text: string,
   params?: any[]
 ): Promise<QueryResult<T>> => {
   const start = Date.now();
-  const res = await pool.query<T>(text, params);
+  const res = await executeOnMysql(rawPool, text, params);
   const duration = Date.now() - start;
   if (process.env.NODE_ENV === 'development' && duration > 500) {
     console.log(`[SLOW QUERY] ${text} - ${duration}ms`);
   }
-  return res;
+  return res as QueryResult<T>;
 };
 
 export default {

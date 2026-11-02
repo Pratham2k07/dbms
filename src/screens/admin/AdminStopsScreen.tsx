@@ -98,7 +98,7 @@ export const AdminStopsScreen: React.FC<AdminStopsScreenProps> = ({
     setIsEditingStop(true);
   };
 
-  const handleSaveStop = (e: React.FormEvent) => {
+  const handleSaveStop = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
 
@@ -123,7 +123,7 @@ export const AdminStopsScreen: React.FC<AdminStopsScreenProps> = ({
         description: formDesc.trim(),
         is_destination: formIsDest
       };
-      updateStop(updated);
+      await updateStop(updated);
       setIsEditingStop(false);
       setSelectedStop(null);
     } else {
@@ -137,7 +137,7 @@ export const AdminStopsScreen: React.FC<AdminStopsScreenProps> = ({
         description: formDesc.trim() || 'University Designated Transit Stop',
         is_destination: formIsDest
       };
-      const res = createStop(newStop);
+      const res = await createStop(newStop);
       if (res.success) {
         handleCloseAddModal();
       } else {
@@ -146,18 +146,18 @@ export const AdminStopsScreen: React.FC<AdminStopsScreenProps> = ({
     }
   };
 
-  const handleDelete = (stopId: string) => {
-    const res = deleteStop(stopId);
+  const handleDelete = async (stopId: string) => {
+    const res = await deleteStop(stopId);
     if (!res.success) {
       alert(res.error);
     }
   };
 
-  const handleAssignSubmit = (e: React.FormEvent) => {
+  const handleAssignSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!showAssignModal || !assignRouteId) return;
 
-    assignStopToRoute(assignRouteId, showAssignModal.stop_id, parseInt(assignSequence) || 1);
+    await assignStopToRoute(assignRouteId, showAssignModal.stop_id, parseInt(assignSequence) || 1);
     setShowAssignModal(null);
   };
 

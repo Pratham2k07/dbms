@@ -120,38 +120,14 @@ export const getNearbyStops = async (
   maxRadiusKm: number = 20,
   limit: number = 10
 ) => {
-  // Query all stops with the routes they belong to
-  const query = `
-    SELECT 
-      s.stop_id,
-      s.stop_name,
-      s.latitude,
-      s.longitude,
-      s.is_destination,
-      s.description,
-      COALESCE(
-        json_agg(
-          json_build_object(
-            'route_id', r.route_id,
-            'route_name', r.route_name,
-            'route_code', r.route_code,
-            'color', r.color,
-            'sequence_number', rs.sequence_number,
-            'cumulative_distance_km', rs.cumulative_distance_km
-          ) ORDER BY rs.sequence_number
-        ) FILTER (WHERE r.route_id IS NOT NULL),
-        '[]'
-      ) as routes
-    FROM stops s
-    LEFT JOIN route_stops rs ON s.stop_id = rs.stop_id
-    LEFT JOIN routes r ON rs.route_id = r.route_id
-    GROUP BY s.stop_id
-  `;
+  // 1. Query all stops
+  const stopsResult = await pool.query(`
+    SELECT stop_id, stop_name, latitude, longitude, is_destination, description
+    FROM stops
+  `);
 
-  const result = await pool.query(query);
-
-  // Calculate distance from student to each stop using Haversine
-  const stopsWithDistance = result.rows.map((stop: any) => {
+  // 2. Calculate distance from student to each stop using Haversine
+  const stopsWithDistance = stopsResult.rows.map((stop: any) => {
     const distMeters = haversineDistanceMeters(
       Number(latitude),
       Number(longitude),
@@ -168,13 +144,56 @@ export const getNearbyStops = async (
       is_destination: stop.is_destination,
       description: stop.description,
       distance_km,
-      routes: stop.routes
+      routes: [] as any[]
     };
   });
 
-  // Filter within max radius and sort closest first
-  return stopsWithDistance
+  // 3. Filter within max radius and sort closest first
+  const closest = stopsWithDistance
     .filter((s: any) => s.distance_km <= maxRadiusKm)
     .sort((a: any, b: any) => a.distance_km - b.distance_km)
     .slice(0, limit);
+
+  if (closest.length === 0) return [];
+
+  // 4. Fetch routes for the closest stops
+  const stopIds = closest.map((s) => s.stop_id);
+  const placeholders = stopIds.map((_, i) => `$${i + 1}`).join(', ');
+  const routesQuery = `
+    SELECT 
+      rs.stop_id,
+      r.route_id,
+      r.route_name,
+      r.route_code,
+      r.color,
+      rs.sequence_number,
+      rs.cumulative_distance_km
+    FROM route_stops rs
+    JOIN routes r ON rs.route_id = r.route_id
+    WHERE rs.stop_id IN (${placeholders})
+    ORDER BY rs.stop_id, rs.sequence_number
+  `;
+
+  const routesResult = await pool.query(routesQuery, stopIds);
+
+  const routeMap = new Map<string, any[]>();
+  for (const row of routesResult.rows) {
+    if (!routeMap.has(row.stop_id)) {
+      routeMap.set(row.stop_id, []);
+    }
+    routeMap.get(row.stop_id)!.push({
+      route_id: row.route_id,
+      route_name: row.route_name,
+      route_code: row.route_code,
+      color: row.color,
+      sequence_number: row.sequence_number,
+      cumulative_distance_km: row.cumulative_distance_km !== null ? parseFloat(row.cumulative_distance_km) : null,
+    });
+  }
+
+  for (const s of closest) {
+    s.routes = routeMap.get(s.stop_id) || [];
+  }
+
+  return closest;
 };
