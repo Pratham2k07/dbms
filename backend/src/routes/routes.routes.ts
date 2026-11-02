@@ -5,6 +5,7 @@ import {
   getStopsByRoute,
   createRoute,
   updateRoute,
+  cancelRoute,
   deleteRoute,
 } from '../controllers/routes.controller.js';
 import {
@@ -13,7 +14,7 @@ import {
   updateStop,
   deleteStop,
 } from '../controllers/stops.controller.js';
-import { optionalAuth } from '../middlewares/auth.middleware.js';
+import { authenticateJWT, optionalAuth } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
@@ -22,17 +23,18 @@ router.get('/route-stops/all', getAllRouteStops);
 
 // Stops endpoints nested under routes (matches apiService: /routes/stops/...)
 router.get('/stops/all', getAllStops);
-router.post('/stops', optionalAuth, createStop);
-router.put('/stops/:id', optionalAuth, updateStop);
-router.delete('/stops/:id', optionalAuth, deleteStop);
+router.post('/stops', authenticateJWT, createStop);
+router.put('/stops/:id', authenticateJWT, updateStop);
+router.delete('/stops/:id', authenticateJWT, deleteStop);
 
 // Route-specific stop sequence
 router.get('/:id/stops', getStopsByRoute);
 
 // Route CRUD
 router.get('/', getRoutes);
-router.post('/', optionalAuth, createRoute);
-router.put('/:id', optionalAuth, updateRoute);
-router.delete('/:id', optionalAuth, deleteRoute);
+router.post('/', authenticateJWT, createRoute);
+router.put('/:id', authenticateJWT, updateRoute);
+router.patch('/:id/cancel', authenticateJWT, cancelRoute);
+router.delete('/:id', authenticateJWT, deleteRoute);
 
 export default router;

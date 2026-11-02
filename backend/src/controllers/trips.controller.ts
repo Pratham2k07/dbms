@@ -146,10 +146,13 @@ export const createTrip = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // Generate unique Trip ID
+    // Generate unique Trip ID or respect provided trip_id
     const countRes = await client.query('SELECT COUNT(*) FROM trips');
     const nextNum = parseInt(countRes.rows[0].count, 10) + 1;
-    const finalTripId = `TRIP-${String(nextNum).padStart(2, '0')}`;
+    const generatedTripId = `TRIP-${String(nextNum).padStart(2, '0')}`;
+    const finalTripId = (req.body.trip_id && typeof req.body.trip_id === 'string' && req.body.trip_id.trim())
+      ? req.body.trip_id.trim()
+      : generatedTripId;
 
     // Insert Trip
     const insertTripSql = `
@@ -179,7 +182,7 @@ export const createTrip = async (req: Request, res: Response): Promise<void> => 
       await client.query(
         `INSERT INTO trip_stops (trip_id, stop_id, estimated_arrival, arrival_status)
          VALUES ($1, $2, $3, 'SCHEDULED')
-         ON CONFLICT (trip_id, stop_id) DO NOTHING`,
+         ON DUPLICATE KEY UPDATE trip_id = trip_id`,
         [finalTripId, rs.stop_id, rs.scheduled_arrival || start_time]
       );
     }
@@ -298,6 +301,11 @@ export const startTrip = async (req: AuthenticatedRequest, res: Response): Promi
   try {
     const id = req.params.id as string;
 
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Authentication required to start trip' });
+      return;
+    }
+
     // Check if trip exists
     const tripRes = await client.query('SELECT * FROM trips WHERE trip_id = $1', [id]);
     if (tripRes.rows.length === 0) {
@@ -308,7 +316,7 @@ export const startTrip = async (req: AuthenticatedRequest, res: Response): Promi
     const currentTrip = tripRes.rows[0];
 
     // Authorization check: if authenticated user is driver, verify driver owns this trip
-    if (req.user && req.user.role === 'driver' && req.user.user_id !== currentTrip.driver_id) {
+    if (req.user.role === 'driver' && req.user.user_id !== currentTrip.driver_id) {
       res.status(403).json({
         success: false,
         message: 'Forbidden: You are only authorized to operate trips assigned to your driver ID.',
@@ -326,7 +334,7 @@ export const startTrip = async (req: AuthenticatedRequest, res: Response): Promi
 
     const updatedTrip = updateRes.rows[0];
 
-    // Ensure origin stop is marked ARRIVED / APPROACHING
+    // Ensure origin stop is marked ARRIVED
     await client.query(
       `UPDATE trip_stops SET arrival_status = 'ARRIVED', actual_arrival = NOW()::text
        WHERE trip_id = $1 AND stop_id IN (
@@ -359,6 +367,11 @@ export const endTrip = async (req: AuthenticatedRequest, res: Response): Promise
   try {
     const id = req.params.id as string;
 
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Authentication required to end trip' });
+      return;
+    }
+
     const tripRes = await client.query('SELECT * FROM trips WHERE trip_id = $1', [id]);
     if (tripRes.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Trip not found' });
@@ -368,7 +381,7 @@ export const endTrip = async (req: AuthenticatedRequest, res: Response): Promise
     const currentTrip = tripRes.rows[0];
 
     // Driver authorization check
-    if (req.user && req.user.role === 'driver' && req.user.user_id !== currentTrip.driver_id) {
+    if (req.user.role === 'driver' && req.user.user_id !== currentTrip.driver_id) {
       res.status(403).json({
         success: false,
         message: 'Forbidden: You are only authorized to operate trips assigned to your driver ID.',
@@ -414,10 +427,16 @@ export const endTrip = async (req: AuthenticatedRequest, res: Response): Promise
 };
 
 export const cancelTrip = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const client = await pool.connect();
   try {
     const id = req.params.id as string;
 
-    const tripRes = await query('SELECT * FROM trips WHERE trip_id = $1', [id]);
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Authentication required to cancel trip' });
+      return;
+    }
+
+    const tripRes = await client.query('SELECT * FROM trips WHERE trip_id = $1', [id]);
     if (tripRes.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Trip not found' });
       return;
@@ -426,7 +445,7 @@ export const cancelTrip = async (req: AuthenticatedRequest, res: Response): Prom
     const currentTrip = tripRes.rows[0];
 
     // Driver authorization check
-    if (req.user && req.user.role === 'driver' && req.user.user_id !== currentTrip.driver_id) {
+    if (req.user.role === 'driver' && req.user.user_id !== currentTrip.driver_id) {
       res.status(403).json({
         success: false,
         message: 'Forbidden: You are only authorized to operate trips assigned to your driver ID.',
@@ -434,10 +453,17 @@ export const cancelTrip = async (req: AuthenticatedRequest, res: Response): Prom
       return;
     }
 
-    const updateRes = await query(
-      "UPDATE trips SET running_status = 'CANCELLED' WHERE trip_id = $1 RETURNING *",
+    await client.query('BEGIN');
+    const updateRes = await client.query(
+      "UPDATE trips SET running_status = 'CANCELLED', speed_kmh = 0 WHERE trip_id = $1 RETURNING *",
       [id]
     );
+
+    await client.query(
+      "UPDATE trip_stops SET arrival_status = 'CANCELLED' WHERE trip_id = $1 AND arrival_status = 'SCHEDULED'",
+      [id]
+    );
+    await client.query('COMMIT');
 
     socketEvents.emitTripCancelled(id);
 
@@ -447,8 +473,11 @@ export const cancelTrip = async (req: AuthenticatedRequest, res: Response): Prom
       message: `Trip ${id} cancelled.`,
     });
   } catch (error: any) {
+    await client.query('ROLLBACK');
     console.error('Error cancelling trip:', error);
     res.status(500).json({ success: false, message: 'Failed to cancel trip', error: error.message });
+  } finally {
+    client.release();
   }
 };
 

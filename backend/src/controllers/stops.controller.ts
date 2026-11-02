@@ -43,11 +43,11 @@ export const createStop = async (req: Request, res: Response): Promise<void> => 
     const insertSql = `
       INSERT INTO stops (stop_id, stop_name, latitude, longitude, is_destination, description)
       VALUES ($1, $2, $3, $4, $5, $6)
-      ON CONFLICT (stop_id) DO UPDATE SET
-        stop_name = EXCLUDED.stop_name,
-        latitude = EXCLUDED.latitude,
-        longitude = EXCLUDED.longitude,
-        description = EXCLUDED.description
+      ON DUPLICATE KEY UPDATE
+        stop_name = VALUES(stop_name),
+        latitude = VALUES(latitude),
+        longitude = VALUES(longitude),
+        description = VALUES(description)
       RETURNING *
     `;
 

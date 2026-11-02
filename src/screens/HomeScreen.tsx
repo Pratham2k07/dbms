@@ -133,14 +133,20 @@ export const HomeScreen: React.FC = () => {
 
   // 4. Format active shuttle for map rendering - STRICTLY 1 SHUTTLE AT A TIME
   const activeShuttlesForMap = useMemo(() => {
-    const loc =
-      shuttleLocations.find(
-        (l) =>
-          l.shuttle_id === selectedShuttleId ||
-          (activeTripForSelectedShuttle && l.trip_id === activeTripForSelectedShuttle.trip_id)
-      ) || shuttleLocations[0];
-    const shuttle = shuttles.find((s) => s.shuttle_id === (loc ? loc.shuttle_id : selectedShuttleId)) || shuttles[0];
-    if (!loc || !shuttle) return [];
+    const isSelectedRunning = runningTrips.some((t) => t.shuttle_id === selectedShuttleId);
+    const loc = shuttleLocations.find(
+      (l) =>
+        l.shuttle_id === selectedShuttleId ||
+        (activeTripForSelectedShuttle && activeTripForSelectedShuttle.running_status === 'RUNNING' && l.trip_id === activeTripForSelectedShuttle.trip_id)
+    );
+
+    if (!loc || (!isSelectedRunning && runningTrips.length === 0 && (!loc.speed_kmh || loc.speed_kmh === 0))) {
+      return [];
+    }
+
+    const shuttle = shuttles.find((s) => s.shuttle_id === loc.shuttle_id || s.shuttle_id === selectedShuttleId) || shuttles[0];
+    if (!shuttle) return [];
+
     return [
       {
         location: loc,
@@ -148,7 +154,7 @@ export const HomeScreen: React.FC = () => {
         routeId: activeTripForSelectedShuttle ? activeTripForSelectedShuttle.route_id : 'ROUTE-01'
       }
     ];
-  }, [shuttleLocations, selectedShuttleId, activeTripForSelectedShuttle, shuttles]);
+  }, [shuttleLocations, selectedShuttleId, activeTripForSelectedShuttle, shuttles, runningTrips]);
 
   // 5. Stops to render on map: default to all 40 stops across Jaipur and JKLU
   const stopsForMap = useMemo(() => {

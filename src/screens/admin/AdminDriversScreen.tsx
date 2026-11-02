@@ -60,7 +60,7 @@ export const AdminDriversScreen: React.FC<AdminDriversScreenProps> = ({
     if (onCloseAddDriverModal) onCloseAddDriverModal();
   };
 
-  const handleSaveDriver = (e: React.FormEvent) => {
+  const handleSaveDriver = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
 
@@ -77,10 +77,10 @@ export const AdminDriversScreen: React.FC<AdminDriversScreenProps> = ({
         license_no: formLicense.trim(),
         assigned_shuttle_id: formAssignedShuttle || undefined
       };
-      updateDriver(updated);
+      await updateDriver(updated);
       setEditingDriver(null);
     } else {
-      const res = createDriver({
+      const res = await createDriver({
         name: formName.trim(),
         phone_number: formPhone.trim(),
         license_no: formLicense.trim(),
@@ -94,8 +94,8 @@ export const AdminDriversScreen: React.FC<AdminDriversScreenProps> = ({
     }
   };
 
-  const handleDelete = (driverId: string) => {
-    const res = deleteDriver(driverId);
+  const handleDelete = async (driverId: string) => {
+    const res = await deleteDriver(driverId);
     if (!res.success) {
       alert(res.error);
     }

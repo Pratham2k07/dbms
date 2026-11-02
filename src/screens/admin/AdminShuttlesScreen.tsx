@@ -69,7 +69,7 @@ export const AdminShuttlesScreen: React.FC<AdminShuttlesScreenProps> = ({
     if (onCloseAddShuttleModal) onCloseAddShuttleModal();
   };
 
-  const handleSaveShuttle = (e: React.FormEvent) => {
+  const handleSaveShuttle = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
 
@@ -86,7 +86,7 @@ export const AdminShuttlesScreen: React.FC<AdminShuttlesScreenProps> = ({
         capacity: parseInt(formCapacity) || 32,
         status: formStatus
       };
-      updateShuttle(updated);
+      await updateShuttle(updated);
       setEditingShuttle(null);
     } else {
       const existingNums = shuttles.map((s) => {
@@ -102,7 +102,7 @@ export const AdminShuttlesScreen: React.FC<AdminShuttlesScreenProps> = ({
         capacity: parseInt(formCapacity) || 32,
         status: formStatus
       };
-      const res = createShuttle(newShuttle);
+      const res = await createShuttle(newShuttle);
       if (res.success) {
         handleCloseAddModal();
       } else {

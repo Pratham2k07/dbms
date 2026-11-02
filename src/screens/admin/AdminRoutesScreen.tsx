@@ -225,9 +225,9 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
   };
 
   // Cancel Route (propagates immediately to driver & student portals)
-  const handleCancelRoute = (routeId: string) => {
+  const handleCancelRoute = async (routeId: string) => {
     if (confirm(`Are you sure you want to cancel Route ${routeId}? All active and scheduled trips on this corridor will be cancelled, and assigned drivers and students will be updated immediately.`)) {
-      const res = cancelRoute(routeId);
+      const res = await cancelRoute(routeId);
       if (res.success) {
         setIsViewingDetails(false);
         setSelectedRoute(null);
@@ -238,7 +238,7 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
   };
 
   // Delete Route with safety check
-  const handleDeleteRoute = (routeId: string) => {
+  const handleDeleteRoute = async (routeId: string) => {
     const activeTrip = trips.find(
       (t) => t.route_id === routeId && (t.running_status === 'RUNNING' || t.running_status === 'SCHEDULED')
     );
@@ -250,7 +250,7 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
     }
 
     if (confirm(`Are you sure you want to delete Route ${routeId}? This will remove its stop sequence associations.`)) {
-      const res = deleteRoute(routeId);
+      const res = await deleteRoute(routeId);
       if (res.success) {
         setIsViewingDetails(false);
         setSelectedRoute(null);
@@ -305,7 +305,7 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
   };
 
   // Inline Add New Stop submit
-  const handleAddInlineStop = (e: React.FormEvent) => {
+  const handleAddInlineStop = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inlineStopName.trim()) return;
 
@@ -318,7 +318,7 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
       description: inlineDesc.trim() || 'University Designated Stop'
     };
 
-    const res = createStop(newStop);
+    const res = await createStop(newStop);
     if (res.success) {
       setSelectedStopIds((prev) => [...prev, newStop.stop_id]);
       setShowInlineNewStop(false);
