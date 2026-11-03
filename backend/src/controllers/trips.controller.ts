@@ -500,7 +500,7 @@ export const cancelTrip = async (req: AuthenticatedRequest, res: Response): Prom
     );
 
     await client.query(
-      "UPDATE trip_stops SET arrival_status = 'CANCELLED' WHERE trip_id = $1 AND arrival_status = 'SCHEDULED'",
+      "UPDATE trip_stops SET arrival_status = 'SKIPPED' WHERE trip_id = $1 AND arrival_status IN ('SCHEDULED', 'APPROACHING')",
       [id]
     );
     await client.query('COMMIT');

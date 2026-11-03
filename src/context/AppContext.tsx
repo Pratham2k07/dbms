@@ -1189,13 +1189,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const cancelTrip = useCallback(async (tripId: string) => {
     try {
       await apiService.cancelTrip(tripId);
+      databaseService.cancelTrip(tripId);
       setTrips((prev) =>
         prev.map((t) => (t.trip_id === tripId ? { ...t, running_status: 'CANCELLED' } : t))
       );
       triggerNotification('TRIP CANCELLED', `Trip ${tripId} has been cancelled.`, 'info');
       await refreshDatabaseRecords();
     } catch (err: any) {
-      const errMsg = err?.response?.data?.message || err?.message || 'Failed to cancel trip.';
+      const errMsg = err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Failed to cancel trip.';
       console.error('API error in cancelTrip:', err);
       triggerNotification('CANCELLATION FAILED', errMsg, 'full');
     }
