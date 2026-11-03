@@ -155,8 +155,10 @@ function transformMysqlToPg(sql: string): string {
 // ================= INITIALIZE DUAL-MODE DATABASE CONNECTION =================
 const isVercel = Boolean(
   process.env.VERCEL ||
+  process.env.VERCEL_ENV ||
+  process.env.NOW_REGION ||
   process.env.AWS_LAMBDA_FUNCTION_NAME ||
-  (process.env.NODE_ENV === 'production' && !process.env.MYSQL_HOST)
+  (process.env.NODE_ENV === 'production' && (!process.env.MYSQL_HOST || process.env.MYSQL_HOST === 'localhost' || process.env.MYSQL_HOST === '127.0.0.1'))
 );
 
 let pool: any;
