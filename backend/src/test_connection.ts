@@ -10,7 +10,7 @@ async function testConnection() {
 
     const routesRes = await pool.query('SELECT route_code, route_name FROM routes ORDER BY route_code ASC;');
     console.log('\nActive Routes in Supabase:');
-    routesRes.rows.forEach(r => console.log(` - [${r.route_code}] ${r.route_name}`));
+    routesRes.rows.forEach((r: any) => console.log(` - [${r.route_code}] ${r.route_name}`));
 
     process.exit(0);
   } catch (err: any) {

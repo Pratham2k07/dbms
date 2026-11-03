@@ -25,7 +25,7 @@ export async function populateRouteGeometries() {
         continue;
       }
 
-      console.log(`  Querying OSRM road path across ${stops.length} stops: ${stops.map(s => s.stop_id).join(' -> ')}`);
+      console.log(`  Querying OSRM road path across ${stops.length} stops: ${stops.map((s: any) => s.stop_id).join(' -> ')}`);
       const geoResult = await getRoadRouteGeometry(stops);
 
       console.log(`  Road geometry obtained: ${geoResult.coordinates.length} points, ${geoResult.total_distance_km} km (source: ${geoResult.source})`);

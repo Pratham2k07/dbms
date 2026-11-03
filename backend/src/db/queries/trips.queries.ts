@@ -387,7 +387,7 @@ export const getLiveTripDetails = async (tripId: string) => {
       currentBusProgressKm = proj.distanceFromStartKm;
     }
 
-    const orderedStopsWithEta = stopsRes.rows.map((st) => {
+    const orderedStopsWithEta = stopsRes.rows.map((st: any) => {
       const stopCumKm = Number(st.cumulative_distance_km) || 0;
       const remainingRoadDistKm = Math.max(0, Number((stopCumKm - currentBusProgressKm).toFixed(2)));
       const theoreticalEtaMin = calculateTheoreticalEtaMinutes(remainingRoadDistKm, 25);

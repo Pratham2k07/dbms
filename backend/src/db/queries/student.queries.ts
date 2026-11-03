@@ -157,8 +157,8 @@ export const getNearbyStops = async (
   if (closest.length === 0) return [];
 
   // 4. Fetch routes for the closest stops
-  const stopIds = closest.map((s) => s.stop_id);
-  const placeholders = stopIds.map((_, i) => `$${i + 1}`).join(', ');
+  const stopIds = closest.map((s: any) => s.stop_id);
+  const placeholders = stopIds.map((_: any, i: number) => `${i + 1}`).join(', ');
   const routesQuery = `
     SELECT 
       rs.stop_id,

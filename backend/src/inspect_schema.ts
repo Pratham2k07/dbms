@@ -12,7 +12,7 @@ async function inspect() {
       [t]
     );
     console.log(`TABLE: ${t}`);
-    console.log(`  Columns: ${res.rows.map(c => `${c.column_name} (${c.data_type})`).join(', ')}`);
+    console.log(`  Columns: ${res.rows.map((c: any) => `${c.column_name} (${c.data_type})`).join(', ')}`);
   }
 
   // Check existing constraints and indexes

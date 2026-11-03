@@ -140,7 +140,7 @@ export const createRoute = async (req: Request, res: Response): Promise<void> =>
         );
         const stopsMap = new Map(stopsDataRes.rows.map((s: any) => [s.stop_id, s]));
         const orderedStops = stop_ids.map((id: string) => stopsMap.get(id)).filter(Boolean);
-        const geoResult = await getRoadRouteGeometry(orderedStops);
+        const geoResult = await getRoadRouteGeometry(orderedStops as any);
         await client.query(
           'UPDATE routes SET route_coordinates = $1, total_distance_km = $2 WHERE route_id = $3',
           [JSON.stringify(geoResult.coordinates), geoResult.total_distance_km, finalRouteId]
@@ -312,7 +312,7 @@ export const updateRoute = async (req: Request, res: Response): Promise<void> =>
         );
         const stopsMap = new Map(stopsDataRes.rows.map((s: any) => [s.stop_id, s]));
         const orderedStops = stop_ids.map((sid: string) => stopsMap.get(sid)).filter(Boolean);
-        const geoResult = await getRoadRouteGeometry(orderedStops);
+        const geoResult = await getRoadRouteGeometry(orderedStops as any);
         await client.query(
           'UPDATE routes SET route_coordinates = $1, total_distance_km = $2 WHERE route_id = $3',
           [JSON.stringify(geoResult.coordinates), geoResult.total_distance_km, id]
