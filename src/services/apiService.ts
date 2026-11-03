@@ -34,6 +34,7 @@ export const endTrip = (tripId: string) => api.post(`/trips/${tripId}/end`).then
 export const createTrip = (data: any) => api.post('/trips', data).then(res => res.data);
 export const updateTrip = (id: string, data: any) => api.put(`/trips/${id}`, data).then(res => res.data);
 export const cancelTrip = (id: string) => api.patch(`/trips/${id}/cancel`).then(res => res.data);
+export const deleteTrip = (id: string) => api.delete(`/trips/${id}`).then(res => res.data);
 export const updateTripCapacity = (id: string, capacity: string) => api.patch(`/trips/${id}/capacity`, { capacity }).then(res => res.data);
 export const updateTripStopStatus = (tripId: string, stopId: string, status: string) => api.patch(`/trips/${tripId}/stops/${stopId}`, { status }).then(res => res.data);
 

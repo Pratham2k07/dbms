@@ -148,6 +148,7 @@ interface AppContextType {
   }) => Promise<{ success: boolean; error?: string; trip?: Trip }>;
   updateTrip: (trip: Trip) => Promise<{ success: boolean; error?: string; trip?: Trip }>;
   cancelTrip: (tripId: string) => Promise<void>;
+  deleteTrip: (tripId: string) => Promise<{ success: boolean; error?: string }>;
   updateTripCapacity: (tripId: string, capacity: 'AVAILABLE' | 'MODERATE' | 'FULL') => void;
   updateTripStopArrivalStatus: (tripId: string, stopId: string, status: TripStop['arrival_status']) => Promise<void>;
 
@@ -416,6 +417,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    socketService.onTripDeleted((data: any) => {
+      if (data?.trip_id) {
+        setTrips((prev) => prev.filter((t) => t.trip_id !== data.trip_id));
+        setTripStops((prev) => prev.filter((ts) => ts.trip_id !== data.trip_id));
+      }
+    });
+
     socketService.onTripCancelled((data: any) => {
       if (data?.trip_id) {
         setTrips((prev) =>
@@ -623,6 +631,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     const interval = setInterval(pollTelemetry, 3500);
+
+    // Periodic background DB sync (every 4s) so changes in MySQL Workbench or terminal sync to UI
+    const syncInterval = setInterval(() => {
+      refreshDatabaseRecords();
+    }, 4000);
     return () => {
       active = false;
       clearInterval(interval);
@@ -1144,6 +1157,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [triggerNotification, refreshDatabaseRecords]);
 
+  
+  const deleteTrip = useCallback(async (tripId: string) => {
+    try {
+      await apiService.deleteTrip(tripId);
+      setTrips((prev) => prev.filter((t) => t.trip_id !== tripId));
+      setTripStops((prev) => prev.filter((ts) => ts.trip_id !== tripId));
+      triggerNotification('TRIP DELETED', `Trip ${tripId} removed from database.`, 'info');
+      await refreshDatabaseRecords();
+      return { success: true };
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to delete trip.';
+      console.error('API error in deleteTrip:', err);
+      triggerNotification('DELETION FAILED', errMsg, 'full');
+      return { success: false, error: errMsg };
+    }
+  }, [triggerNotification, refreshDatabaseRecords]);
+
   const cancelTrip = useCallback(async (tripId: string) => {
     try {
       await apiService.cancelTrip(tripId);
@@ -1329,6 +1359,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createTrip,
         updateTrip,
         cancelTrip,
+        deleteTrip,
         updateTripCapacity,
         updateTripStopArrivalStatus,
         updateStudentLocation,
