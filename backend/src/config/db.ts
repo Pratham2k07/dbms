@@ -1,10 +1,15 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import pg from 'pg';
+import mysql from 'mysql2/promise';
 
 dotenv.config();
 if (!process.env.MYSQL_USER) {
-  dotenv.config({ path: path.resolve(__dirname, '../.env') });
+  dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+  dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
 }
+
+const { Pool: PgPool } = pg;
 
 export interface QueryResult<T = any> {
   rows: T[];
@@ -166,7 +171,6 @@ let query: any;
 
 if (isVercel) {
   // CLOUD MODE (Vercel Serverless Production Deployment)
-  const { Pool: PgPool } = require('pg');
   const defaultSupabaseUrl =
     'postgresql://postgres.ylsiszfpsgubumyzqaxc:Namaste%25%5EJKLU@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres';
   const pgConnectionString = process.env.DATABASE_URL || defaultSupabaseUrl;
@@ -202,12 +206,11 @@ if (isVercel) {
   };
 
   query = async <T = any>(text: string, params?: any[]): Promise<QueryResult<T>> => {
-    return rawPgPool.query(transformMysqlToPg(text), params);
+    const res = await rawPgPool.query(transformMysqlToPg(text), params);
+    return res as unknown as QueryResult<T>;
   };
 } else {
   // LOCAL DBMS MODE (MySQL Server 8.0 on localhost)
-  const mysql = require('mysql2/promise');
-
   const mysqlHost = process.env.MYSQL_HOST || 'localhost';
   const mysqlPort = parseInt(process.env.MYSQL_PORT || '3306', 10);
   const mysqlUser = process.env.MYSQL_USER || 'root';
