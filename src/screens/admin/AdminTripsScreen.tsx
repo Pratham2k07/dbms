@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Eye,
+  Trash2,
   Sliders,
   Filter,
   Check
@@ -40,6 +41,7 @@ export const AdminTripsScreen: React.FC<AdminTripsScreenProps> = ({
     createTrip,
     updateTrip,
     cancelTrip,
+    deleteTrip,
     handleStartTrip,
     handleEndTrip,
     updateTripCapacity,

@@ -71,6 +71,11 @@ export const socketEvents = {
     io.emit('trip_ended', { trip_id: tripId, shuttle_id: shuttleId, trip });
   },
 
+  emitTripDeleted: (tripId: string) => {
+    if (!io) return;
+    io.emit('trip_deleted', { trip_id: tripId });
+  },
+
   emitTripCancelled: (tripId: string) => {
     if (!io) return;
     io.emit('trip_cancelled', { trip_id: tripId });

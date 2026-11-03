@@ -8,6 +8,7 @@ import {
   startTrip,
   endTrip,
   cancelTrip,
+  deleteTrip,
   updateTripCapacity,
   updateTripStopStatus,
 } from '../controllers/trips.controller.js';
@@ -28,6 +29,7 @@ router.put('/:id', authenticateJWT, updateTrip);
 router.post('/:id/start', authenticateJWT, startTrip);
 router.post('/:id/end', authenticateJWT, endTrip);
 router.patch('/:id/cancel', authenticateJWT, cancelTrip);
+router.delete('/:id', authenticateJWT, deleteTrip);
 router.patch('/:id/capacity', authenticateJWT, updateTripCapacity);
 router.patch('/:tripId/stops/:stopId', authenticateJWT, updateTripStopStatus);
 

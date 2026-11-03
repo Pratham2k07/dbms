@@ -536,3 +536,39 @@ export const updateTripStopStatus = async (req: Request, res: Response): Promise
     res.status(500).json({ success: false, message: 'Failed to update stop status', error: error.message });
   }
 };
+
+
+export const deleteTrip = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const client = await pool.connect();
+  try {
+    const id = req.params.id as string;
+
+    if (!req.user || req.user.role !== 'admin') {
+      res.status(403).json({ success: false, message: 'Admin privileges required to delete trip' });
+      return;
+    }
+
+    const tripRes = await client.query('SELECT * FROM trips WHERE trip_id = $1', [id]);
+    if (tripRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: 'Trip not found' });
+      return;
+    }
+
+    await client.query('BEGIN');
+    await client.query('DELETE FROM trips WHERE trip_id = $1', [id]);
+    await client.query('COMMIT');
+
+    socketEvents.emitTripDeleted(id);
+
+    res.json({
+      success: true,
+      message: `Trip ${id} deleted successfully.`,
+    });
+  } catch (error: any) {
+    await client.query('ROLLBACK');
+    console.error('Error deleting trip:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete trip', error: error.message });
+  } finally {
+    client.release();
+  }
+};

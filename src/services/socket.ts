@@ -53,6 +53,12 @@ class SocketService {
     }
   }
 
+  onTripDeleted(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('trip_deleted', callback);
+    }
+  }
+
   onTripCancelled(callback: (data: any) => void) {
     if (this.socket) {
       this.socket.on('trip_cancelled', callback);
