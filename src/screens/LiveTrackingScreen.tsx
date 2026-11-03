@@ -7,6 +7,7 @@ import { ETA } from '../components/shuttles/ETA';
 import { ArrowLeft, Route as RouteIcon, Radio, User, Gauge, ShieldCheck, Bus, AlertCircle } from 'lucide-react';
 import { routeService } from '../services/routeService';
 import * as apiService from '../services/apiService';
+import { calculateEtaBetweenCoords } from '../services/locationService';
 
 export const LiveTrackingScreen: React.FC = () => {
   const {
@@ -65,13 +66,37 @@ export const LiveTrackingScreen: React.FC = () => {
   const route = trip ? (routes.find((r) => r.route_id === trip.route_id) || routes[0]) : routes[0];
   const driver = trip ? (drivers.find((d) => d.driver_id === trip.driver_id) || drivers[0]) : drivers[0];
 
-  // Dynamic ETA for this trip & stop
+  // Dynamic ETA for this trip & stop using formula: ETA = Distance / 25 km/h
   const etaKey = trip ? `${trip.trip_id}_${selectedStopId}` : '';
-  const etaMinutes = etaKey && etaMap[etaKey] !== undefined ? etaMap[etaKey] : 0;
+  const currentLoc =
+    liveTripData?.latest_location ||
+    liveTripData?.latestLocation ||
+    shuttleLocations.find(
+      (item) => item.trip_id === trip?.trip_id || item.shuttle_id === shuttle?.shuttle_id
+    );
 
   const targetTripStop = trip ? tripStops.find(
     (ts) => ts.trip_id === trip.trip_id && ts.stop_id === selectedStopId
   ) : undefined;
+
+  const targetStop = stops.find((s) => s.stop_id === selectedStopId);
+  const liveStopMeta = liveTripData?.stops?.find((s: any) => s.stop_id === selectedStopId);
+
+  const etaMinutes = useMemo(() => {
+    if (targetTripStop?.arrival_status === 'COMPLETED') return 0;
+    if (etaKey && etaMap[etaKey] !== undefined) return etaMap[etaKey];
+    if (liveStopMeta?.theoretical_eta_minutes !== undefined) return liveStopMeta.theoretical_eta_minutes;
+    if (currentLoc && targetStop) {
+      return calculateEtaBetweenCoords(
+        Number(currentLoc.latitude),
+        Number(currentLoc.longitude),
+        Number(targetStop.latitude),
+        Number(targetStop.longitude),
+        25
+      );
+    }
+    return 0;
+  }, [etaKey, etaMap, liveStopMeta, currentLoc, targetStop, targetTripStop]);
 
   // Formatted active shuttles for the map (renders all moving shuttles when toggle is active)
   const activeShuttlesForMap = useMemo(() => {

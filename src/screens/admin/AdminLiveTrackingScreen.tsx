@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { MapView } from '../../components/map/MapView';
+import { calculateEtaBetweenCoords } from '../../services/locationService';
 import {
   Radio,
   Bus,
@@ -27,6 +28,8 @@ export const AdminLiveTrackingScreen: React.FC = () => {
     drivers,
     stops,
     tripStops,
+    routeStops,
+    routeCoordinates,
     shuttleLocations,
     etaMap,
     selectedTripId,
@@ -39,15 +42,67 @@ export const AdminLiveTrackingScreen: React.FC = () => {
   } = useApp();
 
   const [activeRouteFilter, setActiveRouteFilter] = useState<string>('ALL');
-  const [activeTelemetryTripId, setActiveTelemetryTripId] = useState<string | null>(selectedTripId || 'TRIP-101');
-  const [viewMode, setViewMode] = useState<'single' | 'fleet'>('single');
+  const [activeTelemetryTripId, setActiveTelemetryTripId] = useState<string | null>(selectedTripId || null);
+  const [viewMode, setViewMode] = useState<'single' | 'fleet'>('fleet');
 
   // Filter running trips
-  const runningTrips = trips.filter((t) => t.running_status === 'RUNNING');
+  const runningTrips = useMemo(() => trips.filter((t) => t.running_status === 'RUNNING'), [trips]);
 
-  // Selected trip telemetry info
-  const selectedTrip = trips.find((t) => t.trip_id === activeTelemetryTripId) || runningTrips[0];
+  // Selected running trip telemetry info (only a running trip should be focused for live telemetry)
+  const selectedTrip = useMemo(() => {
+    if (activeTelemetryTripId) {
+      const match = runningTrips.find((t) => t.trip_id === activeTelemetryTripId);
+      if (match) return match;
+    }
+    if (activeRouteFilter !== 'ALL') {
+      const routeTrip = runningTrips.find((t) => t.route_id === activeRouteFilter);
+      if (routeTrip) return routeTrip;
+    }
+    return runningTrips[0] || null;
+  }, [runningTrips, activeTelemetryTripId, activeRouteFilter]);
+
   const selectedShuttle = shuttles.find((s) => s.shuttle_id === selectedTrip?.shuttle_id);
+
+  // All route IDs where shuttles are actively running
+  const runningRouteIds = useMemo(() => {
+    return Array.from(new Set(runningTrips.map((t) => t.route_id))).filter(Boolean);
+  }, [runningTrips]);
+
+  // Determine which routes to display polylines for on the map:
+  // - If user selected a specific route (e.g. 'ROUTE-01'): show that specific route if running
+  // - If user selected "All Active" / all shuttles option: show all routes on which shuttles are running
+  // - If no shuttles are running: show zero route lines (clean map with no random connections)
+  const visibleRouteIds = useMemo(() => {
+    // If a specific route filter is selected (e.g. 'ROUTE-01')
+    if (activeRouteFilter !== 'ALL') {
+      const isRouteRunning = runningRouteIds.includes(activeRouteFilter);
+      return isRouteRunning ? [activeRouteFilter] : [];
+    }
+
+    // "All Active" / All routes selected:
+    // If user explicitly chose "1 Shuttle" mode and has a selected running trip:
+    if (viewMode === 'single' && selectedTrip) {
+      return [selectedTrip.route_id];
+    }
+
+    // Otherwise (fleet mode / all active): show all routes where shuttles are currently running
+    return runningRouteIds;
+  }, [activeRouteFilter, viewMode, selectedTrip, runningRouteIds]);
+
+  // Stops to display on the map:
+  const stopsForMap = useMemo(() => {
+    // If specific routes are visible, show stops belonging to those visible routes
+    if (visibleRouteIds.length > 0 && routeStops && routeStops.length > 0) {
+      const activeStopIds = new Set(
+        routeStops.filter((rs) => visibleRouteIds.includes(rs.route_id)).map((rs) => rs.stop_id)
+      );
+      if (activeStopIds.size > 0) {
+        return stops.filter((s) => activeStopIds.has(s.stop_id));
+      }
+    }
+    // When no shuttles are running, show all stops as unlinked pins
+    return stops;
+  }, [stops, routeStops, visibleRouteIds]);
 
   // Prepare active shuttles for MapView - strictly 1 shuttle in single mode, or all in fleet mode
   const mapActiveShuttles = useMemo(() => {
@@ -97,10 +152,11 @@ export const AdminLiveTrackingScreen: React.FC = () => {
     [...associatedTripStops].reverse().find((ts) => ts.arrival_status === 'COMPLETED') || associatedTripStops[0];
 
   const currentStopName = stops.find((s) => s.stop_id === currentPassedStop?.stop_id)?.stop_name || 'JKLU Origin';
-  const nextStopName = stops.find((s) => s.stop_id === nextTripStop?.stop_id)?.stop_name || 'En Route';
+  const nextStop = stops.find((s) => s.stop_id === nextTripStop?.stop_id);
+  const nextStopName = nextStop?.stop_name || 'En Route';
 
   const etaKey = `${selectedTrip?.trip_id}_${nextTripStop?.stop_id}`;
-  const dynamicEta = etaMap[etaKey] || 4;
+  const dynamicEta = etaMap[etaKey] !== undefined ? etaMap[etaKey] : (selectedLocation && nextStop ? calculateEtaBetweenCoords(Number(selectedLocation.latitude), Number(selectedLocation.longitude), Number(nextStop.latitude), Number(nextStop.longitude), 25) : 4);
 
   const handleShuttleMarkerClick = (tripId: string) => {
     setActiveTelemetryTripId(tripId);
@@ -228,9 +284,12 @@ export const AdminLiveTrackingScreen: React.FC = () => {
 
           <div className="rounded-2xl overflow-hidden border border-stone-200 shadow-inner">
             <MapView
-              stops={stops}
+              stops={stopsForMap}
               activeShuttles={mapActiveShuttles}
-              highlightRouteId={selectedTrip?.route_id || 'ROUTE-01'}
+              highlightRouteId={selectedTrip?.route_id || (activeRouteFilter !== 'ALL' ? activeRouteFilter : undefined)}
+              visibleRouteIds={visibleRouteIds}
+              routeCoordinates={routeCoordinates}
+              routes={routes}
               onSelectShuttle={handleShuttleMarkerClick}
               heightClass="h-[480px] sm:h-[540px]"
               zoomLevel={13}

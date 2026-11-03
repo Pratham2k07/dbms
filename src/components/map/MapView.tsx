@@ -9,7 +9,9 @@ interface MapViewProps {
   studentLocation?: { latitude: number; longitude: number };
   activeShuttles?: { location: ShuttleLocation; number: string; routeId: string }[];
   highlightRouteId?: string;
+  visibleRouteIds?: string[];
   routeCoordinates?: Record<string, [number, number][]>;
+  routes?: { route_id: string; route_name: string; route_code?: string; color?: string }[];
   activeRoutePolyline?: [number, number][];
   selectedStopId?: string;
   destinationCoords?: { latitude: number; longitude: number; name?: string };
@@ -42,8 +44,10 @@ export const MapView: React.FC<MapViewProps> = ({
   stops = [],
   studentLocation,
   activeShuttles = [],
-  highlightRouteId = 'ROUTE-01',
+  highlightRouteId,
+  visibleRouteIds,
   routeCoordinates,
+  routes,
   activeRoutePolyline,
   selectedStopId,
   destinationCoords,
@@ -149,51 +153,83 @@ export const MapView: React.FC<MapViewProps> = ({
     if (!routesLayerRef.current) return;
     routesLayerRef.current.clearLayers();
 
-    const allRoutes = routeCoordinates || {};
+    // 1. If explicit visibleRouteIds is provided
+    if (visibleRouteIds !== undefined) {
+      if (!visibleRouteIds || visibleRouteIds.length === 0 || !routeCoordinates) {
+        // Zero routes visible - keep map clean without any polylines
+        return;
+      }
 
-    // Draw non-highlighted routes with subtle gray/orange
-    Object.entries(allRoutes).forEach(([rId, coords]) => {
-      if (rId !== highlightRouteId && coords && coords.length > 0) {
+      visibleRouteIds.forEach((rId) => {
+        const coords = routeCoordinates[rId];
+        if (!coords || coords.length === 0) return;
+
+        const routeMeta = routes?.find((r) => r.route_id === rId);
+        const routeColor = routeMeta?.color || '#E8590C';
+        const isHighlighted = rId === highlightRouteId || visibleRouteIds.length === 1;
+
+        // Glow underlayer
         L.polyline(coords, {
-          color: '#B0B5C0',
-          weight: 3,
-          opacity: 0.45,
-          dashArray: '6, 8',
+          color: routeColor,
+          weight: isHighlighted ? 8 : 5,
+          opacity: isHighlighted ? 0.35 : 0.2,
           lineCap: 'round'
         }).addTo(routesLayerRef.current!);
-      }
-    });
 
-    // Draw active highlighted route with vibrant JKLU Orange
-    const activeCoords =
-      (activeRoutePolyline && activeRoutePolyline.length > 0)
-        ? activeRoutePolyline
-        : (routeCoordinates && highlightRouteId && routeCoordinates[highlightRouteId] && routeCoordinates[highlightRouteId].length > 0)
-          ? routeCoordinates[highlightRouteId]
-          : (routeCoordinates && Object.values(routeCoordinates).find((coords) => coords && coords.length > 0))
-            ? Object.values(routeCoordinates).find((coords) => coords && coords.length > 0)
-            : (stops && stops.length >= 2)
-              ? (stops.map((s) => [Number(s.latitude), Number(s.longitude)] as [number, number]))
-              : undefined;
+        // Main corridor line
+        L.polyline(coords, {
+          color: routeColor,
+          weight: isHighlighted ? 4.5 : 3.5,
+          opacity: isHighlighted ? 0.95 : 0.8,
+          lineCap: 'round'
+        }).addTo(routesLayerRef.current!);
+      });
 
-    if (activeCoords && activeCoords.length > 0) {
-      // Glow underlayer
-      L.polyline(activeCoords, {
+      return;
+    }
+
+    // 2. Fallback for single explicit activeRoutePolyline
+    if (activeRoutePolyline && activeRoutePolyline.length > 0) {
+      L.polyline(activeRoutePolyline, {
         color: '#FF8833',
         weight: 8,
         opacity: 0.35,
         lineCap: 'round'
       }).addTo(routesLayerRef.current);
 
-      // Main corridor line
-      L.polyline(activeCoords, {
+      L.polyline(activeRoutePolyline, {
         color: '#E8590C',
         weight: 4.5,
         opacity: 0.95,
         lineCap: 'round'
       }).addTo(routesLayerRef.current);
+      return;
     }
-  }, [highlightRouteId, routeCoordinates, activeRoutePolyline]);
+
+    // 3. Fallback for highlightRouteId
+    if (highlightRouteId && highlightRouteId !== 'ALL' && routeCoordinates && routeCoordinates[highlightRouteId]?.length > 0) {
+      const coords = routeCoordinates[highlightRouteId];
+      const routeMeta = routes?.find((r) => r.route_id === highlightRouteId);
+      const routeColor = routeMeta?.color || '#E8590C';
+
+      L.polyline(coords, {
+        color: routeColor,
+        weight: 8,
+        opacity: 0.35,
+        lineCap: 'round'
+      }).addTo(routesLayerRef.current);
+
+      L.polyline(coords, {
+        color: routeColor,
+        weight: 4.5,
+        opacity: 0.95,
+        lineCap: 'round'
+      }).addTo(routesLayerRef.current);
+      return;
+    }
+
+    // Note: If no route coordinates matched, do NOT draw anything. Never connect random stops!
+  }, [highlightRouteId, visibleRouteIds, routeCoordinates, routes, activeRoutePolyline]);
 
   // Update Location Pins (Stops, Active Shuttles, Student Location, Destination)
   useEffect(() => {

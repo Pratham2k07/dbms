@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { calculateEtaBetweenCoords } from '../../services/locationService';
 import { Shuttle } from '../../types/database';
 import {
   Bus,
@@ -34,6 +35,7 @@ export const AdminShuttlesScreen: React.FC<AdminShuttlesScreenProps> = ({
     drivers,
     stops,
     tripStops,
+    shuttleLocations,
     etaMap,
     createShuttle,
     updateShuttle,
@@ -135,7 +137,9 @@ export const AdminShuttlesScreen: React.FC<AdminShuttlesScreenProps> = ({
     const nextStopName = stops.find((s) => s.stop_id === nextTripStop?.stop_id)?.stop_name || 'En Route';
 
     const etaKey = `${activeTrip.trip_id}_${nextTripStop?.stop_id}`;
-    const dynamicEta = etaMap[etaKey] || 5;
+    const tripLoc = shuttleLocations.find((l) => l.trip_id === activeTrip.trip_id || l.shuttle_id === activeTrip.shuttle_id);
+    const nextStopObj = stops.find((s) => s.stop_id === nextTripStop?.stop_id);
+    const dynamicEta = etaMap[etaKey] !== undefined ? etaMap[etaKey] : (tripLoc && nextStopObj ? calculateEtaBetweenCoords(Number(tripLoc.latitude), Number(tripLoc.longitude), Number(nextStopObj.latitude), Number(nextStopObj.longitude), 25) : 5);
 
     return {
       trip: activeTrip,

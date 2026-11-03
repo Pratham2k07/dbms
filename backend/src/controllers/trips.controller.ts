@@ -88,13 +88,43 @@ export const getLiveTripDetails = async (req: Request, res: Response): Promise<v
       [id, trip.shuttle_id]
     );
 
+    const latestLocation = locRes.rows[0] || null;
+    let stopsWithEta = stopsRes.rows;
+
+    if (latestLocation && latestLocation.latitude && latestLocation.longitude) {
+      const lat1 = Number(latestLocation.latitude);
+      const lon1 = Number(latestLocation.longitude);
+
+      stopsWithEta = stopsRes.rows.map((st: any) => {
+        const lat2 = Number(st.latitude);
+        const lon2 = Number(st.longitude);
+        const dLat = ((lat2 - lat1) * Math.PI) / 180;
+        const dLon = ((lon2 - lon1) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distKm = parseFloat((6371 * c).toFixed(2));
+        // ETA formula: Distance (km) / 25 km/h * 60 minutes
+        const etaMins = distKm <= 0.05 ? 0 : Math.max(1, Math.round((distKm / 25) * 60));
+
+        return {
+          ...st,
+          remaining_road_distance_km: distKm,
+          theoretical_eta_minutes: etaMins,
+          eta_minutes: etaMins,
+        };
+      });
+    }
+
     res.json({
       success: true,
       trip_id: trip.trip_id,
       trip,
-      stops: stopsRes.rows,
-      latestLocation: locRes.rows[0] || null,
-      latest_location: locRes.rows[0] || null,
+      stops: stopsWithEta,
+      latestLocation,
+      latest_location: latestLocation,
       route_coordinates: trip.route_coordinates,
     });
   } catch (error: any) {
@@ -536,7 +566,6 @@ export const updateTripStopStatus = async (req: Request, res: Response): Promise
     res.status(500).json({ success: false, message: 'Failed to update stop status', error: error.message });
   }
 };
-
 
 export const deleteTrip = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const client = await pool.connect();

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { calculateEtaBetweenCoords } from '../../services/locationService';
 import {
   Route as RouteIcon,
   MapPin,
@@ -42,6 +43,7 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({
     drivers,
     trips,
     tripStops,
+    shuttleLocations,
     etaMap,
     setCurrentScreen,
     handleStartTrip,
@@ -320,7 +322,8 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({
 
                     const nextStop = stops.find((s) => s.stop_id === nextTripStop?.stop_id);
                     const etaKey = `${trip.trip_id}_${nextTripStop?.stop_id}`;
-                    const dynamicEta = etaMap[etaKey] || 6;
+                    const tripLoc = shuttleLocations.find((l) => l.trip_id === trip.trip_id || l.shuttle_id === trip.shuttle_id);
+                    const dynamicEta = etaMap[etaKey] !== undefined ? etaMap[etaKey] : (tripLoc && nextStop ? calculateEtaBetweenCoords(Number(tripLoc.latitude), Number(tripLoc.longitude), Number(nextStop.latitude), Number(nextStop.longitude), 25) : 6);
 
                     return (
                       <tr key={trip.trip_id} className="hover:bg-blue-50/40 transition-colors">

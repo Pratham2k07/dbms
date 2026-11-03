@@ -290,29 +290,17 @@ export const submitDriverLocation = async (req: AuthenticatedRequest, res: Respo
       await query('UPDATE trips SET speed_kmh = $1 WHERE trip_id = $2', [speed, trip_id]);
     }
 
-    // Broadcast live telemetry
-    const telemetryPayload = {
-      shuttle_id,
-      trip_id,
-      latitude: lat,
-      longitude: lng,
-      speed_kmh: speed,
-      bearing: bear,
-      accuracy_m: accuracy_m ? parseFloat(accuracy_m) : undefined,
-      recorded_at: locRes.rows[0].recorded_at,
-    };
-
-    socketEvents.emitLocationUpdate(telemetryPayload);
-
     // Calculate upcoming stops along the trip
     let upcomingStops: any[] = [];
+    let nextStop: any = null;
     if (trip_id) {
       const stopsRes = await query(
         `SELECT s.stop_id, s.stop_name, s.latitude, s.longitude, ts.arrival_status
          FROM trip_stops ts
          JOIN stops s ON ts.stop_id = s.stop_id
          WHERE ts.trip_id = $1 AND ts.arrival_status NOT IN ('COMPLETED', 'SKIPPED')
-         LIMIT 3`,
+         ORDER BY ts.arrival_status = 'APPROACHING' DESC, ts.trip_stop_id ASC
+         LIMIT 5`,
         [trip_id]
       );
 
@@ -326,7 +314,8 @@ export const submitDriverLocation = async (req: AuthenticatedRequest, res: Respo
           Math.sin(dLng / 2) * Math.sin(dLng / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const distKm = parseFloat((6371 * c).toFixed(1));
-        const etaMins = Math.max(1, Math.round((distKm / Math.max(speed, 25)) * 60));
+        // ETA formula: Distance (km) / 25 km/h * 60 minutes
+        const etaMins = distKm <= 0.05 ? 0 : Math.max(1, Math.round((distKm / 25) * 60));
 
         return {
           stop_id: st.stop_id,
@@ -335,7 +324,27 @@ export const submitDriverLocation = async (req: AuthenticatedRequest, res: Respo
           theoretical_eta_minutes: etaMins,
         };
       });
+
+      if (upcomingStops.length > 0) {
+        nextStop = upcomingStops[0];
+      }
     }
+
+    // Broadcast live telemetry
+    const telemetryPayload = {
+      shuttle_id,
+      trip_id,
+      latitude: lat,
+      longitude: lng,
+      speed_kmh: speed,
+      bearing: bear,
+      accuracy_m: accuracy_m ? parseFloat(accuracy_m) : undefined,
+      recorded_at: locRes.rows[0].recorded_at,
+      current_or_next_stop: nextStop,
+      upcoming_stops: upcomingStops,
+    };
+
+    socketEvents.emitLocationUpdate(telemetryPayload);
 
     res.json({
       success: true,

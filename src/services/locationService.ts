@@ -36,6 +36,35 @@ export function calculateWalkingTimeMinutes(distanceMeters: number): number {
   return Math.max(1, minutes);
 }
 
+/**
+ * Calculates theoretical shuttle ETA in minutes based on fixed standard speed (25 km/h)
+ * Formula: ETA = (Distance (km) / 25 km/h) * 60 minutes
+ */
+export function calculateTheoreticalEtaMinutes(
+  distanceKm: number,
+  speedKmh: number = 25
+): number {
+  if (distanceKm <= 0.05) return 0; // Less than 50 meters = arrived
+  const speed = speedKmh > 0 ? speedKmh : 25;
+  const hours = distanceKm / speed;
+  return Math.max(1, Math.round(hours * 60));
+}
+
+/**
+ * Calculates theoretical shuttle ETA between two geographic coordinates using 25 km/h formula
+ */
+export function calculateEtaBetweenCoords(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+  speedKmh: number = 25
+): number {
+  const distMeters = calculateHaversineDistance(lat1, lon1, lat2, lon2);
+  const distKm = distMeters / 1000;
+  return calculateTheoreticalEtaMinutes(distKm, speedKmh);
+}
+
 let lastPersistedTime = 0;
 let lastPersistedCoords: { lat: number; lng: number } | null = null;
 let activeLocationPromise: Promise<StudentLocation> | null = null;
@@ -43,6 +72,8 @@ let activeLocationPromise: Promise<StudentLocation> | null = null;
 export const locationService = {
   calculateHaversineDistance,
   calculateWalkingTimeMinutes,
+  calculateTheoreticalEtaMinutes,
+  calculateEtaBetweenCoords,
 
   /**
    * Requests real browser geolocation permission and obtains actual device coordinates.

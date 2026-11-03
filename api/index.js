@@ -1371,13 +1371,35 @@ var getLiveTripDetails = async (req, res) => {
        ORDER BY recorded_at DESC LIMIT 1`,
       [id, trip.shuttle_id]
     );
+    const latestLocation = locRes.rows[0] || null;
+    let stopsWithEta = stopsRes.rows;
+    if (latestLocation && latestLocation.latitude && latestLocation.longitude) {
+      const lat1 = Number(latestLocation.latitude);
+      const lon1 = Number(latestLocation.longitude);
+      stopsWithEta = stopsRes.rows.map((st) => {
+        const lat2 = Number(st.latitude);
+        const lon2 = Number(st.longitude);
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distKm = parseFloat((6371 * c).toFixed(2));
+        const etaMins = distKm <= 0.05 ? 0 : Math.max(1, Math.round(distKm / 25 * 60));
+        return {
+          ...st,
+          remaining_road_distance_km: distKm,
+          theoretical_eta_minutes: etaMins,
+          eta_minutes: etaMins
+        };
+      });
+    }
     res.json({
       success: true,
       trip_id: trip.trip_id,
       trip,
-      stops: stopsRes.rows,
-      latestLocation: locRes.rows[0] || null,
-      latest_location: locRes.rows[0] || null,
+      stops: stopsWithEta,
+      latestLocation,
+      latest_location: latestLocation,
       route_coordinates: trip.route_coordinates
     });
   } catch (error) {
@@ -2018,25 +2040,16 @@ var submitDriverLocation = async (req, res) => {
     if (trip_id) {
       await query("UPDATE trips SET speed_kmh = $1 WHERE trip_id = $2", [speed, trip_id]);
     }
-    const telemetryPayload = {
-      shuttle_id,
-      trip_id,
-      latitude: lat,
-      longitude: lng,
-      speed_kmh: speed,
-      bearing: bear,
-      accuracy_m: accuracy_m ? parseFloat(accuracy_m) : void 0,
-      recorded_at: locRes.rows[0].recorded_at
-    };
-    socketEvents.emitLocationUpdate(telemetryPayload);
     let upcomingStops = [];
+    let nextStop = null;
     if (trip_id) {
       const stopsRes = await query(
         `SELECT s.stop_id, s.stop_name, s.latitude, s.longitude, ts.arrival_status
          FROM trip_stops ts
          JOIN stops s ON ts.stop_id = s.stop_id
          WHERE ts.trip_id = $1 AND ts.arrival_status NOT IN ('COMPLETED', 'SKIPPED')
-         LIMIT 3`,
+         ORDER BY ts.arrival_status = 'APPROACHING' DESC, ts.trip_stop_id ASC
+         LIMIT 5`,
         [trip_id]
       );
       upcomingStops = stopsRes.rows.map((st) => {
@@ -2045,7 +2058,7 @@ var submitDriverLocation = async (req, res) => {
         const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat * (Math.PI / 180)) * Math.cos(st.latitude * (Math.PI / 180)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const distKm = parseFloat((6371 * c).toFixed(1));
-        const etaMins = Math.max(1, Math.round(distKm / Math.max(speed, 25) * 60));
+        const etaMins = distKm <= 0.05 ? 0 : Math.max(1, Math.round(distKm / 25 * 60));
         return {
           stop_id: st.stop_id,
           stop_name: st.stop_name,
@@ -2053,7 +2066,23 @@ var submitDriverLocation = async (req, res) => {
           theoretical_eta_minutes: etaMins
         };
       });
+      if (upcomingStops.length > 0) {
+        nextStop = upcomingStops[0];
+      }
     }
+    const telemetryPayload = {
+      shuttle_id,
+      trip_id,
+      latitude: lat,
+      longitude: lng,
+      speed_kmh: speed,
+      bearing: bear,
+      accuracy_m: accuracy_m ? parseFloat(accuracy_m) : void 0,
+      recorded_at: locRes.rows[0].recorded_at,
+      current_or_next_stop: nextStop,
+      upcoming_stops: upcomingStops
+    };
+    socketEvents.emitLocationUpdate(telemetryPayload);
     res.json({
       success: true,
       telemetry: telemetryPayload,

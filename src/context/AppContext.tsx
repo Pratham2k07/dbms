@@ -396,6 +396,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           [`${data.trip_id}_${stopId}`]: etaMins
         }));
       }
+
+      if (data.upcoming_stops && Array.isArray(data.upcoming_stops) && data.trip_id) {
+        setEtaMap((prev) => {
+          const next = { ...prev };
+          for (const st of data.upcoming_stops) {
+            if (st.stop_id && st.theoretical_eta_minutes !== undefined) {
+              next[`${data.trip_id}_${st.stop_id}`] = st.theoretical_eta_minutes;
+            }
+          }
+          return next;
+        });
+      }
     });
 
     socketService.onTripCreated((data: any) => {

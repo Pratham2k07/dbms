@@ -1,6 +1,7 @@
 import { Stop, Trip, TripStop, Shuttle, Route, ShuttleLocation } from '../types/database';
 import { UpcomingShuttleCardData } from '../types/ui';
 import { databaseService } from './databaseService';
+import { calculateEtaBetweenCoords } from './locationService';
 
 export const stopService = {
   getAllStops(): Stop[] {
@@ -36,6 +37,7 @@ export const stopService = {
 
   /**
    * Retrieves all upcoming shuttles heading to a specific stop
+   * Uses ETA = Distance of shuttle to stop / 25 km/h
    */
   getUpcomingShuttles(
     stopId: string,
@@ -51,6 +53,7 @@ export const stopService = {
     );
 
     const cards: UpcomingShuttleCardData[] = [];
+    const targetStop = this.getStopById(stopId);
 
     for (const ts of relevantTripStops) {
       const trip = trips.find((t) => t.trip_id === ts.trip_id);
@@ -58,22 +61,27 @@ export const stopService = {
 
       const shuttle = shuttles.find((s) => s.shuttle_id === trip.shuttle_id);
       const route = routes.find((r) => r.route_id === trip.route_id);
-      const location = shuttleLocations.find((l) => l.shuttle_id === trip.shuttle_id);
+      const location = shuttleLocations.find((l) => l.shuttle_id === trip.shuttle_id || l.trip_id === trip.trip_id);
 
       if (shuttle && route) {
-        // Base ETA calculation or override from simulation
+        // ETA formula: Distance of shuttle from the specific stop / 25 km/h
         const key = `${trip.trip_id}_${stopId}`;
-        const etaMinutes = etaOverrides && etaOverrides[key] !== undefined
-          ? etaOverrides[key]
-          : ts.stop_id === 'STOP-MANSAROVAR' && trip.trip_id === 'TRIP-101'
-          ? 5
-          : ts.stop_id === 'STOP-DCM' && trip.trip_id === 'TRIP-101'
-          ? 18
-          : ts.stop_id === 'STOP-AIRPORT' && trip.trip_id === 'TRIP-102'
-          ? 7
-          : ts.stop_id === 'STOP-VAISHALI' && trip.trip_id === 'TRIP-103'
-          ? 4
-          : 9;
+        let etaMinutes: number;
+
+        if (etaOverrides && etaOverrides[key] !== undefined) {
+          etaMinutes = etaOverrides[key];
+        } else if (location && targetStop) {
+          etaMinutes = calculateEtaBetweenCoords(
+            Number(location.latitude),
+            Number(location.longitude),
+            Number(targetStop.latitude),
+            Number(targetStop.longitude),
+            25
+          );
+        } else {
+          // Fallback if telemetry not yet available
+          etaMinutes = 5;
+        }
 
         cards.push({
           shuttle,
