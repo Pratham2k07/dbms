@@ -16,14 +16,12 @@ import jwt from "jsonwebtoken";
 // backend/src/config/db.ts
 import dotenv from "dotenv";
 import path from "path";
-import pg from "pg";
 import mysql from "mysql2/promise";
 dotenv.config();
 if (!process.env.MYSQL_USER) {
   dotenv.config({ path: path.resolve(process.cwd(), ".env") });
   dotenv.config({ path: path.resolve(process.cwd(), "backend/.env") });
 }
-var { Pool: PgPool } = pg;
 var PK_MAP = {
   users: "user_id",
   shuttles: "shuttle_id",
@@ -46,7 +44,10 @@ function transformPgToMysql(sql, params = []) {
   s = s.replace(/json_agg/gi, "JSON_ARRAYAGG");
   s = s.replace(/json_build_object/gi, "JSON_OBJECT");
   s = s.replace(/FILTER\s*\([^)]+\)/gi, "");
-  s = s.replace(/ON CONFLICT\s*\(([a-zA-Z0-9_]+)[^)]*\)\s*DO NOTHING/gi, "ON DUPLICATE KEY UPDATE $1 = $1");
+  s = s.replace(/ON CONFLICT\s*\(([a-zA-Z0-9_,\s]+)\)\s*DO NOTHING/gi, (_match, cols) => {
+    const firstCol = cols.split(",")[0].trim();
+    return `ON DUPLICATE KEY UPDATE ${firstCol} = ${firstCol}`;
+  });
   s = s.replace(/ON CONFLICT\s*\([^)]+\)\s*DO UPDATE SET([\s\S]*?)(RETURNING|$)/gi, (_match, updateClause, tail) => {
     const mysqlUpdate = updateClause.replace(/EXCLUDED\.([a-zA-Z0-9_]+)/g, "VALUES($1)");
     return "ON DUPLICATE KEY UPDATE" + mysqlUpdate + " " + tail;
@@ -117,120 +118,51 @@ async function executeOnMysql(target, sql, params = []) {
   }
   return { rows: [], rowCount: rows?.affectedRows || 0 };
 }
-function transformMysqlToPg(sql) {
-  let s = sql;
-  s = s.replace(/VALUES\(([a-zA-Z0-9_]+)\)/gi, "EXCLUDED.$1");
-  s = s.replace(
-    /INSERT INTO users \(([^)]+)\) VALUES \(([^)]+)\) ON DUPLICATE KEY UPDATE ([\s\S]+?)$/i,
-    "INSERT INTO users ($1) VALUES ($2) ON CONFLICT (email) DO UPDATE SET $3"
-  );
-  s = s.replace(
-    /INSERT INTO drivers \(([^)]+)\) VALUES \(([^)]+)\) ON DUPLICATE KEY UPDATE ([\s\S]+?)$/i,
-    "INSERT INTO drivers ($1) VALUES ($2) ON CONFLICT (driver_id) DO UPDATE SET $3"
-  );
-  s = s.replace(
-    /INSERT INTO route_stops \(([^)]+)\) VALUES \(([^)]+)\) ON DUPLICATE KEY UPDATE ([\s\S]+?)$/i,
-    "INSERT INTO route_stops ($1) VALUES ($2) ON CONFLICT (route_id, stop_id) DO UPDATE SET $3"
-  );
-  s = s.replace(
-    /INSERT INTO trip_stops \(([^)]+)\) VALUES \(([^)]+)\) ON DUPLICATE KEY UPDATE trip_id = trip_id/gi,
-    "INSERT INTO trip_stops ($1) VALUES ($2) ON CONFLICT (trip_id, stop_id) DO NOTHING"
-  );
-  s = s.replace(
-    /INSERT INTO stops \(([^)]+)\) VALUES \(([^)]+)\) ON DUPLICATE KEY UPDATE ([\s\S]+?)$/i,
-    "INSERT INTO stops ($1) VALUES ($2) ON CONFLICT (stop_id) DO UPDATE SET $3"
-  );
-  s = s.replace(
-    /INSERT INTO students \(([^)]+)\) VALUES \(([^)]+)\) ON DUPLICATE KEY UPDATE student_id = student_id/gi,
-    "INSERT INTO students ($1) VALUES ($2) ON CONFLICT (student_id) DO NOTHING"
-  );
-  return s;
-}
-var isVercel = Boolean(
-  process.env.VERCEL || process.env.VERCEL_ENV || process.env.NOW_REGION || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === "production" && (!process.env.MYSQL_HOST || process.env.MYSQL_HOST === "localhost" || process.env.MYSQL_HOST === "127.0.0.1")
-);
-var pool;
-var query;
-if (isVercel) {
-  const defaultSupabaseUrl = "postgresql://postgres.ylsiszfpsgubumyzqaxc:Namaste%25%5EJKLU@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres";
-  const pgConnectionString = process.env.DATABASE_URL || defaultSupabaseUrl;
-  const rawPgPool = new PgPool({
-    connectionString: pgConnectionString,
-    ssl: { rejectUnauthorized: false },
-    max: 10,
-    idleTimeoutMillis: 3e4,
-    connectionTimeoutMillis: 5e3
-  });
-  console.log(`[Database] Cloud Mode (Vercel) -> Connected to Supabase PostgreSQL`);
-  pool = {
-    connect: async () => {
-      const client = await rawPgPool.connect();
-      return {
-        query: async (text, params) => {
-          return client.query(transformMysqlToPg(text), params);
-        },
-        release: () => {
-          client.release();
-        }
-      };
-    },
-    query: async (text, params) => {
-      return rawPgPool.query(transformMysqlToPg(text), params);
-    },
-    end: async () => {
-      await rawPgPool.end();
-    }
-  };
-  query = async (text, params) => {
-    const res = await rawPgPool.query(transformMysqlToPg(text), params);
-    return res;
-  };
-} else {
-  const mysqlHost = process.env.MYSQL_HOST || "localhost";
-  const mysqlPort = parseInt(process.env.MYSQL_PORT || "3306", 10);
-  const mysqlUser = process.env.MYSQL_USER || "root";
-  const mysqlPassword = process.env.MYSQL_PASSWORD || "123456";
-  const mysqlDatabase = process.env.MYSQL_DATABASE || "jklu_shuttle_db";
-  const rawPool = mysql.createPool({
-    host: mysqlHost,
-    port: mysqlPort,
-    user: mysqlUser,
-    password: mysqlPassword,
-    database: mysqlDatabase,
-    waitForConnections: true,
-    connectionLimit: 20,
-    decimalNumbers: true
-  });
-  console.log(`[Database] Connected to MySQL Server 8.0 on ${mysqlHost}:${mysqlPort}/${mysqlDatabase}`);
-  pool = {
-    connect: async () => {
-      const conn = await rawPool.getConnection();
-      return {
-        query: async (text, params) => {
-          return executeOnMysql(conn, text, params);
-        },
-        release: () => {
-          conn.release();
-        }
-      };
-    },
-    query: async (text, params) => {
-      return executeOnMysql(rawPool, text, params);
-    },
-    end: async () => {
-      await rawPool.end();
-    }
-  };
-  query = async (text, params) => {
-    const start = Date.now();
-    const res = await executeOnMysql(rawPool, text, params);
-    const duration = Date.now() - start;
-    if (process.env.NODE_ENV === "development" && duration > 500) {
-      console.log(`[SLOW QUERY] ${text} - ${duration}ms`);
-    }
-    return res;
-  };
-}
+var mysqlHost = process.env.MYSQL_HOST || "localhost";
+var mysqlPort = parseInt(process.env.MYSQL_PORT || "3306", 10);
+var mysqlUser = process.env.MYSQL_USER || "root";
+var mysqlPassword = process.env.MYSQL_PASSWORD || "123456";
+var mysqlDatabase = process.env.MYSQL_DATABASE || "jklu_shuttle_db";
+var mysqlConfig = process.env.MYSQL_URL || (process.env.DATABASE_URL?.startsWith("mysql") ? process.env.DATABASE_URL : null) || {
+  host: mysqlHost,
+  port: mysqlPort,
+  user: mysqlUser,
+  password: mysqlPassword,
+  database: mysqlDatabase,
+  waitForConnections: true,
+  connectionLimit: 20,
+  decimalNumbers: true
+};
+var rawPool = mysql.createPool(mysqlConfig);
+console.log(`[Database] Connected to MySQL Server on ${mysqlHost}:${mysqlPort}/${mysqlDatabase}`);
+var pool = {
+  connect: async () => {
+    const conn = await rawPool.getConnection();
+    return {
+      query: async (text, params) => {
+        return executeOnMysql(conn, text, params);
+      },
+      release: () => {
+        conn.release();
+      }
+    };
+  },
+  query: async (text, params) => {
+    return executeOnMysql(rawPool, text, params);
+  },
+  end: async () => {
+    await rawPool.end();
+  }
+};
+var query = async (text, params) => {
+  const start = Date.now();
+  const res = await executeOnMysql(rawPool, text, params);
+  const duration = Date.now() - start;
+  if (process.env.NODE_ENV === "development" && duration > 500) {
+    console.log(`[SLOW QUERY] ${text} - ${duration}ms`);
+  }
+  return res;
+};
 
 // backend/src/controllers/auth.controller.ts
 var JWT_SECRET = process.env.JWT_SECRET || "jklu_shuttle_super_secret_jwt_key_2026";
@@ -1443,10 +1375,19 @@ var createTrip = async (req, res) => {
       });
       return;
     }
-    const countRes = await client.query("SELECT COUNT(*) FROM trips");
-    const nextNum = parseInt(countRes.rows[0].count, 10) + 1;
-    const generatedTripId = `TRIP-${String(nextNum).padStart(2, "0")}`;
-    const finalTripId = req.body.trip_id && typeof req.body.trip_id === "string" && req.body.trip_id.trim() ? req.body.trip_id.trim() : generatedTripId;
+    let finalTripId = req.body.trip_id && typeof req.body.trip_id === "string" && req.body.trip_id.trim() ? req.body.trip_id.trim() : "";
+    if (!finalTripId) {
+      const allTripIdsRes = await client.query("SELECT trip_id FROM trips");
+      let maxNum = 0;
+      for (const row of allTripIdsRes.rows) {
+        const match = String(row.trip_id).match(/TRIP-(\d+)/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+      finalTripId = `TRIP-${String(maxNum + 1).padStart(2, "0")}`;
+    }
     const insertTripSql = `
       INSERT INTO trips (trip_id, shuttle_id, route_id, driver_id, start_time, end_time, running_status, capacity_status, speed_kmh)
       VALUES ($1, $2, $3, $4, $5, $6, 'SCHEDULED', 'AVAILABLE', 0)
@@ -1514,7 +1455,7 @@ var createTrip = async (req, res) => {
     res.status(201).json({
       success: true,
       trip: enrichedTrip,
-      message: `Trip ${finalTripId} scheduled successfully in Supabase.`
+      message: `Trip ${finalTripId} scheduled successfully.`
     });
   } catch (error) {
     await client.query("ROLLBACK");

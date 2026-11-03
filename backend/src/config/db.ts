@@ -1,6 +1,5 @@
 import dotenv from 'dotenv';
 import path from 'path';
-import pg from 'pg';
 import mysql from 'mysql2/promise';
 
 dotenv.config();
@@ -8,8 +7,6 @@ if (!process.env.MYSQL_USER) {
   dotenv.config({ path: path.resolve(process.cwd(), '.env') });
   dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
 }
-
-const { Pool: PgPool } = pg;
 
 export interface QueryResult<T = any> {
   rows: T[];
@@ -45,7 +42,10 @@ function transformPgToMysql(sql: string, params: any[] = []): { sql: string; par
   s = s.replace(/FILTER\s*\([^)]+\)/gi, '');
 
   // 3. ON CONFLICT DO NOTHING -> ON DUPLICATE KEY UPDATE col = col
-  s = s.replace(/ON CONFLICT\s*\(([a-zA-Z0-9_]+)[^)]*\)\s*DO NOTHING/gi, 'ON DUPLICATE KEY UPDATE $1 = $1');
+  s = s.replace(/ON CONFLICT\s*\(([a-zA-Z0-9_,\s]+)\)\s*DO NOTHING/gi, (_match, cols) => {
+    const firstCol = cols.split(',')[0].trim();
+    return `ON DUPLICATE KEY UPDATE ${firstCol} = ${firstCol}`;
+  });
 
   // 4. ON CONFLICT DO UPDATE
   s = s.replace(/ON CONFLICT\s*\([^)]+\)\s*DO UPDATE SET([\s\S]*?)(RETURNING|$)/gi, (_match, updateClause, tail) => {
@@ -139,132 +139,61 @@ async function executeOnMysql(target: any, sql: string, params: any[] = []): Pro
   return { rows: [], rowCount: rows?.affectedRows || 0 };
 }
 
-function transformMysqlToPg(sql: string): string {
-  let s = sql;
-  s = s.replace(/VALUES\(([a-zA-Z0-9_]+)\)/gi, 'EXCLUDED.$1');
-  s = s.replace(/INSERT INTO users \(([^)]+)\) VALUES \(([^)]+)\) ON DUPLICATE KEY UPDATE ([\s\S]+?)$/i,
-    'INSERT INTO users ($1) VALUES ($2) ON CONFLICT (email) DO UPDATE SET $3');
-  s = s.replace(/INSERT INTO drivers \(([^)]+)\) VALUES \(([^)]+)\) ON DUPLICATE KEY UPDATE ([\s\S]+?)$/i,
-    'INSERT INTO drivers ($1) VALUES ($2) ON CONFLICT (driver_id) DO UPDATE SET $3');
-  s = s.replace(/INSERT INTO route_stops \(([^)]+)\) VALUES \(([^)]+)\) ON DUPLICATE KEY UPDATE ([\s\S]+?)$/i,
-    'INSERT INTO route_stops ($1) VALUES ($2) ON CONFLICT (route_id, stop_id) DO UPDATE SET $3');
-  s = s.replace(/INSERT INTO trip_stops \(([^)]+)\) VALUES \(([^)]+)\) ON DUPLICATE KEY UPDATE trip_id = trip_id/gi,
-    'INSERT INTO trip_stops ($1) VALUES ($2) ON CONFLICT (trip_id, stop_id) DO NOTHING');
-  s = s.replace(/INSERT INTO stops \(([^)]+)\) VALUES \(([^)]+)\) ON DUPLICATE KEY UPDATE ([\s\S]+?)$/i,
-    'INSERT INTO stops ($1) VALUES ($2) ON CONFLICT (stop_id) DO UPDATE SET $3');
-  s = s.replace(/INSERT INTO students \(([^)]+)\) VALUES \(([^)]+)\) ON DUPLICATE KEY UPDATE student_id = student_id/gi,
-    'INSERT INTO students ($1) VALUES ($2) ON CONFLICT (student_id) DO NOTHING');
-  return s;
-}
+// ================= MYSQL DATABASE CONNECTION (EXCLUSIVE) =================
+const mysqlHost = process.env.MYSQL_HOST || 'localhost';
+const mysqlPort = parseInt(process.env.MYSQL_PORT || '3306', 10);
+const mysqlUser = process.env.MYSQL_USER || 'root';
+const mysqlPassword = process.env.MYSQL_PASSWORD || '123456';
+const mysqlDatabase = process.env.MYSQL_DATABASE || 'jklu_shuttle_db';
 
-// ================= INITIALIZE DUAL-MODE DATABASE CONNECTION =================
-const isVercel = Boolean(
-  process.env.VERCEL ||
-  process.env.VERCEL_ENV ||
-  process.env.NOW_REGION ||
-  process.env.AWS_LAMBDA_FUNCTION_NAME ||
-  (process.env.NODE_ENV === 'production' && (!process.env.MYSQL_HOST || process.env.MYSQL_HOST === 'localhost' || process.env.MYSQL_HOST === '127.0.0.1'))
-);
+const mysqlConfig = process.env.MYSQL_URL || (process.env.DATABASE_URL?.startsWith('mysql') ? process.env.DATABASE_URL : null) || {
+  host: mysqlHost,
+  port: mysqlPort,
+  user: mysqlUser,
+  password: mysqlPassword,
+  database: mysqlDatabase,
+  waitForConnections: true,
+  connectionLimit: 20,
+  decimalNumbers: true
+};
 
-let pool: any;
-let query: any;
+const rawPool = mysql.createPool(mysqlConfig as any);
 
-if (isVercel) {
-  // CLOUD MODE (Vercel Serverless Production Deployment)
-  const defaultSupabaseUrl =
-    'postgresql://postgres.ylsiszfpsgubumyzqaxc:Namaste%25%5EJKLU@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres';
-  const pgConnectionString = process.env.DATABASE_URL || defaultSupabaseUrl;
+console.log(`[Database] Connected to MySQL Server on ${mysqlHost}:${mysqlPort}/${mysqlDatabase}`);
 
-  const rawPgPool = new PgPool({
-    connectionString: pgConnectionString,
-    ssl: { rejectUnauthorized: false },
-    max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
-  });
+export const pool = {
+  connect: async () => {
+    const conn = await rawPool.getConnection();
+    return {
+      query: async (text: string, params?: any[]) => {
+        return executeOnMysql(conn, text, params);
+      },
+      release: () => {
+        conn.release();
+      }
+    };
+  },
+  query: async (text: string, params?: any[]) => {
+    return executeOnMysql(rawPool, text, params);
+  },
+  end: async () => {
+    await rawPool.end();
+  }
+};
 
-  console.log(`[Database] Cloud Mode (Vercel) -> Connected to Supabase PostgreSQL`);
+export const query = async <T = any>(
+  text: string,
+  params?: any[]
+): Promise<QueryResult<T>> => {
+  const start = Date.now();
+  const res = await executeOnMysql(rawPool, text, params);
+  const duration = Date.now() - start;
+  if (process.env.NODE_ENV === 'development' && duration > 500) {
+    console.log(`[SLOW QUERY] ${text} - ${duration}ms`);
+  }
+  return res as QueryResult<T>;
+};
 
-  pool = {
-    connect: async () => {
-      const client = await rawPgPool.connect();
-      return {
-        query: async (text: string, params?: any[]) => {
-          return client.query(transformMysqlToPg(text), params);
-        },
-        release: () => {
-          client.release();
-        }
-      };
-    },
-    query: async (text: string, params?: any[]) => {
-      return rawPgPool.query(transformMysqlToPg(text), params);
-    },
-    end: async () => {
-      await rawPgPool.end();
-    }
-  };
-
-  query = async <T = any>(text: string, params?: any[]): Promise<QueryResult<T>> => {
-    const res = await rawPgPool.query(transformMysqlToPg(text), params);
-    return res as unknown as QueryResult<T>;
-  };
-} else {
-  // LOCAL DBMS MODE (MySQL Server 8.0 on localhost)
-  const mysqlHost = process.env.MYSQL_HOST || 'localhost';
-  const mysqlPort = parseInt(process.env.MYSQL_PORT || '3306', 10);
-  const mysqlUser = process.env.MYSQL_USER || 'root';
-  const mysqlPassword = process.env.MYSQL_PASSWORD || '123456';
-  const mysqlDatabase = process.env.MYSQL_DATABASE || 'jklu_shuttle_db';
-
-  const rawPool = mysql.createPool({
-    host: mysqlHost,
-    port: mysqlPort,
-    user: mysqlUser,
-    password: mysqlPassword,
-    database: mysqlDatabase,
-    waitForConnections: true,
-    connectionLimit: 20,
-    decimalNumbers: true
-  });
-
-  console.log(`[Database] Connected to MySQL Server 8.0 on ${mysqlHost}:${mysqlPort}/${mysqlDatabase}`);
-
-  pool = {
-    connect: async () => {
-      const conn = await rawPool.getConnection();
-      return {
-        query: async (text: string, params?: any[]) => {
-          return executeOnMysql(conn, text, params);
-        },
-        release: () => {
-          conn.release();
-        }
-      };
-    },
-    query: async (text: string, params?: any[]) => {
-      return executeOnMysql(rawPool, text, params);
-    },
-    end: async () => {
-      await rawPool.end();
-    }
-  };
-
-  query = async <T = any>(
-    text: string,
-    params?: any[]
-  ): Promise<QueryResult<T>> => {
-    const start = Date.now();
-    const res = await executeOnMysql(rawPool, text, params);
-    const duration = Date.now() - start;
-    if (process.env.NODE_ENV === 'development' && duration > 500) {
-      console.log(`[SLOW QUERY] ${text} - ${duration}ms`);
-    }
-    return res as QueryResult<T>;
-  };
-}
-
-export { pool, query };
 export default {
   pool,
   query,

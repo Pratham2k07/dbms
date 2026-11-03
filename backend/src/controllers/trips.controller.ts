@@ -177,12 +177,22 @@ export const createTrip = async (req: Request, res: Response): Promise<void> => 
     }
 
     // Generate unique Trip ID or respect provided trip_id
-    const countRes = await client.query('SELECT COUNT(*) FROM trips');
-    const nextNum = parseInt(countRes.rows[0].count, 10) + 1;
-    const generatedTripId = `TRIP-${String(nextNum).padStart(2, '0')}`;
-    const finalTripId = (req.body.trip_id && typeof req.body.trip_id === 'string' && req.body.trip_id.trim())
+    let finalTripId = (req.body.trip_id && typeof req.body.trip_id === 'string' && req.body.trip_id.trim())
       ? req.body.trip_id.trim()
-      : generatedTripId;
+      : '';
+
+    if (!finalTripId) {
+      const allTripIdsRes = await client.query('SELECT trip_id FROM trips');
+      let maxNum = 0;
+      for (const row of allTripIdsRes.rows) {
+        const match = String(row.trip_id).match(/TRIP-(\d+)/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        } 
+      }
+      finalTripId = `TRIP-${String(maxNum + 1).padStart(2, '0')}`;
+    }
 
     // Insert Trip
     const insertTripSql = `
@@ -269,7 +279,7 @@ export const createTrip = async (req: Request, res: Response): Promise<void> => 
     res.status(201).json({
       success: true,
       trip: enrichedTrip,
-      message: `Trip ${finalTripId} scheduled successfully in Supabase.`,
+      message: `Trip ${finalTripId} scheduled successfully.`,
     });
   } catch (error: any) {
     await client.query('ROLLBACK');

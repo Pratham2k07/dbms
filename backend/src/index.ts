@@ -60,7 +60,7 @@ initSocket(server);
 server.listen(PORT, () => {
   console.log(`🚀 JKLU Shuttle Backend Server running on http://localhost:${PORT}`);
   console.log(`📡 Socket.IO Real-Time gateway attached`);
-  console.log(`🗄️ Connected to Supabase PostgreSQL database`);
+  console.log(`🗄️ Connected to MySQL database`);
 });
 
 process.on('unhandledRejection', (reason) => {

@@ -16,7 +16,6 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.24.6",
-    "pg": "^8.13.1",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
@@ -25,7 +24,6 @@
     "@types/express": "^5.0.0",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.9.0",
-    "@types/pg": "^8.11.10",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3"
   }
