@@ -290,22 +290,27 @@ export const submitDriverLocation = async (req: AuthenticatedRequest, res: Respo
       await query('UPDATE trips SET speed_kmh = $1 WHERE trip_id = $2', [speed, trip_id]);
     }
 
-    // Calculate upcoming stops along the trip
+    // Calculate upcoming stops along the trip and automatically detect arrived & passed stops
     let upcomingStops: any[] = [];
     let nextStop: any = null;
+    const stopsStatusMap: Record<string, string> = {};
+
     if (trip_id) {
-      const stopsRes = await query(
-        `SELECT s.stop_id, s.stop_name, s.latitude, s.longitude, ts.arrival_status
+      const allStopsRes = await query(
+        `SELECT s.stop_id, s.stop_name, s.latitude, s.longitude, ts.arrival_status, rs.sequence_number
          FROM trip_stops ts
          JOIN stops s ON ts.stop_id = s.stop_id
-         WHERE ts.trip_id = $1 AND ts.arrival_status NOT IN ('COMPLETED', 'SKIPPED')
-         ORDER BY ts.arrival_status = 'APPROACHING' DESC, ts.trip_stop_id ASC
-         LIMIT 5`,
+         JOIN trips t ON ts.trip_id = t.trip_id
+         LEFT JOIN route_stops rs ON rs.route_id = t.route_id AND rs.stop_id = s.stop_id
+         WHERE ts.trip_id = $1
+         ORDER BY COALESCE(rs.sequence_number, 999) ASC`,
         [trip_id]
       );
 
-      upcomingStops = stopsRes.rows.map((st: any) => {
-        // Haversine distance
+      const nowTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      // Calculate distances to all stops along route
+      const stopDistances = allStopsRes.rows.map((st: any) => {
         const dLat = (st.latitude - lat) * (Math.PI / 180);
         const dLng = (st.longitude - lng) * (Math.PI / 180);
         const a =
@@ -313,24 +318,97 @@ export const submitDriverLocation = async (req: AuthenticatedRequest, res: Respo
           Math.cos(lat * (Math.PI / 180)) * Math.cos(st.latitude * (Math.PI / 180)) *
           Math.sin(dLng / 2) * Math.sin(dLng / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const distKm = parseFloat((6371 * c).toFixed(1));
-        // ETA formula: Distance (km) / 25 km/h * 60 minutes
-        const etaMins = distKm <= 0.05 ? 0 : Math.max(1, Math.round((distKm / 25) * 60));
-
+        const distKm = parseFloat((6371 * c).toFixed(2));
         return {
-          stop_id: st.stop_id,
-          stop_name: st.stop_name,
-          remaining_road_distance_km: distKm,
-          theoretical_eta_minutes: etaMins,
+          ...st,
+          distKm,
+          distMeters: distKm * 1000
         };
       });
+
+      // Find highest completed index in database (origin stop 0 is departed when trip is running)
+      let highestCompletedIdx = 0;
+      for (let i = 0; i < stopDistances.length; i++) {
+        if (stopDistances[i].arrival_status === 'COMPLETED') {
+          highestCompletedIdx = Math.max(highestCompletedIdx, i);
+        }
+      }
+
+      // Progress forward sequentially from highestCompletedIdx + 1
+      for (let i = highestCompletedIdx + 1; i < stopDistances.length; i++) {
+        const curr = stopDistances[i];
+        if (i === stopDistances.length - 1) {
+          if (curr.distMeters <= 350) {
+            highestCompletedIdx = Math.max(highestCompletedIdx, i);
+          }
+          break;
+        }
+
+        const next = stopDistances[i + 1];
+        const segDLat = (next.latitude - curr.latitude) * (Math.PI / 180);
+        const segDLng = (next.longitude - curr.longitude) * (Math.PI / 180);
+        const segA =
+          Math.sin(segDLat / 2) * Math.sin(segDLat / 2) +
+          Math.cos(curr.latitude * (Math.PI / 180)) * Math.cos(next.latitude * (Math.PI / 180)) *
+          Math.sin(segDLng / 2) * Math.sin(segDLng / 2);
+        const segDistM = 6371000 * 2 * Math.atan2(Math.sqrt(segA), Math.sqrt(1 - segA));
+
+        const geofencePassed = curr.distMeters <= 400 && next.distMeters < segDistM;
+        const corridorPassed =
+          next.distMeters < curr.distMeters &&
+          curr.distMeters + next.distMeters <= Math.max(segDistM * 1.6, segDistM + 1200);
+
+        if (geofencePassed || corridorPassed) {
+          highestCompletedIdx = Math.max(highestCompletedIdx, i);
+        } else {
+          break;
+        }
+      }
+
+      // Update MySQL database and build stopsStatusMap (monotonic latching: never reverts)
+      for (let i = 0; i < stopDistances.length; i++) {
+        const st = stopDistances[i];
+        let newStatus = st.arrival_status;
+
+        if (i <= highestCompletedIdx) {
+          newStatus = 'COMPLETED';
+          if (st.arrival_status !== 'COMPLETED') {
+            await query(
+              `UPDATE trip_stops SET arrival_status = 'COMPLETED', actual_departure = COALESCE(actual_departure, $1) WHERE trip_id = $2 AND stop_id = $3`,
+              [nowTimeStr, trip_id, st.stop_id]
+            );
+          }
+        } else if (i === highestCompletedIdx + 1 && st.distMeters <= 400) {
+          newStatus = 'ARRIVED';
+          if (st.arrival_status !== 'ARRIVED') {
+            await query(
+              `UPDATE trip_stops SET arrival_status = 'ARRIVED', actual_arrival = COALESCE(actual_arrival, $1) WHERE trip_id = $2 AND stop_id = $3`,
+              [nowTimeStr, trip_id, st.stop_id]
+            );
+          }
+        }
+
+        st.arrival_status = newStatus;
+        stopsStatusMap[st.stop_id] = newStatus;
+
+        if (newStatus !== 'COMPLETED' && newStatus !== 'SKIPPED') {
+          const etaMins = st.distKm <= 0.05 ? 0 : Math.max(1, Math.round((st.distKm / 25) * 60));
+          upcomingStops.push({
+            stop_id: st.stop_id,
+            stop_name: st.stop_name,
+            remaining_road_distance_km: st.distKm,
+            theoretical_eta_minutes: etaMins,
+            arrival_status: newStatus
+          });
+        }
+      }
 
       if (upcomingStops.length > 0) {
         nextStop = upcomingStops[0];
       }
     }
 
-    // Broadcast live telemetry
+    // Broadcast live telemetry with stops status
     const telemetryPayload = {
       shuttle_id,
       trip_id,
@@ -342,6 +420,7 @@ export const submitDriverLocation = async (req: AuthenticatedRequest, res: Respo
       recorded_at: locRes.rows[0].recorded_at,
       current_or_next_stop: nextStop,
       upcoming_stops: upcomingStops,
+      stops_status: stopsStatusMap,
     };
 
     socketEvents.emitLocationUpdate(telemetryPayload);

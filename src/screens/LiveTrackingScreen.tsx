@@ -4,10 +4,12 @@ import { MapView } from '../components/map/MapView';
 import { RouteTimeline } from '../components/tracking/RouteTimeline';
 import { StatusIndicator } from '../components/common/StatusIndicator';
 import { ETA } from '../components/shuttles/ETA';
-import { ArrowLeft, Route as RouteIcon, Radio, User, Gauge, ShieldCheck, Bus, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Route as RouteIcon, Radio, User, Gauge, ShieldCheck, Bus, MapPin } from 'lucide-react';
 import { routeService } from '../services/routeService';
 import * as apiService from '../services/apiService';
 import { calculateEtaBetweenCoords } from '../services/locationService';
+import { computeTripProgression } from '../services/routeProgressTracker';
+import { ShuttleLocation } from '../types/database';
 
 export const LiveTrackingScreen: React.FC = () => {
   const {
@@ -23,23 +25,45 @@ export const LiveTrackingScreen: React.FC = () => {
     shuttleLocations,
     studentLocation,
     selectedStopId,
+    setSelectedStopId,
     etaMap,
     setCurrentScreen,
     navigateToRouteDetails,
     routeCoordinates
   } = useApp();
 
-  const [showAllShuttlesOnMap, setShowAllShuttlesOnMap] = useState<boolean>(true);
+  const [showAllStopsOnMap, setShowAllStopsOnMap] = useState<boolean>(true);
   const [liveTripData, setLiveTripData] = useState<any | null>(null);
+
+  // Filter ONLY currently running trips
+  const runningTrips = useMemo(() => {
+    return trips.filter((t) => t.running_status === 'RUNNING');
+  }, [trips]);
+
+  // Selected running trip (defaults to first running trip)
+  const trip = useMemo(() => {
+    return (
+      runningTrips.find((t) => t.trip_id === selectedTripId) ||
+      runningTrips[0] ||
+      null
+    );
+  }, [runningTrips, selectedTripId]);
+
+  // Ensure selectedTripId stays synced with an active running trip
+  useEffect(() => {
+    if (runningTrips.length > 0 && (!selectedTripId || !runningTrips.some((t) => t.trip_id === selectedTripId))) {
+      setSelectedTripId(runningTrips[0].trip_id);
+    }
+  }, [runningTrips, selectedTripId, setSelectedTripId]);
 
   // Fetch real database-driven live trip details
   useEffect(() => {
     let isMounted = true;
+    if (!trip?.trip_id) return;
 
     const fetchLive = async () => {
-      if (!selectedTripId) return;
       try {
-        const data = await apiService.getLiveTripDetails(selectedTripId);
+        const data = await apiService.getLiveTripDetails(trip.trip_id);
         if (isMounted && data) {
           const tId = data.trip_id || data.trip?.trip_id;
           if (tId) {
@@ -57,17 +81,18 @@ export const LiveTrackingScreen: React.FC = () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [selectedTripId]);
+  }, [trip?.trip_id]);
 
-
-  // Selected trip & shuttle data
-  const trip = trips.find((t) => t.trip_id === selectedTripId) || trips[0];
   const shuttle = trip ? (shuttles.find((s) => s.shuttle_id === trip.shuttle_id) || shuttles[0]) : shuttles[0];
   const route = trip ? (routes.find((r) => r.route_id === trip.route_id) || routes[0]) : routes[0];
   const driver = trip ? (drivers.find((d) => d.driver_id === trip.driver_id) || drivers[0]) : drivers[0];
 
-  // Dynamic ETA for this trip & stop using formula: ETA = Distance / 25 km/h
-  const etaKey = trip ? `${trip.trip_id}_${selectedStopId}` : '';
+  // Find next upcoming stop along route if selectedStopId not chosen
+  const currentTripStops = useMemo(() => {
+    if (!trip) return [];
+    return tripStops.filter((ts) => ts.trip_id === trip.trip_id);
+  }, [trip, tripStops]);
+
   const currentLoc =
     liveTripData?.latest_location ||
     liveTripData?.latestLocation ||
@@ -75,12 +100,55 @@ export const LiveTrackingScreen: React.FC = () => {
       (item) => item.trip_id === trip?.trip_id || item.shuttle_id === shuttle?.shuttle_id
     );
 
-  const targetTripStop = trip ? tripStops.find(
-    (ts) => ts.trip_id === trip.trip_id && ts.stop_id === selectedStopId
-  ) : undefined;
+  // Ordered stops along the active route
+  const orderedRouteStops = useMemo(() => {
+    if (!route) return [];
+    return allRouteStops
+      .filter((rs) => rs.route_id === route.route_id)
+      .sort((a, b) => a.sequence_number - b.sequence_number)
+      .map((rs) => stops.find((s) => s.stop_id === rs.stop_id))
+      .filter((s): s is (typeof stops)[0] => !!s);
+  }, [route, allRouteStops, stops]);
 
-  const targetStop = stops.find((s) => s.stop_id === selectedStopId);
-  const liveStopMeta = liveTripData?.stops?.find((s: any) => s.stop_id === selectedStopId);
+  // Trip progression computed with monotonic latching (no fluctuation, no backwards flips)
+  const progression = useMemo(() => {
+    if (!trip || !route) {
+      return {
+        completedIndices: new Set<number>(),
+        completedStopIds: new Set<string>(),
+        activeApproachingIndex: -1,
+        activeApproachingStopId: undefined,
+        highestCompletedIndex: -1
+      };
+    }
+    return computeTripProgression(
+      trip.trip_id,
+      trip.running_status === 'RUNNING',
+      orderedRouteStops,
+      currentLoc,
+      tripStops
+    );
+  }, [trip, route, orderedRouteStops, currentLoc, tripStops]);
+
+  const effectiveStopId = useMemo(() => {
+    if (selectedStopId && currentTripStops.some((ts) => ts.stop_id === selectedStopId)) {
+      return selectedStopId;
+    }
+    if (progression.activeApproachingStopId) {
+      return progression.activeApproachingStopId;
+    }
+    const nextStop =
+      currentTripStops.find((ts) => ts.arrival_status === 'APPROACHING') ||
+      currentTripStops.find((ts) => ts.arrival_status === 'SCHEDULED') ||
+      currentTripStops[0];
+    return nextStop?.stop_id || stops[0]?.stop_id;
+  }, [selectedStopId, currentTripStops, progression.activeApproachingStopId, stops]);
+
+  const targetTripStop = currentTripStops.find((ts) => ts.stop_id === effectiveStopId);
+  const targetStop = stops.find((s) => s.stop_id === effectiveStopId);
+
+  const etaKey = trip ? `${trip.trip_id}_${effectiveStopId}` : '';
+  const liveStopMeta = liveTripData?.stops?.find((s: any) => s.stop_id === effectiveStopId);
 
   const etaMinutes = useMemo(() => {
     if (targetTripStop?.arrival_status === 'COMPLETED') return 0;
@@ -98,57 +166,97 @@ export const LiveTrackingScreen: React.FC = () => {
     return 0;
   }, [etaKey, etaMap, liveStopMeta, currentLoc, targetStop, targetTripStop]);
 
-  // Formatted active shuttles for the map (renders all moving shuttles when toggle is active)
+  // Formatted active shuttles for the map (renders ONLY running shuttles, exactly like Home page)
   const activeShuttlesForMap = useMemo(() => {
-    if (!trip) return [];
-    const directLiveLoc = liveTripData?.latest_location || liveTripData?.latestLocation;
+    const list: { location: ShuttleLocation; number: string; routeId: string }[] = [];
+    const addedShuttleIds = new Set<string>();
 
-    if (!showAllShuttlesOnMap) {
-      const loc =
-        directLiveLoc ||
-        shuttleLocations.find(
-          (item) => item.trip_id === trip.trip_id || item.shuttle_id === shuttle?.shuttle_id
-        ) ||
-        shuttleLocations[0];
-      if (!loc) return [];
-      return [
-        {
-          location: loc,
-          number: shuttle ? shuttle.shuttle_number : 'SHUTTLE',
-          routeId: route ? route.route_id : 'ROUTE-01'
+    for (const t of runningTrips) {
+      if (addedShuttleIds.has(t.shuttle_id)) continue;
+
+      let loc =
+        (t.trip_id === trip?.trip_id ? (liveTripData?.latest_location || liveTripData?.latestLocation) : null) ||
+        shuttleLocations.find((l) => l.trip_id === t.trip_id || l.shuttle_id === t.shuttle_id);
+
+      if (!loc) {
+        const originRS = allRouteStops
+          .filter((rs) => rs.route_id === t.route_id)
+          .sort((a, b) => a.sequence_number - b.sequence_number)[0];
+        const originStop = originRS ? stops.find((s) => s.stop_id === originRS.stop_id) : stops[0];
+
+        if (originStop) {
+          loc = {
+            shuttle_id: t.shuttle_id,
+            trip_id: t.trip_id,
+            latitude: Number(originStop.latitude),
+            longitude: Number(originStop.longitude),
+            bearing: 0,
+            speed_kmh: 24,
+            progress_percentage: 0,
+            timestamp: new Date().toISOString()
+          };
         }
-      ];
-    }
+      }
 
-    return shuttleLocations
-      .map((loc) => {
-        const s = shuttles.find((item) => item.shuttle_id === loc.shuttle_id) || shuttles[0];
-        const t = trips.find((item) => item.trip_id === loc.trip_id || item.shuttle_id === loc.shuttle_id);
-        if (!s) return null;
-        return {
+      const s = shuttles.find((item) => item.shuttle_id === t.shuttle_id);
+      if (loc && s) {
+        list.push({
           location: loc,
           number: s.shuttle_number,
-          routeId: t ? t.route_id : 'ROUTE-01'
-        };
-      })
-      .filter(Boolean) as { location: (typeof shuttleLocations)[0]; number: string; routeId: string }[];
-  }, [shuttleLocations, trips, shuttles, trip, shuttle, route, showAllShuttlesOnMap, liveTripData]);
-
-  // Stops belonging to this route and active corridors
-  const mapStops = useMemo(() => {
-    if (!route) return stops;
-    if (!showAllShuttlesOnMap) {
-      const sequenceList = routeService.getRouteStopsWithMetadata(route.route_id, allRouteStops, stops, routes);
-      return sequenceList.map((item) => item.stop);
+          routeId: t.route_id
+        });
+        addedShuttleIds.add(t.shuttle_id);
+      }
     }
-    const activeRouteIds = new Set(trips.filter((t) => t.running_status === 'RUNNING').map((t) => t.route_id));
-    activeRouteIds.add(route.route_id);
-    return stops.filter((s) =>
-      allRouteStops.some((rs) => activeRouteIds.has(rs.route_id) && rs.stop_id === s.stop_id)
-    );
-  }, [showAllShuttlesOnMap, route?.route_id, trips, stops, allRouteStops, routes]);
 
-  if (!trip) {
+    return list;
+  }, [runningTrips, trip, liveTripData, shuttleLocations, allRouteStops, stops, shuttles]);
+
+  // Real road pathway coordinates for active route (exactly like Home page)
+  const activeRoutePolyline = useMemo(() => {
+    if (!route) return undefined;
+    const routeId = route.route_id;
+
+    if (routeCoordinates && routeCoordinates[routeId] && routeCoordinates[routeId].length > 0) {
+      return routeCoordinates[routeId];
+    }
+
+    const rCoords = route.route_coordinates;
+    if (rCoords) {
+      if (Array.isArray(rCoords) && rCoords.length > 0) return rCoords;
+      if (typeof rCoords === 'string') {
+        try {
+          const parsed = JSON.parse(rCoords);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch {}
+      }
+    }
+
+    const ordered = allRouteStops
+      .filter((rs) => rs.route_id === routeId)
+      .sort((a, b) => a.sequence_number - b.sequence_number)
+      .map((rs) => {
+        const s = stops.find((st) => st.stop_id === rs.stop_id);
+        return s ? ([Number(s.latitude), Number(s.longitude)] as [number, number]) : null;
+      })
+      .filter(Boolean) as [number, number][];
+
+    return ordered.length > 1 ? ordered : undefined;
+  }, [route, routeCoordinates, allRouteStops, stops]);
+
+  // Stops to render on map (default to all 40 stops across Jaipur, matching Home page)
+  const mapStops = useMemo(() => {
+    if (showAllStopsOnMap || !route) return stops;
+    const currentRouteStops = allRouteStops.filter((rs) => rs.route_id === route.route_id);
+    const stopIdSet = new Set(currentRouteStops.map((rs) => rs.stop_id));
+    if (effectiveStopId) stopIdSet.add(effectiveStopId);
+    return stops.filter((s) => stopIdSet.has(s.stop_id));
+  }, [showAllStopsOnMap, stops, allRouteStops, route, effectiveStopId]);
+
+  // Dynamically determine passed stops for map pin checkmark indicators (latched, monotonic)
+  const completedStopIds = progression.completedStopIds;
+
+  if (!trip || runningTrips.length === 0) {
     return (
       <div className="min-h-full bg-[#FBFBF9] pb-10 select-none">
         <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 pt-8 space-y-6">
@@ -175,7 +283,7 @@ export const LiveTrackingScreen: React.FC = () => {
                 No Trips Currently in Transit
               </h2>
               <p className="text-sm text-stone-500 font-medium">
-                There are currently no active shuttle trips running in the database. When a driver begins their scheduled route or an administrator creates a dispatch, live GPS tracking and arrival ETAs will automatically appear here.
+                There are currently no active shuttle trips running in the database. When an administrator dispatches a trip or a driver begins their route, live tracking will automatically appear here.
               </p>
             </div>
             <div className="pt-2">
@@ -206,7 +314,6 @@ export const LiveTrackingScreen: React.FC = () => {
           </button>
 
           <div className="flex items-center gap-3">
-            {/* View Route Details Button */}
             <button
               onClick={() => navigateToRouteDetails(route.route_id)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-editorial font-bold tracking-wider uppercase bg-white border border-stone-200 hover:border-stone-400 text-stone-700 shadow-subtle transition-all active:scale-95"
@@ -222,18 +329,17 @@ export const LiveTrackingScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* Multi-Shuttle Switcher Bar */}
+        {/* Multi-Shuttle Switcher Bar: ONLY SHOWS RUNNING SHUTTLES */}
         <div className="bg-white p-3 rounded-2xl border border-stone-200/90 shadow-subtle flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-stone-400 pl-1">
               Select Shuttle to Track:
             </span>
             <div className="flex items-center gap-2 flex-wrap">
-              {trips.map((t) => {
+              {runningTrips.map((t) => {
                 const s = shuttles.find((item) => item.shuttle_id === t.shuttle_id);
                 const r = routes.find((item) => item.route_id === t.route_id);
                 const isSelected = t.trip_id === trip.trip_id;
-                const isRunning = t.running_status === 'RUNNING';
 
                 return (
                   <button
@@ -246,19 +352,11 @@ export const LiveTrackingScreen: React.FC = () => {
                         : 'bg-[#FBFBF9] hover:bg-stone-100 text-stone-700 border-stone-200/90'
                     }`}
                   >
-                    <span
-                      className={`w-2 h-2 rounded-full ${
-                        isSelected
-                          ? 'bg-white'
-                          : isRunning
-                          ? 'bg-emerald-500 animate-pulse'
-                          : 'bg-stone-300'
-                      }`}
-                    />
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                     <Bus className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-stone-400'}`} />
                     <span>{s?.shuttle_number || t.shuttle_id}</span>
                     <span
-                      className={`px-1.5 py-0.2 rounded text-[9px] font-mono ${
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-mono ${
                         isSelected
                           ? 'bg-white/20 text-white'
                           : 'bg-stone-200/70 text-stone-600'
@@ -266,63 +364,61 @@ export const LiveTrackingScreen: React.FC = () => {
                     >
                       {r?.route_code || t.route_id}
                     </span>
-                    {!isRunning && (
-                      <span className="text-[9px] font-mono uppercase opacity-70">
-                        (Scheduled)
-                      </span>
-                    )}
+                    <span className={`text-[9px] font-mono uppercase font-bold ${isSelected ? 'text-white/90' : 'text-emerald-600'}`}>
+                      LIVE
+                    </span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Map view mode toggle: Show all shuttles vs Focused shuttle */}
+          {/* Map view mode toggle: All Stops Pinned vs Active Corridor */}
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setShowAllShuttlesOnMap(!showAllShuttlesOnMap)}
+              onClick={() => setShowAllStopsOnMap((prev) => !prev)}
               className={`px-3 py-1.5 rounded-xl text-xs font-mono font-semibold flex items-center gap-1.5 transition-all border ${
-                showAllShuttlesOnMap
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                showAllStopsOnMap
+                  ? 'bg-blue-50 text-[#1E3A68] border-blue-200 shadow-xs'
                   : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
               }`}
-              title="Toggle showing all moving shuttles simultaneously on map"
             >
-              <Radio className={`w-3 h-3 ${showAllShuttlesOnMap ? 'text-emerald-600 animate-pulse' : 'text-stone-400'}`} />
-              <span>{showAllShuttlesOnMap ? 'All Shuttles on Map' : 'Selected Shuttle Only'}</span>
+              <MapPin className="w-3 h-3 text-[#E8590C]" />
+              <span>{showAllStopsOnMap ? `ALL ${stops.length} STOPS PINNED` : 'ACTIVE CORRIDOR STOPS'}</span>
             </button>
           </div>
         </div>
 
         {/* Dual-Column Grid on PC / Stacked on Mobile */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-          {/* Left Column (PC: 7 cols) - Grand Live Interactive Map */}
+          {/* Left Column (PC: 7 cols) - Grand Live Interactive Map (identical clean road rendering as Home page) */}
           <div className="lg:col-span-7 space-y-3">
             <div className="relative">
               <MapView
                 stops={mapStops}
                 studentLocation={studentLocation}
                 activeShuttles={activeShuttlesForMap}
-                highlightRouteId={route.route_id}
+                highlightRouteId={route?.route_id}
                 routeCoordinates={routeCoordinates}
-                activeRoutePolyline={liveTripData?.route_coordinates || route?.route_coordinates || (routeCoordinates && routeCoordinates[route.route_id])}
+                activeRoutePolyline={activeRoutePolyline}
                 selectedStopId={selectedStopId}
-                onSelectShuttle={(tripId) => setSelectedTripId(tripId)}
+                onSelectShuttle={(shuttleTripId) => setSelectedTripId(shuttleTripId)}
+                onSelectStop={(stopId) => setSelectedStopId(stopId)}
                 heightClass="h-[55vh] lg:h-[620px]"
                 interactive={true}
               />
             </div>
 
             <div className="hidden lg:flex items-center justify-between text-xs font-mono text-stone-500 px-2">
-              <span>● Tap any shuttle marker on map or bar above to focus telemetry</span>
+              <span>â— Tap any stop pin or vehicle marker to inspect connectivity</span>
               <span className="text-[#E8590C] font-bold">
-                {liveTripData?.latest_location ? 'LIVE DATABASE TELEMETRY' : 'AWAITING DISPATCH'}
+                TRACKING {shuttle.shuttle_number} ({route.route_code})
               </span>
             </div>
           </div>
 
-          {/* Right Column (PC: 5 cols) - Telemetry & Route Timeline (Visible directly on PC) */}
+          {/* Right Column (PC: 5 cols) - Telemetry & Route Timeline */}
           <div className="lg:col-span-5 space-y-5">
             {/* Telemetry Card */}
             <div className="p-5 rounded-3xl bg-white border border-stone-200 shadow-subtle space-y-4">
@@ -338,7 +434,7 @@ export const LiveTrackingScreen: React.FC = () => {
                     </span>
                   </div>
                   <p className="text-xs text-stone-600 font-medium uppercase tracking-wide mt-0.5">
-                    {trip.running_status === 'RUNNING' ? 'LIVE TRANSIT CORRIDOR' : `STATUS: ${trip.running_status}`}
+                    LIVE TRANSIT CORRIDOR • {route.route_name}
                   </p>
                   <div className="mt-2.5 flex items-center gap-2.5">
                     <StatusIndicator status={trip.capacity_status} size="lg" />
@@ -349,21 +445,21 @@ export const LiveTrackingScreen: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Dominant Large ETA */}
+                {/* Dominant Large ETA calculated uniformly at 25 km/h */}
                 <div className="text-right">
                   <span className="text-[10px] font-editorial font-bold tracking-widest text-stone-400 uppercase block">
-                    THEORETICAL ETA (25 KM/H)
+                    ETA TO {selectedStopId ? (targetStop?.stop_name ? targetStop.stop_name.replace(' (ORIGIN)', '').replace(' (TERMINUS)', '') + ' (YOUR STOP)' : 'YOUR STOP') : (targetStop?.stop_name ? targetStop.stop_name.replace(' (ORIGIN)', '').replace(' (TERMINUS)', '') + ' (NEXT STOP)' : 'NEXT STOP')} (25 KM/H)
                   </span>
                   <ETA
                     minutes={
-                      liveTripData?.stops?.find((s: any) => s.stop_id === selectedStopId)?.theoretical_eta_minutes ??
+                      liveTripData?.stops?.find((s: any) => s.stop_id === effectiveStopId)?.theoretical_eta_minutes ??
                       etaMinutes
                     }
                     size="hero"
                   />
-                  {liveTripData?.stops?.find((s: any) => s.stop_id === selectedStopId)?.remaining_road_distance_km !== undefined && (
+                  {liveTripData?.stops?.find((s: any) => s.stop_id === effectiveStopId)?.remaining_road_distance_km !== undefined && (
                     <span className="text-[10px] font-mono text-stone-400 block mt-0.5">
-                      {liveTripData.stops.find((s: any) => s.stop_id === selectedStopId).remaining_road_distance_km} km road distance
+                      {liveTripData.stops.find((s: any) => s.stop_id === effectiveStopId).remaining_road_distance_km} km road distance
                     </span>
                   )}
                 </div>
@@ -398,16 +494,15 @@ export const LiveTrackingScreen: React.FC = () => {
                 </div>
               )}
 
-
               {/* Timing info row */}
               <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200/80 flex items-center justify-between text-xs font-mono">
                 <div>
                   <span className="text-stone-400 block text-[10px]">ESTIMATED ARRIVAL</span>
-                  <span className="font-bold text-[#121316] text-sm">{targetTripStop?.estimated_arrival || '10:35 AM'}</span>
+                  <span className="font-bold text-[#121316] text-sm">{targetTripStop?.estimated_arrival || 'En Route'}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-stone-400 block text-[10px]">SCHEDULED TIME</span>
-                  <span className="text-stone-600 text-sm">{targetTripStop?.scheduled_arrival || '10:30 AM'}</span>
+                  <span className="text-stone-600 text-sm">{targetTripStop?.scheduled_arrival || trip.start_time}</span>
                 </div>
               </div>
 
@@ -441,14 +536,17 @@ export const LiveTrackingScreen: React.FC = () => {
               </div>
             </div>
 
-            {/* Complete Vertical Route Timeline (visible in right panel on PC) */}
+            {/* Complete Vertical Route Timeline */}
             <div className="p-5 rounded-3xl bg-white border border-stone-200 shadow-subtle">
               <RouteTimeline
                 route={route}
                 trip={trip}
                 tripStops={tripStops}
                 selectedStopId={selectedStopId}
-                etaMinutes={etaMinutes}
+                etaMinutes={
+                  liveTripData?.stops?.find((s: any) => s.stop_id === effectiveStopId)?.theoretical_eta_minutes ??
+                  etaMinutes
+                }
               />
             </div>
           </div>

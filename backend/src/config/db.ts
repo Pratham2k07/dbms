@@ -154,7 +154,8 @@ const mysqlConfig = process.env.MYSQL_URL || (process.env.DATABASE_URL?.startsWi
   database: mysqlDatabase,
   waitForConnections: true,
   connectionLimit: 20,
-  decimalNumbers: true
+  decimalNumbers: true,
+  charset: 'utf8mb4'
 };
 
 const rawPool = mysql.createPool(mysqlConfig as any);

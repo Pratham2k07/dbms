@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+﻿import { Request, Response } from 'express';
 import { query, pool } from '../config/db.js';
 import { socketEvents } from '../services/socket.service.js';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
@@ -91,7 +91,85 @@ export const getLiveTripDetails = async (req: Request, res: Response): Promise<v
     const latestLocation = locRes.rows[0] || null;
     let stopsWithEta = stopsRes.rows;
 
-    if (latestLocation && latestLocation.latitude && latestLocation.longitude) {
+    if (latestLocation && latestLocation.latitude && latestLocation.longitude && trip.running_status === 'RUNNING') {
+      const lat1 = Number(latestLocation.latitude);
+      const lon1 = Number(latestLocation.longitude);
+      const nowTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      // Calculate sequential progress along route
+      const stopDistances = stopsRes.rows.map((st: any) => {
+        const dLat = ((Number(st.latitude) - lat1) * Math.PI) / 180;
+        const dLon = ((Number(st.longitude) - lon1) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((lat1 * Math.PI) / 180) * Math.cos((Number(st.latitude) * Math.PI) / 180) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distKm = parseFloat((6371 * c).toFixed(2));
+        return { ...st, distKm, distMeters: distKm * 1000 };
+      });
+
+      let highestCompleted = 0; // Origin stop (index 0) departed
+      for (let i = 0; i < stopDistances.length; i++) {
+        if (stopDistances[i].arrival_status === 'COMPLETED') {
+          highestCompleted = Math.max(highestCompleted, i);
+        }
+      }
+
+      for (let i = highestCompleted + 1; i < stopDistances.length; i++) {
+        const curr = stopDistances[i];
+        if (i === stopDistances.length - 1) {
+          if (curr.distMeters <= 350) highestCompleted = Math.max(highestCompleted, i);
+          break;
+        }
+        const next = stopDistances[i + 1];
+        const segDLat = ((Number(next.latitude) - Number(curr.latitude)) * Math.PI) / 180;
+        const segDLon = ((Number(next.longitude) - Number(curr.longitude)) * Math.PI) / 180;
+        const segA =
+          Math.sin(segDLat / 2) * Math.sin(segDLat / 2) +
+          Math.cos((Number(curr.latitude) * Math.PI) / 180) * Math.cos((Number(next.latitude) * Math.PI) / 180) *
+          Math.sin(segDLon / 2) * Math.sin(segDLon / 2);
+        const segDistM = 6371000 * 2 * Math.atan2(Math.sqrt(segA), Math.sqrt(1 - segA));
+
+        const geofencePassed = curr.distMeters <= 400 && next.distMeters < segDistM;
+        const corridorPassed =
+          next.distMeters < curr.distMeters &&
+          curr.distMeters + next.distMeters <= Math.max(segDistM * 1.6, segDistM + 1200);
+
+        if (geofencePassed || corridorPassed) {
+          highestCompleted = Math.max(highestCompleted, i);
+        } else {
+          break;
+        }
+      }
+
+      // Commit completed statuses to MySQL
+      for (let i = 0; i <= highestCompleted; i++) {
+        const st = stopDistances[i];
+        if (st.arrival_status !== 'COMPLETED') {
+          st.arrival_status = 'COMPLETED';
+          await query(
+            `UPDATE trip_stops SET arrival_status = 'COMPLETED', actual_departure = COALESCE(actual_departure, $1) WHERE trip_id = $2 AND stop_id = $3`,
+            [nowTimeStr, id, st.stop_id]
+          );
+        }
+      }
+
+      stopsWithEta = stopDistances.map((st: any, idx: number) => {
+        let status = st.arrival_status;
+        if (idx <= highestCompleted) status = 'COMPLETED';
+        else if (idx === highestCompleted + 1 && st.distMeters <= 400) status = 'ARRIVED';
+
+        const etaMins = st.distKm <= 0.05 ? 0 : Math.max(1, Math.round((st.distKm / 25) * 60));
+        return {
+          ...st,
+          arrival_status: status,
+          remaining_road_distance_km: st.distKm,
+          theoretical_eta_minutes: etaMins,
+          eta_minutes: etaMins,
+        };
+      });
+    } else if (latestLocation && latestLocation.latitude && latestLocation.longitude) {
       const lat1 = Number(latestLocation.latitude);
       const lon1 = Number(latestLocation.longitude);
 
@@ -106,7 +184,6 @@ export const getLiveTripDetails = async (req: Request, res: Response): Promise<v
           Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const distKm = parseFloat((6371 * c).toFixed(2));
-        // ETA formula: Distance (km) / 25 km/h * 60 minutes
         const etaMins = distKm <= 0.05 ? 0 : Math.max(1, Math.round((distKm / 25) * 60));
 
         return {

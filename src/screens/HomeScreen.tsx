@@ -5,6 +5,7 @@ import { NearbyStopList } from '../components/stops/NearbyStopList';
 import { locationService } from '../services/locationService';
 import { stopService } from '../services/stopService';
 import { MapPin, Compass, Bus, RefreshCw } from 'lucide-react';
+import { ShuttleLocation } from '../types/database';
 
 export const HomeScreen: React.FC = () => {
   const {
@@ -24,6 +25,8 @@ export const HomeScreen: React.FC = () => {
     navigateToLiveTracking,
     selectedStopId,
     setSelectedStopId,
+    selectedTripId,
+    setSelectedTripId,
     routeCoordinates
   } = useApp();
 
@@ -43,13 +46,28 @@ export const HomeScreen: React.FC = () => {
     return running ? running.shuttle_id : (shuttles[0]?.shuttle_id || 'SHT-01');
   });
 
-  // Automatically switch focus to newly running shuttle when a trip is dispatched
+  // Automatically switch focus to newly running shuttle when a trip is dispatched, and keep in sync with selectedTripId
   React.useEffect(() => {
+    if (selectedTripId) {
+      const tr = trips.find((t) => t.trip_id === selectedTripId);
+      if (tr && tr.shuttle_id && tr.shuttle_id !== selectedShuttleId) {
+        setSelectedShuttleId(tr.shuttle_id);
+        return;
+      }
+    }
     const running = trips.find((t) => t.running_status === 'RUNNING');
     if (running && (!selectedShuttleId || !trips.some(t => t.shuttle_id === selectedShuttleId && t.running_status === 'RUNNING'))) {
       setSelectedShuttleId(running.shuttle_id);
     }
-  }, [trips, selectedShuttleId]);
+  }, [trips, selectedTripId, selectedShuttleId]);
+
+  const handleSelectShuttle = (shuttleId: string) => {
+    setSelectedShuttleId(shuttleId);
+    const rt = runningTrips.find((t) => t.shuttle_id === shuttleId) || trips.find((t) => t.shuttle_id === shuttleId);
+    if (rt) {
+      setSelectedTripId(rt.trip_id);
+    }
+  };
 
   // Toggle to view all 40 stops across Jaipur vs only the active corridor
   const [showAllStopsOnMap, setShowAllStopsOnMap] = useState<boolean>(true);
@@ -131,30 +149,73 @@ export const HomeScreen: React.FC = () => {
     return ordered.length > 1 ? ordered : undefined;
   }, [activeRouteForSelectedShuttle, routeCoordinates, routeStops, stops]);
 
-  // 4. Format active shuttle for map rendering - STRICTLY 1 SHUTTLE AT A TIME
+    // 4. Format all active shuttles for map rendering
   const activeShuttlesForMap = useMemo(() => {
-    const isSelectedRunning = runningTrips.some((t) => t.shuttle_id === selectedShuttleId);
-    const loc = shuttleLocations.find(
-      (l) =>
-        l.shuttle_id === selectedShuttleId ||
-        (activeTripForSelectedShuttle && activeTripForSelectedShuttle.running_status === 'RUNNING' && l.trip_id === activeTripForSelectedShuttle.trip_id)
-    );
+    const list: { location: ShuttleLocation; number: string; routeId: string }[] = [];
+    const addedShuttleIds = new Set<string>();
 
-    if (!loc || (!isSelectedRunning && runningTrips.length === 0 && (!loc.speed_kmh || loc.speed_kmh === 0))) {
-      return [];
+    // A. Include every shuttle with an active RUNNING trip
+    if (runningTrips.length > 0) {
+      for (const trip of runningTrips) {
+        if (addedShuttleIds.has(trip.shuttle_id)) continue;
+
+        let loc = shuttleLocations.find(
+          (l) => l.trip_id === trip.trip_id || l.shuttle_id === trip.shuttle_id
+        );
+
+        if (!loc) {
+          // Fallback to origin stop of this route so shuttle immediately appears on map
+          const originRS = routeStops
+            .filter((rs) => rs.route_id === trip.route_id)
+            .sort((a, b) => a.sequence_number - b.sequence_number)[0];
+          const originStop = originRS ? stops.find((s) => s.stop_id === originRS.stop_id) : stops[0];
+
+          if (originStop) {
+            loc = {
+              shuttle_id: trip.shuttle_id,
+              trip_id: trip.trip_id,
+              latitude: Number(originStop.latitude),
+              longitude: Number(originStop.longitude),
+              bearing: 0,
+              speed_kmh: 24,
+              progress_percentage: 0,
+              timestamp: new Date().toISOString()
+            };
+          }
+        }
+
+        const shuttle = shuttles.find((s) => s.shuttle_id === trip.shuttle_id);
+        if (loc && shuttle) {
+          list.push({
+            location: loc,
+            number: shuttle.shuttle_number,
+            routeId: trip.route_id
+          });
+          addedShuttleIds.add(trip.shuttle_id);
+        }
+      }
     }
 
-    const shuttle = shuttles.find((s) => s.shuttle_id === loc.shuttle_id || s.shuttle_id === selectedShuttleId) || shuttles[0];
-    if (!shuttle) return [];
-
-    return [
-      {
-        location: loc,
-        number: shuttle.shuttle_number,
-        routeId: activeTripForSelectedShuttle ? activeTripForSelectedShuttle.route_id : 'ROUTE-01'
+    // B. If no trips are running, but the selected shuttle has recent telemetry or location, show it
+    if (list.length === 0 && selectedShuttleId) {
+      const loc = shuttleLocations.find((l) => l.shuttle_id === selectedShuttleId);
+      const shuttle = shuttles.find((s) => s.shuttle_id === selectedShuttleId);
+      if (loc && shuttle) {
+        list.push({
+          location: loc,
+          number: shuttle.shuttle_number,
+          routeId: activeTripForSelectedShuttle?.route_id || 'ROUTE-01'
+        });
       }
-    ];
-  }, [shuttleLocations, selectedShuttleId, activeTripForSelectedShuttle, shuttles, runningTrips]);
+    }
+
+    return list;
+  }, [runningTrips, shuttleLocations, routeStops, stops, shuttles, selectedShuttleId, activeTripForSelectedShuttle]);
+
+  // Overall active fleet count across Jaipur
+  const activeFleetCount = useMemo(() => {
+    return Math.max(runningTrips.length, activeShuttlesForMap.length);
+  }, [runningTrips.length, activeShuttlesForMap.length]);
 
   // 5. Stops to render on map: default to all 40 stops across Jaipur and JKLU
   const stopsForMap = useMemo(() => {
@@ -199,7 +260,7 @@ export const HomeScreen: React.FC = () => {
               </div>
               <div>
                 <span className="text-[10px] font-mono font-bold text-stone-400 uppercase block">ACTIVE FLEET</span>
-                <span className="font-editorial font-bold text-sm text-[#121316]">{activeShuttlesForMap.length} Shuttles Running</span>
+                <span className="font-editorial font-bold text-sm text-[#121316]">{activeFleetCount} {activeFleetCount === 1 ? 'Shuttle' : 'Shuttles'} Running</span>
               </div>
             </div>
 
@@ -282,7 +343,7 @@ export const HomeScreen: React.FC = () => {
                         <button
                           key={sht.shuttle_id}
                           type="button"
-                          onClick={() => setSelectedShuttleId(sht.shuttle_id)}
+                          onClick={() => handleSelectShuttle(sht.shuttle_id)}
                           className={`px-3 py-1 rounded-xl text-xs font-editorial font-bold flex items-center gap-1.5 transition-all ${
                             isSelected
                               ? 'bg-[#E8590C] text-white shadow-sm ring-2 ring-[#E8590C]/25'
@@ -319,10 +380,10 @@ export const HomeScreen: React.FC = () => {
                     <span>{showAllStopsOnMap ? `ALL ${stops.length} STOPS PINNED` : 'ACTIVE CORRIDOR STOPS'}</span>
                   </button>
 
-                  {activeShuttlesForMap.length > 0 ? (
+                  {activeFleetCount > 0 ? (
                     <div className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200/70 font-semibold flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                      <span>{activeShuttlesForMap.length} ACTIVE SHUTTLE IN TRANSIT</span>
+                      <span>{activeFleetCount} ACTIVE {activeFleetCount === 1 ? 'SHUTTLE' : 'SHUTTLES'} IN TRANSIT</span>
                     </div>
                   ) : (
                     <div className="text-[11px] font-mono text-stone-500 bg-stone-100 px-2.5 py-1 rounded-full border border-stone-200 font-semibold flex items-center gap-1.5">
@@ -355,7 +416,7 @@ export const HomeScreen: React.FC = () => {
               <div className="flex items-center justify-between text-[11px] font-mono text-stone-500 px-1 pt-0.5">
                 <span>● Tap stop pin to inspect vicinity & transit connectivity</span>
                 <span className="text-stone-700 font-medium">
-                  {activeShuttlesForMap.length > 0 ? (
+                  {activeFleetCount > 0 ? (
                     <>
                       Tracking: <strong className="text-[#E8590C]">{shuttles.find((s) => s.shuttle_id === selectedShuttleId)?.shuttle_number || 'SHUTTLE'}</strong> ({activeRouteForSelectedShuttle?.route_code || 'Active Corridor'})
                     </>

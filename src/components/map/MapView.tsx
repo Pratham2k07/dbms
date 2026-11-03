@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Stop, ShuttleLocation } from '../../types/database';
@@ -14,6 +14,7 @@ interface MapViewProps {
   routes?: { route_id: string; route_name: string; route_code?: string; color?: string }[];
   activeRoutePolyline?: [number, number][];
   selectedStopId?: string;
+  completedStopIds?: Set<string> | string[];
   destinationCoords?: { latitude: number; longitude: number; name?: string };
   onSelectStop?: (stopId: string) => void;
   onSelectShuttle?: (tripId: string) => void;
@@ -50,6 +51,7 @@ export const MapView: React.FC<MapViewProps> = ({
   routes,
   activeRoutePolyline,
   selectedStopId,
+  completedStopIds,
   destinationCoords,
   onSelectStop,
   onSelectShuttle,
@@ -263,6 +265,7 @@ export const MapView: React.FC<MapViewProps> = ({
         lng += 0.0003 * duplicateCount;
       }
 
+      const isPassed = completedStopIds instanceof Set ? completedStopIds.has(stop.stop_id) : Array.isArray(completedStopIds) ? (completedStopIds as string[]).includes(stop.stop_id) : false;
       const isSelected = stop.stop_id === selectedStopId;
       const isOrigin = stop.stop_name.includes('ORIGIN') || stop.stop_name.includes('CAMPUS');
       const isTerminus = Boolean(stop.is_destination) || stop.stop_name.includes('TERMINUS');
@@ -478,7 +481,8 @@ export const MapView: React.FC<MapViewProps> = ({
         if (onSelectShuttle) onSelectShuttle(shuttle.location.trip_id);
       });
     });
-  }, [stops, studentLocation, activeShuttles, selectedStopId, destinationCoords, currentZoom]);
+  }, [stops, studentLocation, activeShuttles, selectedStopId,
+  completedStopIds, destinationCoords, currentZoom]);
 
   // Zoom controls
   const handleZoomIn = () => {

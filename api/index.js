@@ -131,7 +131,8 @@ var mysqlConfig = process.env.MYSQL_URL || (process.env.DATABASE_URL?.startsWith
   database: mysqlDatabase,
   waitForConnections: true,
   connectionLimit: 20,
-  decimalNumbers: true
+  decimalNumbers: true,
+  charset: "utf8mb4"
 };
 var rawPool = mysql.createPool(mysqlConfig);
 console.log(`[Database] Connected to MySQL Server on ${mysqlHost}:${mysqlPort}/${mysqlDatabase}`);
@@ -1305,7 +1306,67 @@ var getLiveTripDetails = async (req, res) => {
     );
     const latestLocation = locRes.rows[0] || null;
     let stopsWithEta = stopsRes.rows;
-    if (latestLocation && latestLocation.latitude && latestLocation.longitude) {
+    if (latestLocation && latestLocation.latitude && latestLocation.longitude && trip.running_status === "RUNNING") {
+      const lat1 = Number(latestLocation.latitude);
+      const lon1 = Number(latestLocation.longitude);
+      const nowTimeStr = (/* @__PURE__ */ new Date()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const stopDistances = stopsRes.rows.map((st) => {
+        const dLat = (Number(st.latitude) - lat1) * Math.PI / 180;
+        const dLon = (Number(st.longitude) - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(Number(st.latitude) * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distKm = parseFloat((6371 * c).toFixed(2));
+        return { ...st, distKm, distMeters: distKm * 1e3 };
+      });
+      let highestCompleted = 0;
+      for (let i = 0; i < stopDistances.length; i++) {
+        if (stopDistances[i].arrival_status === "COMPLETED") {
+          highestCompleted = Math.max(highestCompleted, i);
+        }
+      }
+      for (let i = highestCompleted + 1; i < stopDistances.length; i++) {
+        const curr = stopDistances[i];
+        if (i === stopDistances.length - 1) {
+          if (curr.distMeters <= 350) highestCompleted = Math.max(highestCompleted, i);
+          break;
+        }
+        const next = stopDistances[i + 1];
+        const segDLat = (Number(next.latitude) - Number(curr.latitude)) * Math.PI / 180;
+        const segDLon = (Number(next.longitude) - Number(curr.longitude)) * Math.PI / 180;
+        const segA = Math.sin(segDLat / 2) * Math.sin(segDLat / 2) + Math.cos(Number(curr.latitude) * Math.PI / 180) * Math.cos(Number(next.latitude) * Math.PI / 180) * Math.sin(segDLon / 2) * Math.sin(segDLon / 2);
+        const segDistM = 6371e3 * 2 * Math.atan2(Math.sqrt(segA), Math.sqrt(1 - segA));
+        const geofencePassed = curr.distMeters <= 400 && next.distMeters < segDistM;
+        const corridorPassed = next.distMeters < curr.distMeters && curr.distMeters + next.distMeters <= Math.max(segDistM * 1.6, segDistM + 1200);
+        if (geofencePassed || corridorPassed) {
+          highestCompleted = Math.max(highestCompleted, i);
+        } else {
+          break;
+        }
+      }
+      for (let i = 0; i <= highestCompleted; i++) {
+        const st = stopDistances[i];
+        if (st.arrival_status !== "COMPLETED") {
+          st.arrival_status = "COMPLETED";
+          await query(
+            `UPDATE trip_stops SET arrival_status = 'COMPLETED', actual_departure = COALESCE(actual_departure, $1) WHERE trip_id = $2 AND stop_id = $3`,
+            [nowTimeStr, id, st.stop_id]
+          );
+        }
+      }
+      stopsWithEta = stopDistances.map((st, idx) => {
+        let status = st.arrival_status;
+        if (idx <= highestCompleted) status = "COMPLETED";
+        else if (idx === highestCompleted + 1 && st.distMeters <= 400) status = "ARRIVED";
+        const etaMins = st.distKm <= 0.05 ? 0 : Math.max(1, Math.round(st.distKm / 25 * 60));
+        return {
+          ...st,
+          arrival_status: status,
+          remaining_road_distance_km: st.distKm,
+          theoretical_eta_minutes: etaMins,
+          eta_minutes: etaMins
+        };
+      });
+    } else if (latestLocation && latestLocation.latitude && latestLocation.longitude) {
       const lat1 = Number(latestLocation.latitude);
       const lon1 = Number(latestLocation.longitude);
       stopsWithEta = stopsRes.rows.map((st) => {
@@ -1983,30 +2044,91 @@ var submitDriverLocation = async (req, res) => {
     }
     let upcomingStops = [];
     let nextStop = null;
+    const stopsStatusMap = {};
     if (trip_id) {
-      const stopsRes = await query(
-        `SELECT s.stop_id, s.stop_name, s.latitude, s.longitude, ts.arrival_status
+      const allStopsRes = await query(
+        `SELECT s.stop_id, s.stop_name, s.latitude, s.longitude, ts.arrival_status, rs.sequence_number
          FROM trip_stops ts
          JOIN stops s ON ts.stop_id = s.stop_id
-         WHERE ts.trip_id = $1 AND ts.arrival_status NOT IN ('COMPLETED', 'SKIPPED')
-         ORDER BY ts.arrival_status = 'APPROACHING' DESC, ts.trip_stop_id ASC
-         LIMIT 5`,
+         JOIN trips t ON ts.trip_id = t.trip_id
+         LEFT JOIN route_stops rs ON rs.route_id = t.route_id AND rs.stop_id = s.stop_id
+         WHERE ts.trip_id = $1
+         ORDER BY COALESCE(rs.sequence_number, 999) ASC`,
         [trip_id]
       );
-      upcomingStops = stopsRes.rows.map((st) => {
+      const nowTimeStr = (/* @__PURE__ */ new Date()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const stopDistances = allStopsRes.rows.map((st) => {
         const dLat = (st.latitude - lat) * (Math.PI / 180);
         const dLng = (st.longitude - lng) * (Math.PI / 180);
         const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat * (Math.PI / 180)) * Math.cos(st.latitude * (Math.PI / 180)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const distKm = parseFloat((6371 * c).toFixed(1));
-        const etaMins = distKm <= 0.05 ? 0 : Math.max(1, Math.round(distKm / 25 * 60));
+        const distKm = parseFloat((6371 * c).toFixed(2));
         return {
-          stop_id: st.stop_id,
-          stop_name: st.stop_name,
-          remaining_road_distance_km: distKm,
-          theoretical_eta_minutes: etaMins
+          ...st,
+          distKm,
+          distMeters: distKm * 1e3
         };
       });
+      let highestCompletedIdx = 0;
+      for (let i = 0; i < stopDistances.length; i++) {
+        if (stopDistances[i].arrival_status === "COMPLETED") {
+          highestCompletedIdx = Math.max(highestCompletedIdx, i);
+        }
+      }
+      for (let i = highestCompletedIdx + 1; i < stopDistances.length; i++) {
+        const curr = stopDistances[i];
+        if (i === stopDistances.length - 1) {
+          if (curr.distMeters <= 350) {
+            highestCompletedIdx = Math.max(highestCompletedIdx, i);
+          }
+          break;
+        }
+        const next = stopDistances[i + 1];
+        const segDLat = (next.latitude - curr.latitude) * (Math.PI / 180);
+        const segDLng = (next.longitude - curr.longitude) * (Math.PI / 180);
+        const segA = Math.sin(segDLat / 2) * Math.sin(segDLat / 2) + Math.cos(curr.latitude * (Math.PI / 180)) * Math.cos(next.latitude * (Math.PI / 180)) * Math.sin(segDLng / 2) * Math.sin(segDLng / 2);
+        const segDistM = 6371e3 * 2 * Math.atan2(Math.sqrt(segA), Math.sqrt(1 - segA));
+        const geofencePassed = curr.distMeters <= 400 && next.distMeters < segDistM;
+        const corridorPassed = next.distMeters < curr.distMeters && curr.distMeters + next.distMeters <= Math.max(segDistM * 1.6, segDistM + 1200);
+        if (geofencePassed || corridorPassed) {
+          highestCompletedIdx = Math.max(highestCompletedIdx, i);
+        } else {
+          break;
+        }
+      }
+      for (let i = 0; i < stopDistances.length; i++) {
+        const st = stopDistances[i];
+        let newStatus = st.arrival_status;
+        if (i <= highestCompletedIdx) {
+          newStatus = "COMPLETED";
+          if (st.arrival_status !== "COMPLETED") {
+            await query(
+              `UPDATE trip_stops SET arrival_status = 'COMPLETED', actual_departure = COALESCE(actual_departure, $1) WHERE trip_id = $2 AND stop_id = $3`,
+              [nowTimeStr, trip_id, st.stop_id]
+            );
+          }
+        } else if (i === highestCompletedIdx + 1 && st.distMeters <= 400) {
+          newStatus = "ARRIVED";
+          if (st.arrival_status !== "ARRIVED") {
+            await query(
+              `UPDATE trip_stops SET arrival_status = 'ARRIVED', actual_arrival = COALESCE(actual_arrival, $1) WHERE trip_id = $2 AND stop_id = $3`,
+              [nowTimeStr, trip_id, st.stop_id]
+            );
+          }
+        }
+        st.arrival_status = newStatus;
+        stopsStatusMap[st.stop_id] = newStatus;
+        if (newStatus !== "COMPLETED" && newStatus !== "SKIPPED") {
+          const etaMins = st.distKm <= 0.05 ? 0 : Math.max(1, Math.round(st.distKm / 25 * 60));
+          upcomingStops.push({
+            stop_id: st.stop_id,
+            stop_name: st.stop_name,
+            remaining_road_distance_km: st.distKm,
+            theoretical_eta_minutes: etaMins,
+            arrival_status: newStatus
+          });
+        }
+      }
       if (upcomingStops.length > 0) {
         nextStop = upcomingStops[0];
       }
@@ -2021,7 +2143,8 @@ var submitDriverLocation = async (req, res) => {
       accuracy_m: accuracy_m ? parseFloat(accuracy_m) : void 0,
       recorded_at: locRes.rows[0].recorded_at,
       current_or_next_stop: nextStop,
-      upcoming_stops: upcomingStops
+      upcoming_stops: upcomingStops,
+      stops_status: stopsStatusMap
     };
     socketEvents.emitLocationUpdate(telemetryPayload);
     res.json({

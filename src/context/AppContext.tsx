@@ -408,6 +408,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return next;
         });
       }
+
+      // Update stop arrival & completion statuses dynamically from live telemetry
+      if (data.trip_id && data.stops_status && typeof data.stops_status === "object") {
+        setTripStops((prev) =>
+          prev.map((ts) => {
+            if (ts.trip_id === data.trip_id && data.stops_status[ts.stop_id]) {
+              return { ...ts, arrival_status: data.stops_status[ts.stop_id] };
+            }
+            return ts;
+          })
+        );
+      }
     });
 
     socketService.onTripCreated((data: any) => {
