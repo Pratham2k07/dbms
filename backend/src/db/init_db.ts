@@ -12,16 +12,24 @@ const mysqlPassword = process.env.MYSQL_PASSWORD || '123456';
 const mysqlDatabase = process.env.MYSQL_DATABASE || 'jklu_shuttle_db';
 
 async function runInit() {
+  const defaultSockets = [
+    process.env.MYSQL_SOCKET,
+    '/var/lib/mysql/mysql.sock',
+    '/var/run/mysqld/mysqld.sock',
+    '/tmp/mysql.sock'
+  ].filter((p): p is string => Boolean(p && fs.existsSync(p)));
+
+  const detectedSocket = defaultSockets.length > 0 ? defaultSockets[0] : undefined;
+
   const connection = await mysql.createConnection({
-    host: mysqlHost,
-    port: mysqlPort,
+    ...(detectedSocket ? { socketPath: detectedSocket } : { host: mysqlHost, port: mysqlPort }),
     user: mysqlUser,
     password: mysqlPassword,
     multipleStatements: true,
   });
 
   try {
-    console.log(`Connected to MySQL on ${mysqlHost}:${mysqlPort}.`);
+    console.log(`Connected to MySQL (${detectedSocket ? `Socket: ${detectedSocket}` : `${mysqlHost}:${mysqlPort}`}).`);
     const schemaPath = path.join(__dirname, 'schema_mysql.sql');
     const sql = fs.readFileSync(schemaPath, 'utf8');
 

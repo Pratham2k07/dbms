@@ -36,9 +36,17 @@ export const createDriver = async (req: Request, res: Response): Promise<void> =
 
     await client.query('BEGIN');
 
-    const countRes = await client.query('SELECT COUNT(*) FROM drivers');
-    const nextNum = 101 + parseInt(countRes.rows[0].count, 10);
-    const driverId = `DRV-${nextNum}`;
+    const lastUserRes = await client.query(
+      "SELECT user_id FROM users WHERE user_id REGEXP '^USR-[0-9]+$' ORDER BY CAST(SUBSTRING(user_id, 5) AS UNSIGNED) DESC LIMIT 1"
+    );
+    let nextNum = 1;
+    if (lastUserRes.rows.length > 0) {
+      const parsed = parseInt(lastUserRes.rows[0].user_id.replace('USR-', ''), 10);
+      if (!isNaN(parsed)) {
+        nextNum = parsed + 1;
+      }
+    }
+    const driverId = `USR-${String(nextNum).padStart(3, '0')}`;
 
     const cleanEmail =
       email ? email.trim().toLowerCase() : `${name.toLowerCase().replace(/\s+/g, '.')}.driver@jklu.edu.in`;
@@ -192,7 +200,7 @@ export const getDriverAssignedTrip = async (req: AuthenticatedRequest, res: Resp
       driverId = String(req.query.driver_id);
     }
     if (!driverId) {
-      driverId = 'DRV-101';
+      driverId = 'USR-002';
     }
 
     // Look for running trip first, then scheduled trip
@@ -227,12 +235,12 @@ export const getDriverAssignedTrip = async (req: AuthenticatedRequest, res: Resp
 export const startShift = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { shuttleId } = req.body;
-    const driverId = req.user?.user_id || 'DRV-101';
+    const driverId = req.user?.user_id || 'USR-002';
 
     const asgId = `ASG-${Date.now().toString(36).toUpperCase()}`;
     await query(
       `INSERT INTO driver_assignments (assignment_id, driver_id, route_id, shuttle_id, shift_date, shift_type, status)
-       VALUES ($1, $2, 'ROUTE-01', $3, 'Today', 'Manual Shift Start', 'ACTIVE')`,
+       VALUES ($1, $2, 'R-01', $3, 'Today', 'Manual Shift Start', 'ACTIVE')`,
       [asgId, driverId, shuttleId || 'SHT-01']
     );
 
@@ -244,7 +252,7 @@ export const startShift = async (req: AuthenticatedRequest, res: Response): Prom
 
 export const endShift = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const driverId = req.user?.user_id || 'DRV-101';
+    const driverId = req.user?.user_id || 'USR-002';
     await query(
       "UPDATE driver_assignments SET status = 'COMPLETED' WHERE driver_id = $1 AND status = 'ACTIVE'",
       [driverId]

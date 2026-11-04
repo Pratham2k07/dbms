@@ -12,7 +12,7 @@ import {
 } from '../types/database';
 import { DEFAULT_DATABASE_STATE } from '../data/defaultSeedData';
 
-const STORAGE_KEY = 'JKLU_SHUTTLE_DATABASE_V5';
+const STORAGE_KEY = 'JKLU_SHUTTLE_DATABASE_V6';
 const CHANNEL_NAME = 'JKLU_SHUTTLE_REALTIME_SYNC';
 
 export interface DatabaseState {
@@ -110,6 +110,7 @@ class CentralDatabaseService {
 
     try {
       // Purge old storage versions
+      localStorage.removeItem('JKLU_SHUTTLE_DATABASE_V5');
       localStorage.removeItem('JKLU_SHUTTLE_DATABASE_V4');
       localStorage.removeItem('JKLU_SHUTTLE_DATABASE_V3');
       localStorage.removeItem('JKLU_SHUTTLE_DATABASE_V2');
@@ -156,6 +157,7 @@ class CentralDatabaseService {
     drivers?: Driver[];
     stops?: Stop[];
     routeStops?: RouteStop[];
+    shuttleLocations?: ShuttleLocation[];
   }) {
     let hasChanges = false;
     if (data.routes && Array.isArray(data.routes)) {
@@ -186,6 +188,10 @@ class CentralDatabaseService {
       this.state.routeStops = data.routeStops;
       hasChanges = true;
     }
+    if (data.shuttleLocations && Array.isArray(data.shuttleLocations) && data.shuttleLocations.length > 0) {
+      this.state.shuttleLocations = data.shuttleLocations;
+      hasChanges = true;
+    }
     if (hasChanges) {
       this.saveStateToStorage(this.state);
       this.notifySubscribers({
@@ -196,6 +202,21 @@ class CentralDatabaseService {
         sourceTabId: this.tabId
       });
     }
+  }
+
+  public updateShuttleLocation(location: ShuttleLocation) {
+    const existingIdx = this.state.shuttleLocations.findIndex(
+      (l) => l.shuttle_id === location.shuttle_id || (location.trip_id && l.trip_id === location.trip_id)
+    );
+    if (existingIdx !== -1) {
+      this.state.shuttleLocations[existingIdx] = {
+        ...this.state.shuttleLocations[existingIdx],
+        ...location
+      };
+    } else {
+      this.state.shuttleLocations.push(location);
+    }
+    this.saveStateToStorage(this.state);
   }
 
   private handleIncomingRealtimeEvent(event: RealtimeEvent) {

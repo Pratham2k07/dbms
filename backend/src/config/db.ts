@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import mysql from 'mysql2/promise';
 
 dotenv.config();
@@ -146,9 +147,17 @@ const mysqlUser = process.env.MYSQL_USER || 'root';
 const mysqlPassword = process.env.MYSQL_PASSWORD || '123456';
 const mysqlDatabase = process.env.MYSQL_DATABASE || 'jklu_shuttle_db';
 
+const defaultSockets = [
+  process.env.MYSQL_SOCKET,
+  '/var/lib/mysql/mysql.sock',
+  '/var/run/mysqld/mysqld.sock',
+  '/tmp/mysql.sock'
+].filter((p): p is string => Boolean(p && fs.existsSync(p)));
+
+const detectedSocket = defaultSockets.length > 0 ? defaultSockets[0] : undefined;
+
 const mysqlConfig = process.env.MYSQL_URL || (process.env.DATABASE_URL?.startsWith('mysql') ? process.env.DATABASE_URL : null) || {
-  host: mysqlHost,
-  port: mysqlPort,
+  ...(detectedSocket ? { socketPath: detectedSocket } : { host: mysqlHost, port: mysqlPort }),
   user: mysqlUser,
   password: mysqlPassword,
   database: mysqlDatabase,
@@ -160,7 +169,7 @@ const mysqlConfig = process.env.MYSQL_URL || (process.env.DATABASE_URL?.startsWi
 
 const rawPool = mysql.createPool(mysqlConfig as any);
 
-console.log(`[Database] Connected to MySQL Server on ${mysqlHost}:${mysqlPort}/${mysqlDatabase}`);
+console.log(`[Database] Connected to MySQL Server (${detectedSocket ? `Socket: ${detectedSocket}` : `${mysqlHost}:${mysqlPort}`})/${mysqlDatabase}`);
 
 export const pool = {
   connect: async () => {

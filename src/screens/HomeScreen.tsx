@@ -4,6 +4,7 @@ import { MapView } from '../components/map/MapView';
 import { NearbyStopList } from '../components/stops/NearbyStopList';
 import { locationService } from '../services/locationService';
 import { stopService } from '../services/stopService';
+import { routeService } from '../services/routeService';
 import { MapPin, Compass, Bus, RefreshCw } from 'lucide-react';
 import { ShuttleLocation } from '../types/database';
 
@@ -81,10 +82,10 @@ export const HomeScreen: React.FC = () => {
     }
   };
 
-  // 1. Calculate approaching shuttle counts across stops
+  // 1. Calculate approaching shuttle counts across stops (using monotonic progression from Live Tracking)
   const approachingCounts = useMemo(() => {
-    return stopService.getApproachingCounts(trips, tripStops);
-  }, [trips, tripStops]);
+    return stopService.getApproachingCounts(trips, tripStops, shuttleLocations, routeStops, stops);
+  }, [trips, tripStops, shuttleLocations, routeStops, stops]);
 
   // 2. Sort stops dynamically by geographic distance from student location (all 40 stops)
   const nearbyStops = useMemo(() => {
@@ -115,39 +116,40 @@ export const HomeScreen: React.FC = () => {
     );
   }, [routes, activeTripForSelectedShuttle]);
 
-  // Real road pathway coordinates for the active route
+  // Real road pathway coordinates for the active route (prioritizes database route_coordinates and trims at terminus)
   const activeRoutePolyline = useMemo(() => {
-    const routeId = activeRouteForSelectedShuttle?.route_id || 'ROUTE-01';
+    const route = activeRouteForSelectedShuttle;
+    const routeId = route?.route_id || 'R-01';
 
-    // 1. Check routeCoordinates map from AppContext
-    if (routeCoordinates && routeCoordinates[routeId] && routeCoordinates[routeId].length > 0) {
-      return routeCoordinates[routeId];
-    }
+    const orderedStops = routeStops
+      .filter((rs) => rs.route_id === routeId)
+      .sort((a, b) => a.sequence_number - b.sequence_number)
+      .map((rs) => stops.find((st) => st.stop_id === rs.stop_id))
+      .filter(Boolean) as any[];
 
-    // 2. Check route.route_coordinates property
-    const rCoords = activeRouteForSelectedShuttle?.route_coordinates;
-    if (rCoords) {
-      if (Array.isArray(rCoords) && rCoords.length > 0) return rCoords;
-      if (typeof rCoords === 'string') {
-        try {
-          const parsed = JSON.parse(rCoords);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        } catch {}
-      }
-    }
+    return routeService.getDynamicRouteCoordinates(route, orderedStops, routeCoordinates);
+  }, [activeRouteForSelectedShuttle, routeCoordinates, routeStops, stops]);
 
-    // 3. Fallback: derive pathway by connecting ordered route stops
+  // Dynamic terminus stop for the active route (e.g. Hawa Mahal, not assuming always JKLU)
+  const activeRouteTerminusStop = useMemo(() => {
+    const routeId = activeRouteForSelectedShuttle?.route_id || activeTripForSelectedShuttle?.route_id;
+    if (!routeId) return undefined;
     const ordered = routeStops
       .filter((rs) => rs.route_id === routeId)
       .sort((a, b) => a.sequence_number - b.sequence_number)
-      .map((rs) => {
-        const s = stops.find((st) => st.stop_id === rs.stop_id);
-        return s ? ([Number(s.latitude), Number(s.longitude)] as [number, number]) : null;
-      })
-      .filter(Boolean) as [number, number][];
+      .map((rs) => stops.find((s) => s.stop_id === rs.stop_id))
+      .filter(Boolean);
+    return ordered.length > 0 ? ordered[ordered.length - 1] : undefined;
+  }, [activeRouteForSelectedShuttle, activeTripForSelectedShuttle, routeStops, stops]);
 
-    return ordered.length > 1 ? ordered : undefined;
-  }, [activeRouteForSelectedShuttle, routeCoordinates, routeStops, stops]);
+  const destinationCoords = useMemo(() => {
+    if (!activeRouteTerminusStop) return undefined;
+    return {
+      latitude: Number(activeRouteTerminusStop.latitude),
+      longitude: Number(activeRouteTerminusStop.longitude),
+      name: activeRouteTerminusStop.stop_name
+    };
+  }, [activeRouteTerminusStop]);
 
     // 4. Format all active shuttles for map rendering
   const activeShuttlesForMap = useMemo(() => {
@@ -159,9 +161,10 @@ export const HomeScreen: React.FC = () => {
       for (const trip of runningTrips) {
         if (addedShuttleIds.has(trip.shuttle_id)) continue;
 
-        let loc = shuttleLocations.find(
-          (l) => l.trip_id === trip.trip_id || l.shuttle_id === trip.shuttle_id
+        const matchingLocs = shuttleLocations.filter(
+          (l) => (trip.trip_id && l.trip_id === trip.trip_id) || l.shuttle_id === trip.shuttle_id
         );
+        let loc = matchingLocs.length > 0 ? matchingLocs[matchingLocs.length - 1] : undefined;
 
         if (!loc) {
           // Fallback to origin stop of this route so shuttle immediately appears on map
@@ -198,13 +201,14 @@ export const HomeScreen: React.FC = () => {
 
     // B. If no trips are running, but the selected shuttle has recent telemetry or location, show it
     if (list.length === 0 && selectedShuttleId) {
-      const loc = shuttleLocations.find((l) => l.shuttle_id === selectedShuttleId);
+      const matchingLocs = shuttleLocations.filter((l) => l.shuttle_id === selectedShuttleId);
+      const loc = matchingLocs.length > 0 ? matchingLocs[matchingLocs.length - 1] : undefined;
       const shuttle = shuttles.find((s) => s.shuttle_id === selectedShuttleId);
       if (loc && shuttle) {
         list.push({
           location: loc,
           number: shuttle.shuttle_number,
-          routeId: activeTripForSelectedShuttle?.route_id || 'ROUTE-01'
+          routeId: activeTripForSelectedShuttle?.route_id || 'R-01'
         });
       }
     }
@@ -228,7 +232,7 @@ export const HomeScreen: React.FC = () => {
     return stops.filter((s) => stopIdSet.has(s.stop_id));
   }, [showAllStopsOnMap, stops, routeStops, activeTripForSelectedShuttle, selectedStopId]);
 
-  // 6. Retrieve upcoming shuttles for any stop
+  // 6. Retrieve upcoming shuttles for any stop (matches Live Tracking screen logic exactly)
   const getUpcomingShuttlesForStop = useCallback((stopId: string) => {
     return stopService.getUpcomingShuttles(
       stopId,
@@ -237,9 +241,11 @@ export const HomeScreen: React.FC = () => {
       shuttles,
       routes,
       shuttleLocations,
-      etaMap
+      etaMap,
+      routeStops,
+      stops
     );
-  }, [trips, tripStops, shuttles, routes, shuttleLocations, etaMap]);
+  }, [trips, tripStops, shuttles, routes, shuttleLocations, etaMap, routeStops, stops]);
 
   return (
     <div className="min-h-full bg-[#FBFBF9] pb-4 select-none">
@@ -270,7 +276,9 @@ export const HomeScreen: React.FC = () => {
               </div>
               <div>
                 <span className="text-[10px] font-mono font-bold text-stone-400 uppercase block">DESTINATION</span>
-                <span className="font-editorial font-bold text-sm text-[#121316]">JKLU Campus</span>
+                <span className="font-editorial font-bold text-sm text-[#121316]">
+                  {activeRouteTerminusStop?.stop_name || 'JKLU Campus'}
+                </span>
               </div>
             </div>
           </div>
@@ -399,7 +407,8 @@ export const HomeScreen: React.FC = () => {
                 stops={stopsForMap}
                 studentLocation={studentLocation}
                 activeShuttles={activeShuttlesForMap}
-                highlightRouteId={activeTripForSelectedShuttle?.route_id || 'ROUTE-02'}
+                destinationCoords={destinationCoords}
+                highlightRouteId={activeRouteForSelectedShuttle?.route_id || activeTripForSelectedShuttle?.route_id || routes[0]?.route_id || 'R-01'}
                 routeCoordinates={routeCoordinates}
                 activeRoutePolyline={activeRoutePolyline}
                 selectedStopId={selectedStopId}

@@ -193,7 +193,7 @@ export const RouteDetailsScreen: React.FC = () => {
                 ROUTE STOPS SEQUENCE
               </h2>
               <p className="text-xs text-stone-500 font-medium tracking-wide uppercase mt-1">
-                Fixed sequential order terminating at JKLU Campus
+                Fixed sequential order from origin to destination terminus
               </p>
             </div>
 
@@ -217,7 +217,7 @@ export const RouteDetailsScreen: React.FC = () => {
                             </h4>
                             {stop.is_destination && (
                               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#121316] text-[#FBFBF9]">
-                                CAMPUS
+                                {stop.stop_name.toLowerCase().includes('campus') || stop.stop_name.toLowerCase().includes('jklu') ? 'CAMPUS' : 'TERMINUS'}
                               </span>
                             )}
                           </div>

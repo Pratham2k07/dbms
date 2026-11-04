@@ -7,7 +7,7 @@ export const recordStudentLocation = async (req: AuthenticatedRequest, res: Resp
   try {
     const { latitude, longitude, accuracy_m, gps_timestamp } = req.body;
     // Derive student identity securely from session, fallback to default student profile for guest/unauth
-    const studentId = req.user?.user_id || 'USR-STU-001';
+    const studentId = req.user?.user_id || 'USR-006';
 
     if (latitude === undefined || longitude === undefined || latitude === null || longitude === null) {
       res.status(400).json({ success: false, message: 'latitude and longitude are required' });
@@ -47,7 +47,7 @@ export const getStudentNearbyStops = async (req: Request, res: Response): Promis
 
     // If coordinates not provided in query params, inspect if authenticated student has a latest recorded location
     if (lat === null || lng === null || isNaN(lat) || isNaN(lng)) {
-      const studentId = (req as AuthenticatedRequest).user?.user_id || 'USR-STU-001';
+      const studentId = (req as AuthenticatedRequest).user?.user_id || 'USR-006';
       const latest = await studentQueries.getLatestStudentLocation(studentId);
       if (latest && !isNaN(latest.latitude) && !isNaN(latest.longitude)) {
         lat = latest.latitude;
@@ -73,7 +73,7 @@ export const getStudentNearbyStops = async (req: Request, res: Response): Promis
 
 export const getLatestStudentLocation = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const studentId = req.user?.user_id || 'USR-STU-001';
+    const studentId = req.user?.user_id || 'USR-006';
     const latest = await studentQueries.getLatestStudentLocation(studentId);
 
     res.json({

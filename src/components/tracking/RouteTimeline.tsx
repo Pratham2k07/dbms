@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Route, Stop, Trip, TripStop } from '../../types/database';
-import { Building2, Bus, Check, Clock } from 'lucide-react';
+import { Building2, Bus, Check, Clock, MapPin } from 'lucide-react';
 import { routeService } from '../../services/routeService';
 import { useApp } from '../../context/AppContext';
 import { computeTripProgression } from '../../services/routeProgressTracker';
@@ -63,9 +63,10 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
             (ts) => ts.trip_id === trip.trip_id && ts.stop_id === stop.stop_id
           );
 
-          const isSelectedStudentStop = stop.stop_id === selectedStopId;
-          const isOrigin = idx === 0 || stop.stop_id === 'STOP-JKLU-START';
-          const isDestination = idx === stopsMetadata.length - 1 || stop.is_destination;
+          const isSelectedStop = stop.stop_id === selectedStopId;
+          const isCampusStop = stop.stop_name.toLowerCase().includes('campus') || stop.stop_name.toLowerCase().includes('jklu');
+          const isOrigin = idx === 0 || stop.stop_id === 'STOP-JKLU-START' || (isCampusStop && idx === 0);
+          const isDestination = idx === stopsMetadata.length - 1 || Boolean(stop.is_destination);
           const isCompleted = completedIndices.has(idx);
           const isApproaching = activeApproachingIndex === idx && !isCompleted;
 
@@ -87,19 +88,18 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
                     </div>
                   </div>
                 ) : isDestination ? (
-                  // Final Stop: Architectural JKLU Crest
+                  // Final Stop: Architectural JKLU Crest if Campus, or Destination Location Pin
                   <div className="w-8 h-8 rounded-lg bg-[#121316] text-[#FBFBF9] border-2 border-jklu-orange flex items-center justify-center shadow-md">
-                    <Building2 className="w-4 h-4 text-jklu-orange" />
-                  </div>
-                ) : isSelectedStudentStop ? (
-                  // Student Selected Stop
-                  <div className="w-8 h-8 rounded-full bg-jklu-orange text-white flex items-center justify-center ring-4 ring-orange-100 shadow-md">
-                    <span className="font-mono text-xs font-bold">◎</span>
+                    {isCampusStop ? (
+                      <Building2 className="w-4 h-4 text-jklu-orange" />
+                    ) : (
+                      <MapPin className="w-4 h-4 text-jklu-orange" />
+                    )}
                   </div>
                 ) : (
                   // Upcoming Pending Stop
-                  <div className="w-6 h-6 rounded-full bg-white border-2 border-stone-300 text-stone-400 flex items-center justify-center group-hover:border-stone-400">
-                    <span className="w-2 h-2 rounded-full bg-stone-300" />
+                  <div className={`w-6 h-6 rounded-full bg-white border-2 ${isSelectedStop ? 'border-jklu-orange ring-2 ring-orange-100' : 'border-stone-300 group-hover:border-stone-400'} text-stone-400 flex items-center justify-center`}>
+                    <span className={`w-2 h-2 rounded-full ${isSelectedStop ? 'bg-jklu-orange' : 'bg-stone-300'}`} />
                   </div>
                 )}
               </div>
@@ -107,10 +107,10 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
               {/* Stop Information Block */}
               <div
                 className={`flex-1 -mt-1 p-2.5 rounded-xl transition-colors ${
-                  isSelectedStudentStop
-                    ? 'bg-orange-50/70 border border-orange-200/80 shadow-subtle'
-                    : isApproaching
+                  isApproaching
                     ? 'bg-emerald-50/50 border border-emerald-200/70 shadow-xs'
+                    : isSelectedStop
+                    ? 'bg-orange-50/40 border border-orange-200/60 shadow-2xs'
                     : 'hover:bg-stone-50'
                 }`}
               >
@@ -118,25 +118,19 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
                   <div className="flex items-center gap-2">
                     <h4
                       className={`font-editorial font-bold text-sm uppercase tracking-tight ${
-                        isSelectedStudentStop
-                          ? 'text-jklu-orange text-base'
-                          : isCompleted
+                        isCompleted
                           ? 'text-stone-400 line-through decoration-stone-300'
                           : isApproaching
                           ? 'text-emerald-800 font-extrabold text-base'
                           : isDestination || isOrigin
                           ? 'text-[#121316] font-extrabold'
+                          : isSelectedStop
+                          ? 'text-[#E8590C] font-bold'
                           : 'text-[#121316]'
                       }`}
                     >
                       {stop.stop_name}
                     </h4>
-
-                    {isSelectedStudentStop && (
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase bg-jklu-orange text-white">
-                        YOUR STOP
-                      </span>
-                    )}
 
                     {isOrigin && !isCompleted && (
                       <span className="px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase bg-emerald-700 text-white">
@@ -146,17 +140,13 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
 
                     {isDestination && (
                       <span className="px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase bg-[#121316] text-[#FBFBF9]">
-                        CAMPUS TERMINUS
+                        {isCampusStop ? 'CAMPUS TERMINUS' : 'TERMINUS'}
                       </span>
                     )}
                   </div>
 
                   {/* Status / Timing pill */}
-                  {isSelectedStudentStop ? (
-                    <span className="font-mono text-xs font-bold text-jklu-orange bg-white px-2 py-0.5 rounded border border-orange-200">
-                      ETA {etaMinutes} MIN
-                    </span>
-                  ) : isCompleted ? (
+                  {isCompleted ? (
                     <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full">
                       <Check className="w-2.5 h-2.5 text-emerald-600 stroke-[3]" />
                       <span>PASSED</span>
@@ -179,9 +169,7 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
                 {/* Subtitle / Shared Route Info */}
                 <div className="flex items-center gap-2 mt-1">
                   <p className="text-[11px] text-stone-500">
-                    {isDestination
-                      ? 'JK Lakshmipat University'
-                      : stop.description || 'Shuttle Transit Point'}
+                    {stop.description || (isCampusStop ? 'JK Lakshmipat University Campus' : 'Route Terminus')}
                   </p>
 
                   {item.isShared && (

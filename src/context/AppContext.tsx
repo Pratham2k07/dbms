@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Student,
   Driver,
@@ -27,6 +27,7 @@ import * as authService from '../services/authService';
 import * as apiService from '../services/apiService';
 import { socketService } from '../services/socket';
 import { locationService } from '../services/locationService';
+import { routeService } from '../services/routeService';
 
 
 interface AppContextType {
@@ -77,6 +78,7 @@ interface AppContextType {
   simSpeed: number;
   setSimSpeed: (speed: number) => void;
   resetSimulation: () => void;
+  refreshDatabaseRecords: () => Promise<void>;
 
   // Driver Operations
   handleStartTrip: (tripId: string) => Promise<{ success: boolean; error?: string; trip?: Trip }>;
@@ -165,27 +167,124 @@ interface AppContextType {
   navigateToRouteDetails: (routeId: string) => void;
 }
 
+const getStoredAuth = () => {
+  if (typeof window === 'undefined') {
+    return { isAuthenticated: false, user: null as any, role: 'student' as const, token: null as string | null };
+  }
+  try {
+    const token = localStorage.getItem('token');
+    const userRaw = localStorage.getItem('user');
+    if (token && userRaw) {
+      const user = JSON.parse(userRaw);
+      const role =
+        (user.role as 'student' | 'driver' | 'admin') ||
+        (localStorage.getItem('currentUserRole') as 'student' | 'driver' | 'admin') ||
+        'student';
+      return { isAuthenticated: true, user, role, token };
+    }
+  } catch (e) {
+    console.warn('Error reading stored session:', e);
+  }
+  return { isAuthenticated: false, user: null as any, role: 'student' as const, token: null as string | null };
+};
+
+const getInitialScreen = (auth: ReturnType<typeof getStoredAuth>): ScreenType => {
+  if (!auth.isAuthenticated) {
+    return 'login';
+  }
+  if (typeof window === 'undefined') {
+    return auth.role === 'admin' ? 'admin-dashboard' : auth.role === 'driver' ? 'driver-dashboard' : 'home';
+  }
+  const savedScreen = localStorage.getItem('currentScreen') as ScreenType;
+  if (savedScreen && savedScreen !== 'login') {
+    if (auth.role === 'admin') {
+      if (savedScreen.startsWith('admin-')) return savedScreen;
+      return 'admin-dashboard';
+    }
+    if (auth.role === 'driver') {
+      return 'driver-dashboard';
+    }
+    if (['home', 'live-tracking', 'route-details', 'stop-details', 'profile'].includes(savedScreen)) {
+      return savedScreen;
+    }
+    return 'home';
+  }
+  if (auth.role === 'admin') return 'admin-dashboard';
+  if (auth.role === 'driver') return 'driver-dashboard';
+  return 'home';
+};
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const initialAuth = useMemo(() => getStoredAuth(), []);
+  const initialScreen = useMemo(() => getInitialScreen(initialAuth), [initialAuth]);
+
   // Navigation state
-  const [currentScreen, setCurrentScreen] = useState<ScreenType>('login');
-  const [activeTab, setActiveTab] = useState<TabType>('home');
-  const [isDriverMode, setIsDriverMode] = useState<boolean>(false);
+  const [currentScreen, setCurrentScreenState] = useState<ScreenType>(initialScreen);
+  const [activeTab, setActiveTab] = useState<TabType>(() => (initialScreen === 'live-tracking' ? 'track' : 'home'));
+  const [isDriverMode, setIsDriverMode] = useState<boolean>(
+    initialAuth.isAuthenticated && initialAuth.role === 'driver'
+  );
+
+  const setCurrentScreen = useCallback((screen: ScreenType) => {
+    setCurrentScreenState(screen);
+    if (typeof window !== 'undefined') {
+      if (screen === 'login') {
+        localStorage.removeItem('currentScreen');
+      } else {
+        localStorage.setItem('currentScreen', screen);
+      }
+    }
+  }, []);
 
   // Authentication state
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [currentUserRole, setCurrentUserRole] = useState<'student' | 'driver' | 'admin'>('student');
-  const [activeDriverId, setActiveDriverId] = useState<string>('DRV-101');
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(initialAuth.isAuthenticated);
+  const [currentUserRole, setCurrentUserRole] = useState<'student' | 'driver' | 'admin'>(initialAuth.role);
+  const [activeDriverId, setActiveDriverId] = useState<string>(() => {
+    if (initialAuth.role === 'driver' && initialAuth.user?.user_id) {
+      return initialAuth.user.user_id;
+    }
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('activeDriverId');
+      if (saved) return saved;
+    }
+    return 'USR-002';
+  });
 
   // Selected entities
   const [selectedStopId, setSelectedStopId] = useState<string>('STOP-JKLU');
   const [selectedTripId, setSelectedTripId] = useState<string>('');
-  const [selectedRouteId, setSelectedRouteId] = useState<string>('ROUTE-01');
+  const [selectedRouteId, setSelectedRouteId] = useState<string>('R-01');
 
   // Core entities state
-  const [student] = useState<Student>(CURRENT_STUDENT);
-  const [admin] = useState<Admin>(CURRENT_ADMIN);
+  const [student, setStudent] = useState<Student>(() => {
+    if (initialAuth.user && initialAuth.role === 'student') {
+      return {
+        ...CURRENT_STUDENT,
+        student_id: initialAuth.user.user_id || CURRENT_STUDENT.student_id,
+        name: initialAuth.user.name || CURRENT_STUDENT.name,
+        email: initialAuth.user.email || CURRENT_STUDENT.email,
+        roll_no: initialAuth.user.roll_no || CURRENT_STUDENT.roll_no,
+        phone_number: initialAuth.user.phone_number || CURRENT_STUDENT.phone_number,
+      };
+    }
+    return CURRENT_STUDENT;
+  });
+
+  const [admin, setAdmin] = useState<Admin>(() => {
+    if (initialAuth.user && initialAuth.role === 'admin') {
+      return {
+        ...CURRENT_ADMIN,
+        admin_id: initialAuth.user.user_id || CURRENT_ADMIN.admin_id,
+        name: initialAuth.user.name || CURRENT_ADMIN.name,
+        email: initialAuth.user.email || CURRENT_ADMIN.email,
+        designation: initialAuth.user.designation || CURRENT_ADMIN.designation,
+        department: initialAuth.user.department || CURRENT_ADMIN.department,
+      };
+    }
+    return CURRENT_ADMIN;
+  });
   const [studentLocation, setStudentLocation] = useState<StudentLocation>(INITIAL_STUDENT_LOCATION);
   const [isAcquiringLocation, setIsAcquiringLocation] = useState<boolean>(false);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -283,7 +382,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [routeCoordinates, setRouteCoordinates] = useState<Record<string, [number, number][]>>(initialDb.routeCoordinates);
 
   // Computed active driver object
-  const driver: Driver = drivers.find((d) => d.driver_id === activeDriverId) || drivers[0] || initialDb.drivers[0];
+  const driver: Driver = useMemo(() => {
+    const match = drivers.find((d) => d.driver_id === activeDriverId);
+    if (match) return match;
+    return {
+      driver_id: activeDriverId,
+      user_id: activeDriverId,
+      license_no: initialAuth.user?.license_no || 'RJ14-2018-08912',
+      name: (initialAuth.role === 'driver' && initialAuth.user?.name) || 'Ramesh Kumar',
+      phone_number: (initialAuth.role === 'driver' && initialAuth.user?.phone_number) || '+91 98290 88210',
+      assigned_shuttle_id: 'SHT-01',
+    };
+  }, [drivers, activeDriverId, initialAuth]);
 
   // Dynamic live ETAs (minutes remaining) calculated strictly from active GPS telemetry
   const [etaMap, setEtaMap] = useState<Record<string, number>>({});
@@ -327,7 +437,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTripStops(freshState.tripStops);
       setDriverAssignments(freshState.driverAssignments);
       setDriverNotifications(freshState.driverNotifications);
-      setShuttleLocations(freshState.shuttleLocations);
+      if (freshState.shuttleLocations && freshState.shuttleLocations.length > 0) {
+        setShuttleLocations(freshState.shuttleLocations);
+      }
       setRouteCoordinates(freshState.routeCoordinates);
 
       if (event.action === 'ROUTE_CREATED') {
@@ -383,6 +495,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return updated;
         }
         return [...prev, newEntry];
+      });
+
+      databaseService.updateShuttleLocation({
+        shuttle_id: targetId,
+        trip_id: targetTripId || '',
+        latitude: Number(data.latitude || data.lat),
+        longitude: Number(data.longitude || data.lng),
+        bearing: Number(data.bearing || 0),
+        speed_kmh: Number(data.speed_kmh || 0),
+        progress_percentage: Number(data.progress_percentage || 0),
+        timestamp: data.timestamp || new Date().toISOString()
       });
 
       // Update theoretical ETAs dynamically
@@ -582,22 +705,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return r;
         });
 
-        // Ensure every route has pathway coordinates by connecting ordered stops if needed
+        // Ensure every route has pathway coordinates by connecting ordered stops if needed and trimmed at terminus
         if (normalizedStops && liveRouteStops) {
           parsedRoutes.forEach((r: any) => {
-            if (!coordsMap[r.route_id] || coordsMap[r.route_id].length === 0) {
-              const ordered = liveRouteStops
-                .filter((rs: any) => rs.route_id === r.route_id)
-                .sort((a: any, b: any) => a.sequence_number - b.sequence_number)
-                .map((rs: any) => {
-                  const s = normalizedStops.find((st: any) => st.stop_id === rs.stop_id);
-                  return s ? [Number(s.latitude), Number(s.longitude)] as [number, number] : null;
-                })
-                .filter(Boolean) as [number, number][];
-              if (ordered.length > 1) {
-                coordsMap[r.route_id] = ordered;
-                r.route_coordinates = ordered;
-              }
+            const currentRouteStops = liveRouteStops
+              .filter((rs: any) => rs.route_id === r.route_id)
+              .sort((a: any, b: any) => a.sequence_number - b.sequence_number)
+              .map((rs: any) => normalizedStops.find((st: any) => st.stop_id === rs.stop_id))
+              .filter(Boolean);
+
+            const dynCoords = routeService.getDynamicRouteCoordinates(r, currentRouteStops, coordsMap);
+            if (dynCoords && dynCoords.length > 0) {
+              coordsMap[r.route_id] = dynCoords;
+              r.route_coordinates = dynCoords;
             }
           });
         }
@@ -635,7 +755,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         routeStops: liveRouteStops && Array.isArray(liveRouteStops) ? liveRouteStops : undefined,
         shuttles: liveShuttles && Array.isArray(liveShuttles) ? liveShuttles : undefined,
         trips: liveTrips && Array.isArray(liveTrips) ? liveTrips : undefined,
-        drivers: liveDrivers && Array.isArray(liveDrivers) ? liveDrivers : undefined
+        drivers: liveDrivers && Array.isArray(liveDrivers) ? liveDrivers : undefined,
+        shuttleLocations: liveLocations && Array.isArray(liveLocations) ? liveLocations : undefined
       });
     } catch (err) {
       console.warn('Failed to refresh database records:', err);
@@ -650,6 +771,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const locs = await apiService.getLatestShuttleLocations();
         if (active && Array.isArray(locs) && locs.length > 0) {
           setShuttleLocations(locs);
+          databaseService.syncFromLiveDatabase({ shuttleLocations: locs });
         }
       } catch {}
     };
@@ -667,7 +789,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
 
-  // Ensure that if user is in Admin portal, the active JWT token is an admin token
+  // Ensure role consistency for admin sessions
   useEffect(() => {
     if (isAuthenticated && currentUserRole === 'admin') {
       const storedUser = localStorage.getItem('user');
@@ -676,14 +798,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         roleInStorage = storedUser ? JSON.parse(storedUser).role : '';
       } catch (e) {}
 
-      if (roleInStorage !== 'admin') {
-        authService.logout();
-        authService.login('admin@jklu.edu.in', 'admin@jklu').catch((err) => {
-          console.warn('Auto admin token sync failed:', err);
-        });
+      if (roleInStorage && roleInStorage !== 'admin') {
+        logoutUser();
       }
     }
   }, [isAuthenticated, currentUserRole]);
+
+  // Validate active session on initial load
+  useEffect(() => {
+    if (initialAuth.isAuthenticated) {
+      authService.getMe().then((res) => {
+        if (!res || !res.success) {
+          console.warn('Stored JWT session is no longer valid. Signing out.');
+          logoutUser();
+        } else if (res.user) {
+          try {
+            localStorage.setItem('user', JSON.stringify(res.user));
+          } catch {}
+          if (res.user.role === 'student') {
+            setStudent((prev) => ({
+              ...prev,
+              student_id: res.user.user_id || prev.student_id,
+              name: res.user.name || prev.name,
+              email: res.user.email || prev.email,
+              phone_number: res.user.phone_number || prev.phone_number,
+            }));
+          } else if (res.user.role === 'admin') {
+            setAdmin((prev) => ({
+              ...prev,
+              admin_id: res.user.user_id || prev.admin_id,
+              name: res.user.name || prev.name,
+              email: res.user.email || prev.email,
+            }));
+          }
+        }
+      }).catch(() => {
+        // Network offline, retain cached session
+      });
+    }
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -1277,20 +1430,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       setIsAuthenticated(true);
       setCurrentUserRole(role);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('currentUserRole', role);
+      }
 
       if (role === 'admin') {
         setIsDriverMode(false);
         setCurrentScreen('admin-dashboard');
-        triggerNotification('ADMIN AUTHENTICATED', `Welcome ${loginRes?.user?.name || 'Prof. Anurag Sharma'}! Admin Control Center Active.`, 'info');
+        if (loginRes?.user) {
+          setAdmin((prev) => ({
+            ...prev,
+            admin_id: loginRes.user.user_id || prev.admin_id,
+            name: loginRes.user.name || prev.name,
+            email: loginRes.user.email || prev.email,
+            designation: loginRes.user.designation || prev.designation,
+            department: loginRes.user.department || prev.department,
+          }));
+        }
+        triggerNotification('ADMIN AUTHENTICATED', `Welcome ${loginRes?.user?.name || 'Administrator'}! Admin Control Center Active.`, 'info');
       } else if (role === 'driver') {
-        const assignedDriverId = loginRes?.user?.user_id || 'DRV-101';
+        const assignedDriverId = loginRes?.user?.user_id || 'USR-002';
         setActiveDriverId(assignedDriverId);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('activeDriverId', assignedDriverId);
+        }
         setIsDriverMode(true);
         setCurrentScreen('driver-dashboard');
         triggerNotification('DRIVER AUTHENTICATED', `Welcome Captain ${loginRes?.user?.name || 'Driver'}! Driver Portal Active.`, 'info');
       } else {
         setIsDriverMode(false);
         setCurrentScreen('home');
+        if (loginRes?.user) {
+          setStudent((prev) => ({
+            ...prev,
+            student_id: loginRes.user.user_id || prev.student_id,
+            name: loginRes.user.name || prev.name,
+            email: loginRes.user.email || prev.email,
+            roll_no: loginRes.user.roll_no || prev.roll_no,
+            phone_number: loginRes.user.phone_number || prev.phone_number,
+          }));
+        }
         triggerNotification('STUDENT AUTHENTICATED', `Welcome ${loginRes?.user?.name || 'Student'}! Student Portal Active.`, 'info');
       }
       return true;
@@ -1310,6 +1489,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUserRole('student');
     setCurrentScreen('login');
     if (typeof window !== 'undefined') {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('currentUserRole');
+      localStorage.removeItem('currentScreen');
+      localStorage.removeItem('activeDriverId');
       if (window.location.hash || window.location.pathname !== '/') {
         window.history.pushState({}, '', '/');
         window.dispatchEvent(new Event('popstate'));
@@ -1359,6 +1543,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         simSpeed,
         setSimSpeed,
         resetSimulation,
+        refreshDatabaseRecords,
         handleStartTrip,
         handleEndTrip,
         handleToggleCapacity,

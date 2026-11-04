@@ -341,7 +341,7 @@ export const getLiveTripDetails = async (tripId: string) => {
         recorded_at
       FROM shuttle_locations
       WHERE trip_id = $1
-      ORDER BY recorded_at DESC
+      ORDER BY location_id DESC, recorded_at DESC
       LIMIT 1;
     `, [tripId]);
 

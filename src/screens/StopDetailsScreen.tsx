@@ -16,6 +16,7 @@ export const StopDetailsScreen: React.FC = () => {
     tripStops,
     shuttles,
     routes,
+    routeStops,
     shuttleLocations,
     etaMap,
     setCurrentScreen,
@@ -37,7 +38,7 @@ export const StopDetailsScreen: React.FC = () => {
 
   const walkingMinutes = locationService.calculateWalkingTimeMinutes(distance);
 
-  // Retrieve upcoming shuttles approaching this specific stop
+  // Retrieve upcoming shuttles approaching this specific stop (matching Live Tracking monotonic logic)
   const upcomingShuttles = useMemo(() => {
     return stopService.getUpcomingShuttles(
       stop.stop_id,
@@ -46,9 +47,11 @@ export const StopDetailsScreen: React.FC = () => {
       shuttles,
       routes,
       shuttleLocations,
-      etaMap
+      etaMap,
+      routeStops,
+      stops
     );
-  }, [stop.stop_id, trips, tripStops, shuttles, routes, shuttleLocations, etaMap]);
+  }, [stop.stop_id, trips, tripStops, shuttles, routes, shuttleLocations, etaMap, routeStops, stops]);
 
   // Filter shuttles for mini map - STRICTLY 1 NEXT UPCOMING SHUTTLE
   const activeShuttlesForMap = useMemo(() => {
@@ -72,7 +75,7 @@ export const StopDetailsScreen: React.FC = () => {
           {
             location: firstLoc,
             number: s.shuttle_number,
-            routeId: 'ROUTE-01'
+            routeId: 'R-01'
           }
         ]
       : [];

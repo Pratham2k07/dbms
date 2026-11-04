@@ -28,6 +28,7 @@ import { AdminDriversScreen } from '../../screens/admin/AdminDriversScreen';
 import { AdminLiveTrackingScreen } from '../../screens/admin/AdminLiveTrackingScreen';
 import { AdminTripHistoryScreen } from '../../screens/admin/AdminTripHistoryScreen';
 import { AdminProfileScreen } from '../../screens/admin/AdminProfileScreen';
+import { AdminUsersScreen } from '../../screens/admin/AdminUsersScreen';
 
 export const AdminLayout: React.FC = () => {
   const {
@@ -56,9 +57,10 @@ export const AdminLayout: React.FC = () => {
     { id: 'admin-trips' as ScreenType, label: 'Trips', icon: CalendarCheck },
     { id: 'admin-shuttles' as ScreenType, label: 'Shuttles', icon: Bus },
     { id: 'admin-drivers' as ScreenType, label: 'Drivers', icon: Users },
+    { id: 'admin-users' as ScreenType, label: 'Users & Roles', icon: UserCheck },
     { id: 'admin-live-tracking' as ScreenType, label: 'Live Tracking', icon: Radio, badge: trips.filter(t => t.running_status === 'RUNNING').length },
     { id: 'admin-history' as ScreenType, label: 'Trip History', icon: History },
-    { id: 'admin-profile' as ScreenType, label: 'Profile & System', icon: UserCheck }
+    { id: 'admin-profile' as ScreenType, label: 'Profile & System', icon: LayoutDashboard }
   ];
 
   const handleNavClick = (screenId: ScreenType) => {
@@ -133,6 +135,8 @@ export const AdminLayout: React.FC = () => {
         return <AdminLiveTrackingScreen />;
       case 'admin-history':
         return <AdminTripHistoryScreen />;
+      case 'admin-users':
+        return <AdminUsersScreen />;
       case 'admin-profile':
         return <AdminProfileScreen />;
       default:

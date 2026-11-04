@@ -2,6 +2,8 @@
 import express from "express";
 import cors from "cors";
 import dotenv2 from "dotenv";
+import path2 from "path";
+import fs2 from "fs";
 
 // backend/src/routes/index.ts
 import { Router as Router8 } from "express";
@@ -16,6 +18,7 @@ import jwt from "jsonwebtoken";
 // backend/src/config/db.ts
 import dotenv from "dotenv";
 import path from "path";
+import fs from "fs";
 import mysql from "mysql2/promise";
 dotenv.config();
 if (!process.env.MYSQL_USER) {
@@ -123,9 +126,15 @@ var mysqlPort = parseInt(process.env.MYSQL_PORT || "3306", 10);
 var mysqlUser = process.env.MYSQL_USER || "root";
 var mysqlPassword = process.env.MYSQL_PASSWORD || "123456";
 var mysqlDatabase = process.env.MYSQL_DATABASE || "jklu_shuttle_db";
+var defaultSockets = [
+  process.env.MYSQL_SOCKET,
+  "/var/lib/mysql/mysql.sock",
+  "/var/run/mysqld/mysqld.sock",
+  "/tmp/mysql.sock"
+].filter((p) => Boolean(p && fs.existsSync(p)));
+var detectedSocket = defaultSockets.length > 0 ? defaultSockets[0] : void 0;
 var mysqlConfig = process.env.MYSQL_URL || (process.env.DATABASE_URL?.startsWith("mysql") ? process.env.DATABASE_URL : null) || {
-  host: mysqlHost,
-  port: mysqlPort,
+  ...detectedSocket ? { socketPath: detectedSocket } : { host: mysqlHost, port: mysqlPort },
   user: mysqlUser,
   password: mysqlPassword,
   database: mysqlDatabase,
@@ -135,7 +144,7 @@ var mysqlConfig = process.env.MYSQL_URL || (process.env.DATABASE_URL?.startsWith
   charset: "utf8mb4"
 };
 var rawPool = mysql.createPool(mysqlConfig);
-console.log(`[Database] Connected to MySQL Server on ${mysqlHost}:${mysqlPort}/${mysqlDatabase}`);
+console.log(`[Database] Connected to MySQL Server (${detectedSocket ? `Socket: ${detectedSocket}` : `${mysqlHost}:${mysqlPort}`})/${mysqlDatabase}`);
 var pool = {
   connect: async () => {
     const conn = await rawPool.getConnection();
@@ -256,7 +265,17 @@ var register = async (req, res) => {
     }
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password || "password123", salt);
-    const userId = `USR-${role.toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+    const lastUserRes = await query(
+      "SELECT user_id FROM users WHERE user_id REGEXP '^USR-[0-9]+$' ORDER BY CAST(SUBSTRING(user_id, 5) AS UNSIGNED) DESC LIMIT 1"
+    );
+    let nextNum = 1;
+    if (lastUserRes.rows.length > 0) {
+      const parsed = parseInt(lastUserRes.rows[0].user_id.replace("USR-", ""), 10);
+      if (!isNaN(parsed)) {
+        nextNum = parsed + 1;
+      }
+    }
+    const userId = `USR-${String(nextNum).padStart(3, "0")}`;
     await query(
       "INSERT INTO users (user_id, name, email, password_hash, phone_number, role) VALUES ($1, $2, $3, $4, $5, $6)",
       [userId, name, cleanEmail, passwordHash, phone_number || null, role]
@@ -495,9 +514,14 @@ async function getRoadRouteGeometry(stops) {
     const parsed = JSON.parse(rawData);
     if (parsed.code === "Ok" && parsed.routes && parsed.routes.length > 0) {
       const route = parsed.routes[0];
-      const coordinates = route.geometry.coordinates.map(
-        ([lon, lat]) => [Number(lat.toFixed(6)), Number(lon.toFixed(6))]
-      );
+      const rawCoords = route.geometry.coordinates;
+      const step = Math.max(1, Math.floor(rawCoords.length / 100));
+      const coordinates = [];
+      for (let i = 0; i < rawCoords.length; i++) {
+        if (i === 0 || i === rawCoords.length - 1 || i % step === 0) {
+          coordinates.push([Number(rawCoords[i][1].toFixed(6)), Number(rawCoords[i][0].toFixed(6))]);
+        }
+      }
       const total_distance_km = Number((route.distance / 1e3).toFixed(2));
       const stopDistances = [];
       let cumulative = 0;
@@ -650,16 +674,15 @@ var createRoute = async (req, res) => {
       return;
     }
     await client.query("BEGIN");
-    let finalRouteId = route_id;
+    let finalRouteId = (route_code || route_id || "").trim().toUpperCase();
     if (!finalRouteId) {
       const countRes = await client.query("SELECT COUNT(*) FROM routes");
       const nextNum = parseInt(countRes.rows[0].count, 10) + 1;
-      finalRouteId = `ROUTE-${String(nextNum).padStart(2, "0")}`;
+      finalRouteId = `R-${String(nextNum).padStart(2, "0")}`;
+    } else if (finalRouteId.startsWith("ROUTE-")) {
+      finalRouteId = `R-${finalRouteId.replace("ROUTE-", "")}`;
     }
-    let finalRouteCode = route_code;
-    if (!finalRouteCode) {
-      finalRouteCode = `R-${finalRouteId.replace("ROUTE-", "")}`;
-    }
+    const finalRouteCode = finalRouteId;
     const totalStops = Array.isArray(stop_ids) ? stop_ids.length : 0;
     const insertRouteSql = `
       INSERT INTO routes (route_id, route_name, total_stops, description, color, status, route_code, assigned_driver_id, assigned_shuttle_id)
@@ -1301,7 +1324,7 @@ var getLiveTripDetails = async (req, res) => {
     const locRes = await query(
       `SELECT * FROM shuttle_locations 
        WHERE trip_id = $1 OR shuttle_id = $2
-       ORDER BY recorded_at DESC LIMIT 1`,
+       ORDER BY location_id DESC, recorded_at DESC LIMIT 1`,
       [id, trip.shuttle_id]
     );
     const latestLocation = locRes.rows[0] || null;
@@ -1828,9 +1851,17 @@ var createDriver = async (req, res) => {
       return;
     }
     await client.query("BEGIN");
-    const countRes = await client.query("SELECT COUNT(*) FROM drivers");
-    const nextNum = 101 + parseInt(countRes.rows[0].count, 10);
-    const driverId = `DRV-${nextNum}`;
+    const lastUserRes = await client.query(
+      "SELECT user_id FROM users WHERE user_id REGEXP '^USR-[0-9]+$' ORDER BY CAST(SUBSTRING(user_id, 5) AS UNSIGNED) DESC LIMIT 1"
+    );
+    let nextNum = 1;
+    if (lastUserRes.rows.length > 0) {
+      const parsed = parseInt(lastUserRes.rows[0].user_id.replace("USR-", ""), 10);
+      if (!isNaN(parsed)) {
+        nextNum = parsed + 1;
+      }
+    }
+    const driverId = `USR-${String(nextNum).padStart(3, "0")}`;
     const cleanEmail = email ? email.trim().toLowerCase() : `${name.toLowerCase().replace(/\s+/g, ".")}.driver@jklu.edu.in`;
     const salt = await bcrypt2.genSalt(10);
     const passwordHash = await bcrypt2.hash("driver@8821", salt);
@@ -1960,7 +1991,7 @@ var getDriverAssignedTrip = async (req, res) => {
       driverId = String(req.query.driver_id);
     }
     if (!driverId) {
-      driverId = "DRV-101";
+      driverId = "USR-002";
     }
     const tripRes = await query(
       `SELECT t.*,
@@ -1990,11 +2021,11 @@ var getDriverAssignedTrip = async (req, res) => {
 var startShift = async (req, res) => {
   try {
     const { shuttleId } = req.body;
-    const driverId = req.user?.user_id || "DRV-101";
+    const driverId = req.user?.user_id || "USR-002";
     const asgId = `ASG-${Date.now().toString(36).toUpperCase()}`;
     await query(
       `INSERT INTO driver_assignments (assignment_id, driver_id, route_id, shuttle_id, shift_date, shift_type, status)
-       VALUES ($1, $2, 'ROUTE-01', $3, 'Today', 'Manual Shift Start', 'ACTIVE')`,
+       VALUES ($1, $2, 'R-01', $3, 'Today', 'Manual Shift Start', 'ACTIVE')`,
       [asgId, driverId, shuttleId || "SHT-01"]
     );
     res.json({ success: true, message: "Shift started successfully", assignment_id: asgId });
@@ -2004,7 +2035,7 @@ var startShift = async (req, res) => {
 };
 var endShift = async (req, res) => {
   try {
-    const driverId = req.user?.user_id || "DRV-101";
+    const driverId = req.user?.user_id || "USR-002";
     await query(
       "UPDATE driver_assignments SET status = 'COMPLETED' WHERE driver_id = $1 AND status = 'ACTIVE'",
       [driverId]
@@ -2321,7 +2352,7 @@ var getNearbyStops = async (latitude, longitude, maxRadiusKm = 20, limit = 10) =
 var recordStudentLocation2 = async (req, res) => {
   try {
     const { latitude, longitude, accuracy_m, gps_timestamp } = req.body;
-    const studentId = req.user?.user_id || "USR-STU-001";
+    const studentId = req.user?.user_id || "USR-006";
     if (latitude === void 0 || longitude === void 0 || latitude === null || longitude === null) {
       res.status(400).json({ success: false, message: "latitude and longitude are required" });
       return;
@@ -2353,7 +2384,7 @@ var getStudentNearbyStops = async (req, res) => {
     const limit = req.query.limit ? parseInt(req.query.limit, 10) : 10;
     const radius = req.query.radius ? parseFloat(req.query.radius) : 25;
     if (lat === null || lng === null || isNaN(lat) || isNaN(lng)) {
-      const studentId = req.user?.user_id || "USR-STU-001";
+      const studentId = req.user?.user_id || "USR-006";
       const latest = await getLatestStudentLocation(studentId);
       if (latest && !isNaN(latest.latitude) && !isNaN(latest.longitude)) {
         lat = latest.latitude;
@@ -2376,7 +2407,7 @@ var getStudentNearbyStops = async (req, res) => {
 };
 var getLatestStudentLocation2 = async (req, res) => {
   try {
-    const studentId = req.user?.user_id || "USR-STU-001";
+    const studentId = req.user?.user_id || "USR-006";
     const latest = await getLatestStudentLocation(studentId);
     res.json({
       success: true,
@@ -2420,15 +2451,17 @@ var student_routes_default = router6;
 import { Router as Router7 } from "express";
 
 // backend/src/controllers/admin.controller.ts
+import bcrypt3 from "bcryptjs";
 var getAdminStats = async (_req, res) => {
   try {
-    const [routesCount, stopsCount, shuttlesCount, driversCount, tripsCount, activeTripsCount] = await Promise.all([
+    const [routesCount, stopsCount, shuttlesCount, driversCount, tripsCount, activeTripsCount, usersCount] = await Promise.all([
       query("SELECT COUNT(*) FROM routes"),
       query("SELECT COUNT(*) FROM stops"),
       query("SELECT COUNT(*) FROM shuttles"),
       query("SELECT COUNT(*) FROM drivers"),
       query("SELECT COUNT(*) FROM trips"),
-      query("SELECT COUNT(*) FROM trips WHERE running_status = 'RUNNING'")
+      query("SELECT COUNT(*) FROM trips WHERE running_status = 'RUNNING'"),
+      query("SELECT COUNT(*) FROM users")
     ]);
     res.json({
       success: true,
@@ -2438,7 +2471,8 @@ var getAdminStats = async (_req, res) => {
         totalShuttles: parseInt(shuttlesCount.rows[0].count, 10),
         totalDrivers: parseInt(driversCount.rows[0].count, 10),
         totalTrips: parseInt(tripsCount.rows[0].count, 10),
-        activeTrips: parseInt(activeTripsCount.rows[0].count, 10)
+        activeTrips: parseInt(activeTripsCount.rows[0].count, 10),
+        totalUsers: parseInt(usersCount.rows[0].count, 10)
       }
     });
   } catch (error) {
@@ -2446,10 +2480,125 @@ var getAdminStats = async (_req, res) => {
     res.status(500).json({ success: false, message: "Failed to fetch admin stats", error: error.message });
   }
 };
+var getUsers = async (_req, res) => {
+  try {
+    const result = await query(
+      `SELECT u.user_id, u.name, u.email, u.phone_number, u.role,
+              s.roll_no,
+              d.license_no,
+              a.designation, a.department
+       FROM users u
+       LEFT JOIN students s ON u.user_id = s.student_id
+       LEFT JOIN drivers d ON u.user_id = d.driver_id
+       LEFT JOIN admins a ON u.user_id = a.admin_id
+       ORDER BY u.role ASC, u.name ASC`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch users", error: error.message });
+  }
+};
+var createUser = async (req, res) => {
+  try {
+    const { name, email, password, role, phone_number, roll_no, license_no, designation, department } = req.body;
+    if (!name || !name.trim()) {
+      res.status(400).json({ success: false, message: "Name is required" });
+      return;
+    }
+    if (!email || !email.trim()) {
+      res.status(400).json({ success: false, message: "Email is required" });
+      return;
+    }
+    if (!password || !password.trim()) {
+      res.status(400).json({ success: false, message: "Password is required" });
+      return;
+    }
+    if (!role || !["admin", "driver", "student"].includes(role.toLowerCase())) {
+      res.status(400).json({ success: false, message: "Valid role (admin, driver, student) is required" });
+      return;
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanRole = role.toLowerCase();
+    const existing = await query("SELECT user_id FROM users WHERE LOWER(email) = $1", [cleanEmail]);
+    if (existing.rows.length > 0) {
+      res.status(409).json({ success: false, message: "A user with this email address already exists" });
+      return;
+    }
+    const salt = await bcrypt3.genSalt(10);
+    const passwordHash = await bcrypt3.hash(password.trim(), salt);
+    const lastUserRes = await query(
+      "SELECT user_id FROM users WHERE user_id REGEXP '^USR-[0-9]+$' ORDER BY CAST(SUBSTRING(user_id, 5) AS UNSIGNED) DESC LIMIT 1"
+    );
+    let nextNum = 1;
+    if (lastUserRes.rows.length > 0) {
+      const parsed = parseInt(lastUserRes.rows[0].user_id.replace("USR-", ""), 10);
+      if (!isNaN(parsed)) {
+        nextNum = parsed + 1;
+      }
+    }
+    const userId = `USR-${String(nextNum).padStart(3, "0")}`;
+    await query(
+      "INSERT INTO users (user_id, name, email, password_hash, phone_number, role) VALUES ($1, $2, $3, $4, $5, $6)",
+      [userId, name.trim(), cleanEmail, passwordHash, phone_number?.trim() || null, cleanRole]
+    );
+    if (cleanRole === "student") {
+      const cleanRoll = roll_no?.trim() || `ROLL-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+      await query("INSERT INTO students (student_id, roll_no) VALUES ($1, $2)", [userId, cleanRoll]);
+    } else if (cleanRole === "driver") {
+      const cleanLicense = license_no?.trim() || `RJ14-${Date.now().toString().slice(-6)}`;
+      await query("INSERT INTO drivers (driver_id, license_no) VALUES ($1, $2)", [userId, cleanLicense]);
+    } else if (cleanRole === "admin") {
+      await query("INSERT INTO admins (admin_id, designation, department) VALUES ($1, $2, $3)", [
+        userId,
+        designation?.trim() || "Transit Administrator",
+        department?.trim() || "JKLU Mobility Operations"
+      ]);
+    }
+    res.status(201).json({
+      success: true,
+      message: `${cleanRole.toUpperCase()} user created successfully`,
+      user: {
+        user_id: userId,
+        name: name.trim(),
+        email: cleanEmail,
+        role: cleanRole,
+        phone_number: phone_number?.trim() || null,
+        roll_no: cleanRole === "student" ? roll_no : void 0,
+        license_no: cleanRole === "driver" ? license_no : void 0,
+        designation: cleanRole === "admin" ? designation : void 0,
+        department: cleanRole === "admin" ? department : void 0
+      }
+    });
+  } catch (error) {
+    console.error("Error creating user:", error);
+    res.status(500).json({ success: false, message: "Failed to create user", error: error.message });
+  }
+};
+var deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (id === "USR-001") {
+      res.status(400).json({ success: false, message: "Cannot delete primary root administrator account" });
+      return;
+    }
+    await query("DELETE FROM students WHERE student_id = $1", [id]);
+    await query("DELETE FROM drivers WHERE driver_id = $1", [id]);
+    await query("DELETE FROM admins WHERE admin_id = $1", [id]);
+    await query("DELETE FROM users WHERE user_id = $1", [id]);
+    res.json({ success: true, message: "User deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    res.status(500).json({ success: false, message: "Failed to delete user", error: error.message });
+  }
+};
 
 // backend/src/routes/admin.routes.ts
 var router7 = Router7();
 router7.get("/stats", getAdminStats);
+router7.get("/users", getUsers);
+router7.post("/users", createUser);
+router7.delete("/users/:id", deleteUser);
 var admin_routes_default = router7;
 
 // backend/src/routes/index.ts
@@ -2509,7 +2658,26 @@ var healthHandler = (_req, res) => {
 app.get("/health", healthHandler);
 app.get("/api/health", healthHandler);
 app.use("/api", routes_default);
-app.use("/", routes_default);
+var possibleDistPaths = [
+  path2.resolve(process.cwd(), "dist"),
+  path2.resolve(process.cwd(), "../dist"),
+  path2.resolve(process.cwd(), "dbms/dist"),
+  path2.resolve(__dirname, "../../dist"),
+  path2.resolve(__dirname, "../dist")
+];
+var distPath = possibleDistPaths.find((p) => fs2.existsSync(p) && fs2.existsSync(path2.join(p, "index.html")));
+if (distPath) {
+  console.log(`[Unified Server] Serving frontend static assets from: ${distPath}`);
+  app.use(express.static(distPath));
+  app.get("*", (req, res, next) => {
+    if (req.url.startsWith("/api") || req.url.startsWith("/socket.io") || req.url === "/health" || req.url === "/api/health") {
+      return next();
+    }
+    res.sendFile(path2.join(distPath, "index.html"));
+  });
+} else {
+  app.use("/", routes_default);
+}
 app.use((req, res) => {
   res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.url}` });
 });

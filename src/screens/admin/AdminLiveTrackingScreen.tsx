@@ -69,11 +69,11 @@ export const AdminLiveTrackingScreen: React.FC = () => {
   }, [runningTrips]);
 
   // Determine which routes to display polylines for on the map:
-  // - If user selected a specific route (e.g. 'ROUTE-01'): show that specific route if running
+  // - If user selected a specific route (e.g. 'R-01'): show that specific route if running
   // - If user selected "All Active" / all shuttles option: show all routes on which shuttles are running
   // - If no shuttles are running: show zero route lines (clean map with no random connections)
   const visibleRouteIds = useMemo(() => {
-    // If a specific route filter is selected (e.g. 'ROUTE-01')
+    // If a specific route filter is selected (e.g. 'R-01')
     if (activeRouteFilter !== 'ALL') {
       const isRouteRunning = runningRouteIds.includes(activeRouteFilter);
       return isRouteRunning ? [activeRouteFilter] : [];
