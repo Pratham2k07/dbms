@@ -156,6 +156,10 @@ const defaultSockets = [
 
 const detectedSocket = defaultSockets.length > 0 ? defaultSockets[0] : undefined;
 
+const sslConfig = process.env.MYSQL_SSL === 'true' || process.env.MYSQL_SSL === '1'
+  ? { rejectUnauthorized: false }
+  : undefined;
+
 const mysqlConfig = process.env.MYSQL_URL || (process.env.DATABASE_URL?.startsWith('mysql') ? process.env.DATABASE_URL : null) || {
   ...(detectedSocket ? { socketPath: detectedSocket } : { host: mysqlHost, port: mysqlPort }),
   user: mysqlUser,
@@ -164,7 +168,8 @@ const mysqlConfig = process.env.MYSQL_URL || (process.env.DATABASE_URL?.startsWi
   waitForConnections: true,
   connectionLimit: 20,
   decimalNumbers: true,
-  charset: 'utf8mb4'
+  charset: 'utf8mb4',
+  ...(sslConfig ? { ssl: sslConfig } : {})
 };
 
 const rawPool = mysql.createPool(mysqlConfig as any);

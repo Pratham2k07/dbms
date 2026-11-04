@@ -133,6 +133,7 @@ var defaultSockets = [
   "/tmp/mysql.sock"
 ].filter((p) => Boolean(p && fs.existsSync(p)));
 var detectedSocket = defaultSockets.length > 0 ? defaultSockets[0] : void 0;
+var sslConfig = process.env.MYSQL_SSL === "true" || process.env.MYSQL_SSL === "1" ? { rejectUnauthorized: false } : void 0;
 var mysqlConfig = process.env.MYSQL_URL || (process.env.DATABASE_URL?.startsWith("mysql") ? process.env.DATABASE_URL : null) || {
   ...detectedSocket ? { socketPath: detectedSocket } : { host: mysqlHost, port: mysqlPort },
   user: mysqlUser,
@@ -141,7 +142,8 @@ var mysqlConfig = process.env.MYSQL_URL || (process.env.DATABASE_URL?.startsWith
   waitForConnections: true,
   connectionLimit: 20,
   decimalNumbers: true,
-  charset: "utf8mb4"
+  charset: "utf8mb4",
+  ...sslConfig ? { ssl: sslConfig } : {}
 };
 var rawPool = mysql.createPool(mysqlConfig);
 console.log(`[Database] Connected to MySQL Server (${detectedSocket ? `Socket: ${detectedSocket}` : `${mysqlHost}:${mysqlPort}`})/${mysqlDatabase}`);
