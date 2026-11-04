@@ -374,5 +374,3 @@ INSERT INTO driver_notifications (notification_id, driver_id, title, message, ty
   ('NOTIF-001', 'USR-002', 'Shift Assignment Ready', 'You are assigned to Route R-01 (Malviya Nagar Circuit) on Shuttle 01.', 'info', 'R-01'),
   ('NOTIF-002', 'USR-003', 'Shift Assignment Ready', 'You are assigned to Route R-02 (Mansarovar Circuit) on Shuttle 02.', 'info', 'R-02'),
   ('NOTIF-003', 'USR-004', 'Shift Assignment Ready', 'You are assigned to Route R-03 (Railway Station Circuit) on Shuttle 03.', 'info', 'R-03');
-  ('NOTIF-002', 'DRV-102', 'Shift Assignment Ready', 'You are assigned to Route R-02 (Mansarovar Circuit) on Shuttle 02.', 'info', 'ROUTE-02'),
-  ('NOTIF-003', 'DRV-103', 'Shift Assignment Ready', 'You are assigned to Route R-03 (Railway Station Circuit) on Shuttle 03.', 'info', 'ROUTE-03');

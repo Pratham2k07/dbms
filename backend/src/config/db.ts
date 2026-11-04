@@ -147,16 +147,18 @@ const mysqlUser = process.env.MYSQL_USER || 'root';
 const mysqlPassword = process.env.MYSQL_PASSWORD || '123456';
 const mysqlDatabase = process.env.MYSQL_DATABASE || 'jklu_shuttle_db';
 
-const defaultSockets = [
+const isRemote = mysqlHost !== 'localhost' && mysqlHost !== '127.0.0.1';
+
+const defaultSockets = !isRemote ? [
   process.env.MYSQL_SOCKET,
   '/var/lib/mysql/mysql.sock',
   '/var/run/mysqld/mysqld.sock',
   '/tmp/mysql.sock'
-].filter((p): p is string => Boolean(p && fs.existsSync(p)));
+].filter((p): p is string => Boolean(p && fs.existsSync(p))) : [];
 
 const detectedSocket = defaultSockets.length > 0 ? defaultSockets[0] : undefined;
 
-const sslConfig = process.env.MYSQL_SSL === 'true' || process.env.MYSQL_SSL === '1'
+const sslConfig = isRemote || process.env.MYSQL_SSL === 'true' || process.env.MYSQL_SSL === '1'
   ? { rejectUnauthorized: false }
   : undefined;
 
