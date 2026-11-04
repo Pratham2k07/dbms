@@ -155,7 +155,7 @@ export const getLatestShuttleLocation = async (shuttleId: string) => {
     LEFT JOIN trips t ON sl.trip_id = t.trip_id
     LEFT JOIN routes r ON t.route_id = r.route_id
     LEFT JOIN shuttles s ON sl.shuttle_id = s.shuttle_id
-    WHERE sl.shuttle_id = $1
+    WHERE sl.shuttle_id = $1 AND (t.running_status = 'RUNNING' OR sl.trip_id IS NULL)
     ORDER BY sl.recorded_at DESC
     LIMIT 1;
   `;

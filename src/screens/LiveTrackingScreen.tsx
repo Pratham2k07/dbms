@@ -96,7 +96,7 @@ export const LiveTrackingScreen: React.FC = () => {
   const currentLoc = useMemo(() => {
     const liveLoc = liveTripData?.latest_location || liveTripData?.latestLocation;
     const matching = shuttleLocations.filter(
-      (item) => (trip?.trip_id && item.trip_id === trip.trip_id) || item.shuttle_id === shuttle?.shuttle_id
+      (item) => (trip?.trip_id && item.trip_id === trip.trip_id) || (!item.trip_id && item.shuttle_id === shuttle?.shuttle_id)
     );
     const newestFromContext = matching.length > 0 ? matching[matching.length - 1] : undefined;
     return liveLoc || newestFromContext;
@@ -178,7 +178,7 @@ export const LiveTrackingScreen: React.FC = () => {
 
       let loc =
         (t.trip_id === trip?.trip_id ? (liveTripData?.latest_location || liveTripData?.latestLocation) : null) ||
-        shuttleLocations.find((l) => l.trip_id === t.trip_id || l.shuttle_id === t.shuttle_id);
+        shuttleLocations.find((l) => (t.trip_id && l.trip_id === t.trip_id) || (!l.trip_id && l.shuttle_id === t.shuttle_id));
 
       if (!loc) {
         const originRS = allRouteStops

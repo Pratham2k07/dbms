@@ -53,11 +53,13 @@ export const StopDetailsScreen: React.FC = () => {
     );
   }, [stop.stop_id, trips, tripStops, shuttles, routes, shuttleLocations, etaMap, routeStops, stops]);
 
-  // Filter shuttles for mini map - STRICTLY 1 NEXT UPCOMING SHUTTLE
+  // Filter shuttles for mini map - STRICTLY 1 NEXT UPCOMING SHUTTLE in an active trip
   const activeShuttlesForMap = useMemo(() => {
     const nextShuttle = upcomingShuttles[0];
-    if (nextShuttle) {
-      const loc = shuttleLocations.find((l) => l.shuttle_id === nextShuttle.shuttle.shuttle_id);
+    if (nextShuttle && nextShuttle.trip.running_status === 'RUNNING') {
+      const loc = shuttleLocations.find(
+        (l) => (l.trip_id && l.trip_id === nextShuttle.trip.trip_id) || (!l.trip_id && l.shuttle_id === nextShuttle.shuttle.shuttle_id)
+      );
       if (loc) {
         return [
           {
@@ -68,18 +70,8 @@ export const StopDetailsScreen: React.FC = () => {
         ];
       }
     }
-    const firstLoc = shuttleLocations[0];
-    const s = shuttles.find((item) => item.shuttle_id === firstLoc?.shuttle_id);
-    return firstLoc && s
-      ? [
-          {
-            location: firstLoc,
-            number: s.shuttle_number,
-            routeId: 'R-01'
-          }
-        ]
-      : [];
-  }, [upcomingShuttles, shuttleLocations, shuttles]);
+    return [];
+  }, [upcomingShuttles, shuttleLocations]);
 
   return (
     <div className="min-h-full bg-[#FBFBF9] pb-10 select-none">

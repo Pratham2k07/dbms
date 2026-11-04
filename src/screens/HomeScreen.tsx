@@ -96,19 +96,24 @@ export const HomeScreen: React.FC = () => {
     );
   }, [studentLocation, stops, approachingCounts]);
 
-  // 3. Active running trips to cross-reference
+  // 3. Active running trips to cross-reference (strictly running_status === 'RUNNING')
   const runningTrips = useMemo(() => {
     return trips.filter((t) => t.running_status === 'RUNNING');
   }, [trips]);
 
-  // Find the trip assigned to the currently selected 1 shuttle
+  // Find the active running trip assigned to the currently selected shuttle (if any)
+  const runningTripForSelectedShuttle = useMemo(() => {
+    return runningTrips.find((t) => t.shuttle_id === selectedShuttleId);
+  }, [runningTrips, selectedShuttleId]);
+
+  // Reference trip for route corridor display when shuttle is idle
   const activeTripForSelectedShuttle = useMemo(() => {
     return (
-      trips.find((t) => t.shuttle_id === selectedShuttleId && t.running_status === 'RUNNING') ||
+      runningTripForSelectedShuttle ||
       trips.find((t) => t.shuttle_id === selectedShuttleId) ||
       trips[0]
     );
-  }, [trips, selectedShuttleId]);
+  }, [runningTripForSelectedShuttle, trips, selectedShuttleId]);
 
   const activeRouteForSelectedShuttle = useMemo(() => {
     return (
@@ -151,23 +156,25 @@ export const HomeScreen: React.FC = () => {
     };
   }, [activeRouteTerminusStop]);
 
-    // 4. Format all active shuttles for map rendering
+  // 4. Format all active shuttles for map rendering (STRICTLY running trips; never completed or cancelled)
   const activeShuttlesForMap = useMemo(() => {
     const list: { location: ShuttleLocation; number: string; routeId: string }[] = [];
     const addedShuttleIds = new Set<string>();
 
-    // A. Include every shuttle with an active RUNNING trip
+    // ONLY include shuttles with an active RUNNING trip
     if (runningTrips.length > 0) {
       for (const trip of runningTrips) {
+        if (trip.running_status !== 'RUNNING') continue;
         if (addedShuttleIds.has(trip.shuttle_id)) continue;
 
+        // Match locations strictly for this active trip
         const matchingLocs = shuttleLocations.filter(
-          (l) => (trip.trip_id && l.trip_id === trip.trip_id) || l.shuttle_id === trip.shuttle_id
+          (l) => (l.trip_id && l.trip_id === trip.trip_id) || (!l.trip_id && l.shuttle_id === trip.shuttle_id)
         );
         let loc = matchingLocs.length > 0 ? matchingLocs[matchingLocs.length - 1] : undefined;
 
         if (!loc) {
-          // Fallback to origin stop of this route so shuttle immediately appears on map
+          // Fallback to origin stop of this route so shuttle immediately appears at route origin
           const originRS = routeStops
             .filter((rs) => rs.route_id === trip.route_id)
             .sort((a, b) => a.sequence_number - b.sequence_number)[0];
@@ -199,27 +206,14 @@ export const HomeScreen: React.FC = () => {
       }
     }
 
-    // B. If no trips are running, but the selected shuttle has recent telemetry or location, show it
-    if (list.length === 0 && selectedShuttleId) {
-      const matchingLocs = shuttleLocations.filter((l) => l.shuttle_id === selectedShuttleId);
-      const loc = matchingLocs.length > 0 ? matchingLocs[matchingLocs.length - 1] : undefined;
-      const shuttle = shuttles.find((s) => s.shuttle_id === selectedShuttleId);
-      if (loc && shuttle) {
-        list.push({
-          location: loc,
-          number: shuttle.shuttle_number,
-          routeId: activeTripForSelectedShuttle?.route_id || 'R-01'
-        });
-      }
-    }
-
+    // Do NOT include shuttles from completed or cancelled trips
     return list;
-  }, [runningTrips, shuttleLocations, routeStops, stops, shuttles, selectedShuttleId, activeTripForSelectedShuttle]);
+  }, [runningTrips, shuttleLocations, routeStops, stops, shuttles]);
 
-  // Overall active fleet count across Jaipur
+  // Overall active fleet count across Jaipur (strictly active running trips)
   const activeFleetCount = useMemo(() => {
-    return Math.max(runningTrips.length, activeShuttlesForMap.length);
-  }, [runningTrips.length, activeShuttlesForMap.length]);
+    return runningTrips.length;
+  }, [runningTrips.length]);
 
   // 5. Stops to render on map: default to all 40 stops across Jaipur and JKLU
   const stopsForMap = useMemo(() => {
@@ -425,10 +419,14 @@ export const HomeScreen: React.FC = () => {
               <div className="flex items-center justify-between text-[11px] font-mono text-stone-500 px-1 pt-0.5">
                 <span>● Tap stop pin to inspect vicinity & transit connectivity</span>
                 <span className="text-stone-700 font-medium">
-                  {activeFleetCount > 0 ? (
+                  {runningTripForSelectedShuttle ? (
                     <>
                       Tracking: <strong className="text-[#E8590C]">{shuttles.find((s) => s.shuttle_id === selectedShuttleId)?.shuttle_number || 'SHUTTLE'}</strong> ({activeRouteForSelectedShuttle?.route_code || 'Active Corridor'})
                     </>
+                  ) : activeFleetCount > 0 ? (
+                    <span className="text-stone-500 font-medium">
+                      {shuttles.find((s) => s.shuttle_id === selectedShuttleId)?.shuttle_number || 'Selected Shuttle'} is Idle • {activeFleetCount} other shuttle{activeFleetCount !== 1 ? 's' : ''} in transit
+                    </span>
                   ) : (
                     <span className="text-stone-500 font-medium">
                       All {stops.length} Stops Mapped • Fleet in Depot (0 Active Trips)
