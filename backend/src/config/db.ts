@@ -141,11 +141,27 @@ async function executeOnMysql(target: any, sql: string, params: any[] = []): Pro
 }
 
 // ================= MYSQL DATABASE CONNECTION (EXCLUSIVE) =================
-const mysqlHost = process.env.MYSQL_HOST || 'localhost';
-const mysqlPort = parseInt(process.env.MYSQL_PORT || '3306', 10);
-const mysqlUser = process.env.MYSQL_USER || 'root';
-const mysqlPassword = process.env.MYSQL_PASSWORD || '123456';
-const mysqlDatabase = process.env.MYSQL_DATABASE || 'jklu_shuttle_db';
+let mysqlHost = process.env.MYSQL_HOST || 'localhost';
+let mysqlPort = parseInt(process.env.MYSQL_PORT || '3306', 10);
+let mysqlUser = process.env.MYSQL_USER || 'root';
+let mysqlPassword = process.env.MYSQL_PASSWORD || '123456';
+let mysqlDatabase = process.env.MYSQL_DATABASE || 'jklu_shuttle_db';
+
+const rawUri = process.env.MYSQL_URL || process.env.DATABASE_URL;
+if (rawUri && rawUri.startsWith('mysql')) {
+  try {
+    const parsed = new URL(rawUri);
+    if (parsed.hostname) mysqlHost = parsed.hostname;
+    if (parsed.port) mysqlPort = parseInt(parsed.port, 10);
+    if (parsed.username) mysqlUser = decodeURIComponent(parsed.username);
+    if (parsed.password) mysqlPassword = decodeURIComponent(parsed.password);
+    if (parsed.pathname && parsed.pathname.length > 1) {
+      mysqlDatabase = parsed.pathname.slice(1);
+    }
+  } catch (err) {
+    console.warn('[Database] Could not parse database URI, falling back to individual MYSQL_* variables.');
+  }
+}
 
 const isRemote = mysqlHost !== 'localhost' && mysqlHost !== '127.0.0.1';
 
@@ -162,7 +178,7 @@ const sslConfig = isRemote || process.env.MYSQL_SSL === 'true' || process.env.MY
   ? { rejectUnauthorized: false }
   : undefined;
 
-const mysqlConfig = process.env.MYSQL_URL || (process.env.DATABASE_URL?.startsWith('mysql') ? process.env.DATABASE_URL : null) || {
+const mysqlConfig = {
   ...(detectedSocket ? { socketPath: detectedSocket } : { host: mysqlHost, port: mysqlPort }),
   user: mysqlUser,
   password: mysqlPassword,

@@ -126,15 +126,31 @@ var mysqlPort = parseInt(process.env.MYSQL_PORT || "3306", 10);
 var mysqlUser = process.env.MYSQL_USER || "root";
 var mysqlPassword = process.env.MYSQL_PASSWORD || "123456";
 var mysqlDatabase = process.env.MYSQL_DATABASE || "jklu_shuttle_db";
-var defaultSockets = [
+var rawUri = process.env.MYSQL_URL || process.env.DATABASE_URL;
+if (rawUri && rawUri.startsWith("mysql")) {
+  try {
+    const parsed = new URL(rawUri);
+    if (parsed.hostname) mysqlHost = parsed.hostname;
+    if (parsed.port) mysqlPort = parseInt(parsed.port, 10);
+    if (parsed.username) mysqlUser = decodeURIComponent(parsed.username);
+    if (parsed.password) mysqlPassword = decodeURIComponent(parsed.password);
+    if (parsed.pathname && parsed.pathname.length > 1) {
+      mysqlDatabase = parsed.pathname.slice(1);
+    }
+  } catch (err) {
+    console.warn("[Database] Could not parse database URI, falling back to individual MYSQL_* variables.");
+  }
+}
+var isRemote = mysqlHost !== "localhost" && mysqlHost !== "127.0.0.1";
+var defaultSockets = !isRemote ? [
   process.env.MYSQL_SOCKET,
   "/var/lib/mysql/mysql.sock",
   "/var/run/mysqld/mysqld.sock",
   "/tmp/mysql.sock"
-].filter((p) => Boolean(p && fs.existsSync(p)));
+].filter((p) => Boolean(p && fs.existsSync(p))) : [];
 var detectedSocket = defaultSockets.length > 0 ? defaultSockets[0] : void 0;
-var sslConfig = process.env.MYSQL_SSL === "true" || process.env.MYSQL_SSL === "1" ? { rejectUnauthorized: false } : void 0;
-var mysqlConfig = process.env.MYSQL_URL || (process.env.DATABASE_URL?.startsWith("mysql") ? process.env.DATABASE_URL : null) || {
+var sslConfig = isRemote || process.env.MYSQL_SSL === "true" || process.env.MYSQL_SSL === "1" ? { rejectUnauthorized: false } : void 0;
+var mysqlConfig = {
   ...detectedSocket ? { socketPath: detectedSocket } : { host: mysqlHost, port: mysqlPort },
   user: mysqlUser,
   password: mysqlPassword,
