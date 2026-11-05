@@ -146,7 +146,10 @@ const mysqlUser = process.env.MYSQL_USER || 'root';
 const mysqlPassword = process.env.MYSQL_PASSWORD || '123456';
 const mysqlDatabase = process.env.MYSQL_DATABASE || 'jklu_shuttle_db';
 
-const mysqlConfig = process.env.MYSQL_URL || (process.env.DATABASE_URL?.startsWith('mysql') ? process.env.DATABASE_URL : null) || {
+const isRemote = mysqlHost !== 'localhost' && mysqlHost !== '127.0.0.1';
+const useSsl = process.env.MYSQL_SSL === 'true' || (process.env.MYSQL_SSL !== 'false' && isRemote);
+
+const poolConfig: any = {
   host: mysqlHost,
   port: mysqlPort,
   user: mysqlUser,
@@ -155,12 +158,13 @@ const mysqlConfig = process.env.MYSQL_URL || (process.env.DATABASE_URL?.startsWi
   waitForConnections: true,
   connectionLimit: 20,
   decimalNumbers: true,
-  charset: 'utf8mb4'
+  charset: 'utf8mb4',
+  ...(useSsl ? { ssl: { rejectUnauthorized: false } } : {})
 };
 
-const rawPool = mysql.createPool(mysqlConfig as any);
+const rawPool = mysql.createPool(poolConfig);
 
-console.log(`[Database] Connected to MySQL Server on ${mysqlHost}:${mysqlPort}/${mysqlDatabase}`);
+console.log(`[Database] Connected to MySQL Server on ${mysqlHost}:${mysqlPort}/${mysqlDatabase}${useSsl ? ' (SSL Enabled)' : ''}`);
 
 export const pool = {
   connect: async () => {

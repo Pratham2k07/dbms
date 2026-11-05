@@ -12,13 +12,27 @@ const mysqlPassword = process.env.MYSQL_PASSWORD || '123456';
 const mysqlDatabase = process.env.MYSQL_DATABASE || 'jklu_shuttle_db';
 
 async function runInit() {
-  const connection = await mysql.createConnection({
-    host: mysqlHost,
-    port: mysqlPort,
-    user: mysqlUser,
-    password: mysqlPassword,
-    multipleStatements: true,
-  });
+  const isRemote = mysqlHost !== 'localhost' && mysqlHost !== '127.0.0.1';
+  const useSsl = process.env.MYSQL_SSL === 'true' || (process.env.MYSQL_SSL !== 'false' && isRemote);
+
+  const connUrl = process.env.MYSQL_URL || (process.env.DATABASE_URL?.startsWith('mysql') ? process.env.DATABASE_URL : null);
+
+  const connection = await mysql.createConnection(
+    connUrl
+      ? {
+          uri: connUrl,
+          multipleStatements: true,
+          ...(useSsl ? { ssl: { rejectUnauthorized: false } } : {})
+        }
+      : {
+          host: mysqlHost,
+          port: mysqlPort,
+          user: mysqlUser,
+          password: mysqlPassword,
+          multipleStatements: true,
+          ...(useSsl ? { ssl: { rejectUnauthorized: false } } : {})
+        }
+  );
 
   try {
     console.log(`Connected to MySQL on ${mysqlHost}:${mysqlPort}.`);
