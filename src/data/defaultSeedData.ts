@@ -14332,7 +14332,7 @@ export const DEFAULT_DATABASE_STATE = {
     "driver_id": "DRV-101",
     "start_time": "12:20 PM",
     "end_time": null,
-    "running_status": "RUNNING",
+    "running_status": "SCHEDULED",
     "capacity_status": "AVAILABLE",
     "speed_kmh": "0.00"
   }
@@ -14585,9 +14585,9 @@ export const DEFAULT_DATABASE_STATE = {
   {
     "location_id": "8",
     "shuttle_id": "SHT-01",
-    "trip_id": "TRIP-5565",
-    "latitude": "19.116200",
-    "longitude": "72.863500",
+    "trip_id": "TRIP-01",
+    "latitude": "26.837300",
+    "longitude": "75.649900",
     "bearing": "0.00",
     "speed_kmh": "0.00",
     "progress_percentage": "0.00",
@@ -14596,9 +14596,9 @@ export const DEFAULT_DATABASE_STATE = {
   {
     "location_id": "7",
     "shuttle_id": "SHT-01",
-    "trip_id": "TRIP-5565",
-    "latitude": "19.116200",
-    "longitude": "72.863500",
+    "trip_id": "TRIP-01",
+    "latitude": "26.837300",
+    "longitude": "75.649900",
     "bearing": "0.00",
     "speed_kmh": "0.00",
     "progress_percentage": "0.00",
@@ -14618,9 +14618,9 @@ export const DEFAULT_DATABASE_STATE = {
   {
     "location_id": "5",
     "shuttle_id": "SHT-01",
-    "trip_id": "TRIP-5565",
-    "latitude": "19.116200",
-    "longitude": "72.863500",
+    "trip_id": "TRIP-01",
+    "latitude": "26.837300",
+    "longitude": "75.649900",
     "bearing": "0.00",
     "speed_kmh": "0.00",
     "progress_percentage": "0.00",
