@@ -14,8 +14,17 @@ export const LoginScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
+  // Always initialize with clean, blank input fields
+  React.useEffect(() => {
+    setEmail('');
+    setPassword('');
+    setErrorMessage('');
+  }, []);
+
   const handleRoleChange = (role: UserRole) => {
     setSelectedRole(role);
+    setEmail('');
+    setPassword('');
     setErrorMessage('');
   };
 
@@ -123,7 +132,7 @@ export const LoginScreen: React.FC = () => {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
             {/* Email Field */}
             <div className="space-y-1.5">
               <label className="text-xs font-editorial font-bold text-stone-700 block">
@@ -136,14 +145,20 @@ export const LoginScreen: React.FC = () => {
                 <Mail className="w-4 h-4 text-stone-400 absolute left-3.5 pointer-events-none" />
                 <input
                   type="email"
+                  name="user_portal_email"
+                  id="user_portal_email"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={
                     selectedRole === 'driver'
-                      ? 'driver@jklu.edu.in'
+                      ? 'Enter driver email or ID'
                       : selectedRole === 'admin'
-                      ? 'admin@jklu.edu.in'
-                      : 'student@jklu.edu.in'
+                      ? 'Enter administrator email or ID'
+                      : 'Enter student email or ID'
                   }
                   required
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#FBFBF9] border border-stone-200 focus:border-[#4F70B0] focus:ring-2 focus:ring-[#4F70B0]/20 text-xs sm:text-sm text-stone-800 transition-all outline-none font-medium"
@@ -161,9 +176,12 @@ export const LoginScreen: React.FC = () => {
                 <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 pointer-events-none" />
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  name="user_portal_pass"
+                  id="user_portal_pass"
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="Enter password"
                   required
                   className="w-full pl-10 pr-10 py-3 rounded-xl bg-[#FBFBF9] border border-stone-200 focus:border-[#4F70B0] focus:ring-2 focus:ring-[#4F70B0]/20 text-xs sm:text-sm text-stone-800 transition-all outline-none font-medium"
                 />

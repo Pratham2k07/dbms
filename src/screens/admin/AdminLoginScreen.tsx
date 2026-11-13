@@ -11,6 +11,12 @@ export const AdminLoginScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
+  React.useEffect(() => {
+    setEmail('');
+    setPassword('');
+    setErrorMessage('');
+  }, []);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -88,7 +94,7 @@ export const AdminLoginScreen: React.FC = () => {
             <span className="text-[10px] font-mono text-stone-400">/admin</span>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
             {/* Email / ID Field */}
             <div className="space-y-1.5">
               <label className="text-xs font-editorial font-bold text-stone-700 block">
@@ -98,9 +104,15 @@ export const AdminLoginScreen: React.FC = () => {
                 <Mail className="w-4 h-4 text-stone-400 absolute left-3.5 pointer-events-none" />
                 <input
                   type="email"
+                  name="admin_login_email"
+                  id="admin_login_email"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@jklu.edu.in"
+                  placeholder="Enter administrator email or ID"
                   required
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-[#1E3A68] focus:ring-2 focus:ring-[#1E3A68]/20 text-xs sm:text-sm text-stone-800 transition-all outline-none font-medium"
                 />
@@ -113,16 +125,18 @@ export const AdminLoginScreen: React.FC = () => {
                 <label className="text-xs font-editorial font-bold text-stone-700">
                   Security Passkey
                 </label>
-                <span className="text-[11px] font-mono text-stone-400">Demo: admin@jklu</span>
               </div>
 
               <div className="relative flex items-center">
                 <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 pointer-events-none" />
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  name="admin_login_pass"
+                  id="admin_login_pass"
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="Enter security passkey"
                   required
                   className="w-full pl-10 pr-10 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:border-[#1E3A68] focus:ring-2 focus:ring-[#1E3A68]/20 text-xs sm:text-sm text-stone-800 transition-all outline-none font-medium"
                 />
