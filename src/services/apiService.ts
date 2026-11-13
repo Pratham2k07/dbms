@@ -72,5 +72,19 @@ export const getLatestStudentLocation = () => api.get('/student/location/latest'
 
 export const getActiveStudentTrips = () => api.get('/student/active-trips').then(res => res.data);
 
-// Admin Stats
+// Admin Stats & User Management
 export const getAdminStats = () => api.get('/admin/stats').then(res => res.data);
+export const getAdminUsers = () => api.get('/admin/users').then(res => res.data);
+export const createAdminUser = (data: {
+  name: string;
+  email: string;
+  password: string;
+  role: 'admin' | 'driver' | 'student';
+  phone_number?: string;
+  roll_no?: string;
+  license_no?: string;
+  designation?: string;
+  department?: string;
+}) => api.post('/admin/users', data).then(res => res.data);
+export const deleteAdminUser = (id: string) => api.delete(`/admin/users/${id}`).then(res => res.data);
+

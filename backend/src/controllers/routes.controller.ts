@@ -84,18 +84,16 @@ export const createRoute = async (req: Request, res: Response): Promise<void> =>
 
     await client.query('BEGIN');
 
-    // Generate Route ID if not provided
-    let finalRouteId = route_id;
+    // Generate unified Route ID and Route Code (single consistent identifier, e.g. R-01, R-02)
+    let finalRouteId = (route_code || route_id || '').trim().toUpperCase();
     if (!finalRouteId) {
       const countRes = await client.query('SELECT COUNT(*) FROM routes');
       const nextNum = parseInt(countRes.rows[0].count, 10) + 1;
-      finalRouteId = `ROUTE-${String(nextNum).padStart(2, '0')}`;
+      finalRouteId = `R-${String(nextNum).padStart(2, '0')}`;
+    } else if (finalRouteId.startsWith('ROUTE-')) {
+      finalRouteId = `R-${finalRouteId.replace('ROUTE-', '')}`;
     }
-
-    let finalRouteCode = route_code;
-    if (!finalRouteCode) {
-      finalRouteCode = `R-${finalRouteId.replace('ROUTE-', '')}`;
-    }
+    const finalRouteCode = finalRouteId;
 
     const totalStops = Array.isArray(stop_ids) ? stop_ids.length : 0;
 

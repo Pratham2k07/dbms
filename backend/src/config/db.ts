@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import mysql from 'mysql2/promise';
 
 dotenv.config();
@@ -140,18 +141,42 @@ async function executeOnMysql(target: any, sql: string, params: any[] = []): Pro
 }
 
 // ================= MYSQL DATABASE CONNECTION (EXCLUSIVE) =================
-const mysqlHost = process.env.MYSQL_HOST || 'localhost';
-const mysqlPort = parseInt(process.env.MYSQL_PORT || '3306', 10);
-const mysqlUser = process.env.MYSQL_USER || 'root';
-const mysqlPassword = process.env.MYSQL_PASSWORD || '123456';
-const mysqlDatabase = process.env.MYSQL_DATABASE || 'jklu_shuttle_db';
+let mysqlHost = process.env.MYSQL_HOST || 'localhost';
+let mysqlPort = parseInt(process.env.MYSQL_PORT || '3306', 10);
+let mysqlUser = process.env.MYSQL_USER || 'root';
+let mysqlPassword = process.env.MYSQL_PASSWORD || '123456';
+let mysqlDatabase = process.env.MYSQL_DATABASE || 'jklu_shuttle_db';
+
+const rawUri = process.env.MYSQL_URL || process.env.DATABASE_URL;
+if (rawUri && rawUri.startsWith('mysql')) {
+  try {
+    const parsed = new URL(rawUri);
+    if (parsed.hostname) mysqlHost = parsed.hostname;
+    if (parsed.port) mysqlPort = parseInt(parsed.port, 10);
+    if (parsed.username) mysqlUser = decodeURIComponent(parsed.username);
+    if (parsed.password) mysqlPassword = decodeURIComponent(parsed.password);
+    if (parsed.pathname && parsed.pathname.length > 1) {
+      mysqlDatabase = parsed.pathname.slice(1);
+    }
+  } catch (err) {
+    console.warn('[Database] Could not parse database URI, falling back to individual MYSQL_* variables.');
+  }
+}
 
 const isRemote = mysqlHost !== 'localhost' && mysqlHost !== '127.0.0.1';
 const useSsl = process.env.MYSQL_SSL === 'true' || (process.env.MYSQL_SSL !== 'false' && isRemote);
 
+const defaultSockets = !isRemote ? [
+  process.env.MYSQL_SOCKET,
+  '/var/lib/mysql/mysql.sock',
+  '/var/run/mysqld/mysqld.sock',
+  '/tmp/mysql.sock'
+].filter((p): p is string => Boolean(p && fs.existsSync(p))) : [];
+
+const detectedSocket = defaultSockets.length > 0 ? defaultSockets[0] : undefined;
+
 const poolConfig: any = {
-  host: mysqlHost,
-  port: mysqlPort,
+  ...(detectedSocket ? { socketPath: detectedSocket } : { host: mysqlHost, port: mysqlPort }),
   user: mysqlUser,
   password: mysqlPassword,
   database: mysqlDatabase,
@@ -164,7 +189,7 @@ const poolConfig: any = {
 
 const rawPool = mysql.createPool(poolConfig);
 
-console.log(`[Database] Connected to MySQL Server on ${mysqlHost}:${mysqlPort}/${mysqlDatabase}${useSsl ? ' (SSL Enabled)' : ''}`);
+console.log(`[Database] Connected to MySQL Server (${detectedSocket ? `Socket: ${detectedSocket}` : `${mysqlHost}:${mysqlPort}`})/${mysqlDatabase}${useSsl ? ' (SSL Enabled)' : ''}`);
 
 export const pool = {
   connect: async () => {

@@ -29,4 +29,16 @@ export const register = async (email: string, password: string, name: string, ro
 export const logout = () => {
   localStorage.removeItem('token');
   localStorage.removeItem('user');
+  localStorage.removeItem('currentUserRole');
+  localStorage.removeItem('currentScreen');
+  localStorage.removeItem('activeDriverId');
+};
+
+export const getMe = async () => {
+  try {
+    const response = await api.get('/auth/me');
+    return response.data;
+  } catch (error) {
+    return null;
+  }
 };

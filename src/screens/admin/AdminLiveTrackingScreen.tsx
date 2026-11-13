@@ -69,11 +69,11 @@ export const AdminLiveTrackingScreen: React.FC = () => {
   }, [runningTrips]);
 
   // Determine which routes to display polylines for on the map:
-  // - If user selected a specific route (e.g. 'ROUTE-01'): show that specific route if running
+  // - If user selected a specific route (e.g. 'R-01'): show that specific route if running
   // - If user selected "All Active" / all shuttles option: show all routes on which shuttles are running
   // - If no shuttles are running: show zero route lines (clean map with no random connections)
   const visibleRouteIds = useMemo(() => {
-    // If a specific route filter is selected (e.g. 'ROUTE-01')
+    // If a specific route filter is selected (e.g. 'R-01')
     if (activeRouteFilter !== 'ALL') {
       const isRouteRunning = runningRouteIds.includes(activeRouteFilter);
       return isRouteRunning ? [activeRouteFilter] : [];
@@ -107,7 +107,7 @@ export const AdminLiveTrackingScreen: React.FC = () => {
   // Prepare active shuttles for MapView - strictly 1 shuttle in single mode, or all in fleet mode
   const mapActiveShuttles = useMemo(() => {
     if (viewMode === 'single' && selectedTrip) {
-      const loc = shuttleLocations.find((sl) => sl.shuttle_id === selectedTrip.shuttle_id || sl.trip_id === selectedTrip.trip_id);
+      const loc = shuttleLocations.find((sl) => (selectedTrip.trip_id && sl.trip_id === selectedTrip.trip_id) || (!sl.trip_id && sl.shuttle_id === selectedTrip.shuttle_id));
       if (!loc) return [];
       return [
         {
@@ -120,7 +120,7 @@ export const AdminLiveTrackingScreen: React.FC = () => {
 
     return runningTrips
       .map((trip) => {
-        const loc = shuttleLocations.find((sl) => sl.shuttle_id === trip.shuttle_id || sl.trip_id === trip.trip_id);
+        const loc = shuttleLocations.find((sl) => (trip.trip_id && sl.trip_id === trip.trip_id) || (!sl.trip_id && sl.shuttle_id === trip.shuttle_id));
         const sht = shuttles.find((s) => s.shuttle_id === trip.shuttle_id);
         if (!loc) return null;
 

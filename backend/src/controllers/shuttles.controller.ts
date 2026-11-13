@@ -14,15 +14,21 @@ export const getShuttles = async (_req: Request, res: Response): Promise<void> =
 
 export const getLatestShuttleLocations = async (_req: Request, res: Response): Promise<void> => {
   try {
+    // Only return latest locations for shuttles currently engaged in an active RUNNING trip.
+    // Completed or cancelled trip locations are not active telemetry.
     const result = await query(`
       SELECT sl.location_id, sl.shuttle_id, sl.trip_id, sl.latitude, sl.longitude,
              sl.bearing, sl.speed_kmh, sl.progress_percentage, sl.recorded_at
       FROM shuttle_locations sl
+      INNER JOIN trips t ON sl.trip_id = t.trip_id
       INNER JOIN (
-        SELECT shuttle_id, MAX(location_id) AS max_loc
-        FROM shuttle_locations
-        GROUP BY shuttle_id
+        SELECT sl2.shuttle_id, MAX(sl2.location_id) AS max_loc
+        FROM shuttle_locations sl2
+        INNER JOIN trips t2 ON sl2.trip_id = t2.trip_id
+        WHERE t2.running_status = 'RUNNING'
+        GROUP BY sl2.shuttle_id
       ) latest ON sl.location_id = latest.max_loc
+      WHERE t.running_status = 'RUNNING'
       ORDER BY sl.shuttle_id ASC
     `);
     res.json(result.rows);

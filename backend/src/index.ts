@@ -11,56 +11,35 @@ dotenv.config();
 import app from './app.js';
 const PORT = process.env.PORT || 5000;
 
-
-// Serve frontend static assets from dist
-import path from 'path';
-import fs from 'fs';
-
-const distPath = path.resolve(process.cwd(), '../dist');
-if (fs.existsSync(distPath)) {
-  console.log(`[Unified Server] Serving frontend static assets from: ${distPath}`);
-  app.use(express.static(distPath));
-  app.get('*', (req: Request, res: Response, next: NextFunction) => {
-    if (req.url.startsWith('/api') || req.url.startsWith('/socket.io')) {
-      return next();
-    }
-    res.sendFile(path.join(distPath, 'index.html'));
-  });
-} else {
-  // Root fallback / health
-  app.get('/', (_req: Request, res: Response) => {
-    res.json({
-      name: 'JKLU Shuttle Management System API',
-      version: '1.0.0',
-      status: 'ONLINE',
-      time: new Date().toISOString(),
-    });
-  });
-}
-
-// 404 Handler
-app.use((req: Request, res: Response) => {
-  res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.url}` });
-});
-
-// Global Error Handler
-app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('[Unhandled Server Error]', err);
-  res.status(500).json({
-    success: false,
-    message: 'Internal Server Error',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined,
-  });
-});
-
 // Create HTTP server and initialize Socket.IO
 const server = http.createServer(app);
 initSocket(server);
 
-server.listen(PORT, () => {
-  console.log(`🚀 JKLU Shuttle Backend Server running on http://localhost:${PORT}`);
+let currentPort = Number(PORT);
+
+server.on('error', (err: any) => {
+  if (err.code === 'EADDRINUSE') {
+    console.warn(`⚠️ Port ${currentPort} is already in use by another process.`);
+    currentPort += 1;
+    console.log(`🔄 Automatically retrying on port http://localhost:${currentPort}...`);
+    setTimeout(() => {
+      server.listen(currentPort, '0.0.0.0', () => {
+        console.log(`🚀 JKLU Shuttle Unified Server running on http://localhost:${currentPort}`);
+        console.log(`📡 Socket.IO Real-Time gateway attached`);
+        console.log(`🗄️ Connected to MySQL database`);
+        console.log(`👉 Open http://localhost:${currentPort} in your browser`);
+      });
+    }, 500);
+  } else {
+    console.error('[Server Error]', err);
+  }
+});
+
+server.listen(currentPort, '0.0.0.0', () => {
+  console.log(`🚀 JKLU Shuttle Unified Server running on http://localhost:${currentPort}`);
   console.log(`📡 Socket.IO Real-Time gateway attached`);
   console.log(`🗄️ Connected to MySQL database`);
+  console.log(`👉 Open http://localhost:${currentPort} in your browser`);
 });
 
 process.on('unhandledRejection', (reason) => {

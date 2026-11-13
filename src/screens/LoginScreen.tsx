@@ -8,8 +8,8 @@ export const LoginScreen: React.FC = () => {
   const { loginUser } = useApp();
 
   const [selectedRole, setSelectedRole] = useState<UserRole>('student');
-  const [email, setEmail] = useState<string>('pratham.lalwani@jklu.edu.in');
-  const [password, setPassword] = useState<string>('jklu@2024');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -17,16 +17,6 @@ export const LoginScreen: React.FC = () => {
   const handleRoleChange = (role: UserRole) => {
     setSelectedRole(role);
     setErrorMessage('');
-    if (role === 'driver') {
-      setEmail('ramesh.kumar@jklu.edu.in');
-      setPassword('driver@8821');
-    } else if (role === 'student') {
-      setEmail('pratham.lalwani@jklu.edu.in');
-      setPassword('jklu@2024');
-    } else if (role === 'admin') {
-      setEmail('admin@jklu.edu.in');
-      setPassword('admin@jklu');
-    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -150,10 +140,10 @@ export const LoginScreen: React.FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={
                     selectedRole === 'driver'
-                      ? 'ramesh.kumar@jklu.edu.in'
+                      ? 'driver@jklu.edu.in'
                       : selectedRole === 'admin'
                       ? 'admin@jklu.edu.in'
-                      : 'pratham.lalwani@jklu.edu.in'
+                      : 'student@jklu.edu.in'
                   }
                   required
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#FBFBF9] border border-stone-200 focus:border-[#4F70B0] focus:ring-2 focus:ring-[#4F70B0]/20 text-xs sm:text-sm text-stone-800 transition-all outline-none font-medium"

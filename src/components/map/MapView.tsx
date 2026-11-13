@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Stop, ShuttleLocation } from '../../types/database';
@@ -11,7 +11,7 @@ interface MapViewProps {
   highlightRouteId?: string;
   visibleRouteIds?: string[];
   routeCoordinates?: Record<string, [number, number][]>;
-  routes?: { route_id: string; route_name: string; route_code?: string; color?: string }[];
+  routes?: { route_id: string; route_name: string; route_code?: string; color?: string; route_coordinates?: any }[];
   activeRoutePolyline?: [number, number][];
   selectedStopId?: string;
   completedStopIds?: Set<string> | string[];
@@ -163,10 +163,23 @@ export const MapView: React.FC<MapViewProps> = ({
       }
 
       visibleRouteIds.forEach((rId) => {
-        const coords = routeCoordinates[rId];
+        const routeMeta = routes?.find((r) => r.route_id === rId);
+        let coords: [number, number][] | undefined = undefined;
+        if (routeMeta?.route_coordinates) {
+          if (Array.isArray(routeMeta.route_coordinates) && routeMeta.route_coordinates.length > 0) {
+            coords = routeMeta.route_coordinates;
+          } else if (typeof routeMeta.route_coordinates === 'string') {
+            try {
+              const p = JSON.parse(routeMeta.route_coordinates);
+              if (Array.isArray(p) && p.length > 0) coords = p;
+            } catch {}
+          }
+        }
+        if (!coords && routeCoordinates) {
+          coords = routeCoordinates[rId];
+        }
         if (!coords || coords.length === 0) return;
 
-        const routeMeta = routes?.find((r) => r.route_id === rId);
         const routeColor = routeMeta?.color || '#E8590C';
         const isHighlighted = rId === highlightRouteId || visibleRouteIds.length === 1;
 
@@ -209,25 +222,41 @@ export const MapView: React.FC<MapViewProps> = ({
     }
 
     // 3. Fallback for highlightRouteId
-    if (highlightRouteId && highlightRouteId !== 'ALL' && routeCoordinates && routeCoordinates[highlightRouteId]?.length > 0) {
-      const coords = routeCoordinates[highlightRouteId];
+    if (highlightRouteId && highlightRouteId !== 'ALL') {
       const routeMeta = routes?.find((r) => r.route_id === highlightRouteId);
-      const routeColor = routeMeta?.color || '#E8590C';
+      let coords: [number, number][] | undefined = activeRoutePolyline;
+      if (!coords && routeMeta?.route_coordinates) {
+        if (Array.isArray(routeMeta.route_coordinates) && routeMeta.route_coordinates.length > 0) {
+          coords = routeMeta.route_coordinates;
+        } else if (typeof routeMeta.route_coordinates === 'string') {
+          try {
+            const p = JSON.parse(routeMeta.route_coordinates);
+            if (Array.isArray(p) && p.length > 0) coords = p;
+          } catch {}
+        }
+      }
+      if (!coords && routeCoordinates && routeCoordinates[highlightRouteId]?.length > 0) {
+        coords = routeCoordinates[highlightRouteId];
+      }
 
-      L.polyline(coords, {
-        color: routeColor,
-        weight: 8,
-        opacity: 0.35,
-        lineCap: 'round'
-      }).addTo(routesLayerRef.current);
+      if (coords && coords.length > 0) {
+        const routeColor = routeMeta?.color || '#E8590C';
 
-      L.polyline(coords, {
-        color: routeColor,
-        weight: 4.5,
-        opacity: 0.95,
-        lineCap: 'round'
-      }).addTo(routesLayerRef.current);
-      return;
+        L.polyline(coords, {
+          color: routeColor,
+          weight: 8,
+          opacity: 0.35,
+          lineCap: 'round'
+        }).addTo(routesLayerRef.current);
+
+        L.polyline(coords, {
+          color: routeColor,
+          weight: 4.5,
+          opacity: 0.95,
+          lineCap: 'round'
+        }).addTo(routesLayerRef.current);
+        return;
+      }
     }
 
     // Note: If no route coordinates matched, do NOT draw anything. Never connect random stops!

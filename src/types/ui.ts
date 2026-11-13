@@ -17,7 +17,8 @@ export type ScreenType =
   | 'admin-drivers'
   | 'admin-live-tracking'
   | 'admin-history'
-  | 'admin-profile';
+  | 'admin-profile'
+  | 'admin-users';
 
 export type TabType = 'home' | 'track' | 'profile';
 

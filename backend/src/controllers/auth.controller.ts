@@ -122,7 +122,17 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password || 'password123', salt);
-    const userId = `USR-${role.toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+    const lastUserRes = await query(
+      "SELECT user_id FROM users WHERE user_id REGEXP '^USR-[0-9]+$' ORDER BY CAST(SUBSTRING(user_id, 5) AS UNSIGNED) DESC LIMIT 1"
+    );
+    let nextNum = 1;
+    if (lastUserRes.rows.length > 0) {
+      const parsed = parseInt(lastUserRes.rows[0].user_id.replace('USR-', ''), 10);
+      if (!isNaN(parsed)) {
+        nextNum = parsed + 1;
+      }
+    }
+    const userId = `USR-${String(nextNum).padStart(3, '0')}`;
 
     // Insert user
     await query(

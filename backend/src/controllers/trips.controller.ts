@@ -1,4 +1,4 @@
-﻿import { Request, Response } from 'express';
+import { Request, Response } from 'express';
 import { query, pool } from '../config/db.js';
 import { socketEvents } from '../services/socket.service.js';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
@@ -80,11 +80,11 @@ export const getLiveTripDetails = async (req: Request, res: Response): Promise<v
       [id]
     );
 
-    // Fetch latest location
+    // Fetch latest location (strictly highest location_id to prevent any timestamp ordering ambiguity)
     const locRes = await query(
       `SELECT * FROM shuttle_locations 
        WHERE trip_id = $1 OR shuttle_id = $2
-       ORDER BY recorded_at DESC LIMIT 1`,
+       ORDER BY location_id DESC, recorded_at DESC LIMIT 1`,
       [id, trip.shuttle_id]
     );
 

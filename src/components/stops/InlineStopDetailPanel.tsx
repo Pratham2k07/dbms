@@ -120,7 +120,11 @@ export const InlineStopDetailPanel: React.FC<InlineStopDetailPanelProps> = ({
                       </h4>
                       <div className="flex items-center gap-1 text-[11px] text-stone-500 font-medium">
                         <span className="text-stone-400">Destination:</span>
-                        <span className="text-stone-700 font-semibold">JKLU Campus</span>
+                        <span className="text-stone-700 font-semibold">
+                          {shuttleItem.route.route_name.includes('->')
+                            ? shuttleItem.route.route_name.split('->').pop()?.trim()
+                            : (shuttleItem.route.description?.split('->').pop()?.trim() || 'Terminus')}
+                        </span>
                       </div>
                     </div>
 

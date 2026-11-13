@@ -91,7 +91,7 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
   const openCreateModal = () => {
     const nextNum = routes.length + 1;
     const numPad = String(nextNum).padStart(2, '0');
-    setNewRouteId(`ROUTE-${numPad}`);
+    setNewRouteId(`R-${numPad}`);
     setNewRouteCode(`R-${numPad}`);
     setNewRouteName(nextNum === 4 ? 'Jaipur Central Circuit' : `Jaipur Transit Circuit ${numPad}`);
     setNewRouteDesc('University campus circuit linking transit hubs');
@@ -272,10 +272,11 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
     }
 
     setIsSubmitting(true);
+    const unifiedCode = (newRouteCode || newRouteId).trim().toUpperCase();
     const res = await createRouteWithAssignment({
-      route_id: newRouteId,
+      route_id: unifiedCode,
       route_name: newRouteName,
-      route_code: newRouteCode,
+      route_code: unifiedCode,
       description: newRouteDesc,
       color: newRouteColor,
       stop_ids: selectedStopIds,
@@ -852,30 +853,20 @@ export const AdminRoutesScreen: React.FC<AdminRoutesScreenProps> = ({
                   <span>1. Route Information</span>
                 </h3>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-editorial font-bold text-stone-700 block mb-1">
-                      Route ID
-                    </label>
-                    <input
-                      type="text"
-                      value={newRouteId}
-                      onChange={(e) => setNewRouteId(e.target.value.toUpperCase())}
-                      placeholder="ROUTE-04"
-                      required
-                      className="w-full px-3 py-2.5 rounded-xl bg-stone-50 border border-stone-200 text-xs font-mono font-bold"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-editorial font-bold text-stone-700 block mb-1">
-                      Route Code
+                      Route Code / ID
                     </label>
                     <input
                       type="text"
                       value={newRouteCode}
-                      onChange={(e) => setNewRouteCode(e.target.value.toUpperCase())}
-                      placeholder="R-04"
+                      onChange={(e) => {
+                        const val = e.target.value.toUpperCase();
+                        setNewRouteCode(val);
+                        setNewRouteId(val);
+                      }}
+                      placeholder="e.g. R-04"
                       required
                       className="w-full px-3 py-2.5 rounded-xl bg-stone-50 border border-stone-200 text-xs font-mono font-bold"
                     />

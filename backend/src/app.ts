@@ -1,7 +1,14 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import apiRoutes from './routes/index.js';
+
+const currentDir = typeof __dirname !== 'undefined'
+  ? __dirname
+  : path.dirname(fileURLToPath(import.meta.url));
 
 dotenv.config();
 
@@ -51,9 +58,32 @@ const healthHandler = (_req: Request, res: Response) => {
 app.get('/health', healthHandler);
 app.get('/api/health', healthHandler);
 
-// Mount API routes on both /api and root level for flexible serverless hosting
+// Mount API routes on /api
 app.use('/api', apiRoutes);
-app.use('/', apiRoutes);
+
+// Serve frontend static assets from dist
+const possibleDistPaths = [
+  path.resolve(process.cwd(), 'dist'),
+  path.resolve(process.cwd(), '../dist'),
+  path.resolve(process.cwd(), 'dbms/dist'),
+  path.resolve(currentDir, '../../dist'),
+  path.resolve(currentDir, '../dist')
+];
+const distPath = possibleDistPaths.find(p => fs.existsSync(p) && fs.existsSync(path.join(p, 'index.html')));
+
+if (distPath) {
+  console.log(`[Unified Server] Serving frontend static assets from: ${distPath}`);
+  app.use(express.static(distPath));
+  app.get('*', (req: Request, res: Response, next: NextFunction) => {
+    if (req.url.startsWith('/api') || req.url.startsWith('/socket.io') || req.url === '/health' || req.url === '/api/health') {
+      return next();
+    }
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+} else {
+  // If no dist folder, mount API routes on root as well for serverless
+  app.use('/', apiRoutes);
+}
 
 // 404 Handler for undefined routes
 app.use((req: Request, res: Response) => {

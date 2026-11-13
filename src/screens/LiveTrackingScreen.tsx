@@ -93,12 +93,14 @@ export const LiveTrackingScreen: React.FC = () => {
     return tripStops.filter((ts) => ts.trip_id === trip.trip_id);
   }, [trip, tripStops]);
 
-  const currentLoc =
-    liveTripData?.latest_location ||
-    liveTripData?.latestLocation ||
-    shuttleLocations.find(
-      (item) => item.trip_id === trip?.trip_id || item.shuttle_id === shuttle?.shuttle_id
+  const currentLoc = useMemo(() => {
+    const liveLoc = liveTripData?.latest_location || liveTripData?.latestLocation;
+    const matching = shuttleLocations.filter(
+      (item) => (trip?.trip_id && item.trip_id === trip.trip_id) || (!item.trip_id && item.shuttle_id === shuttle?.shuttle_id)
     );
+    const newestFromContext = matching.length > 0 ? matching[matching.length - 1] : undefined;
+    return liveLoc || newestFromContext;
+  }, [liveTripData, shuttleLocations, trip?.trip_id, shuttle?.shuttle_id]);
 
   // Ordered stops along the active route
   const orderedRouteStops = useMemo(() => {
@@ -176,7 +178,7 @@ export const LiveTrackingScreen: React.FC = () => {
 
       let loc =
         (t.trip_id === trip?.trip_id ? (liveTripData?.latest_location || liveTripData?.latestLocation) : null) ||
-        shuttleLocations.find((l) => l.trip_id === t.trip_id || l.shuttle_id === t.shuttle_id);
+        shuttleLocations.find((l) => (t.trip_id && l.trip_id === t.trip_id) || (!l.trip_id && l.shuttle_id === t.shuttle_id));
 
       if (!loc) {
         const originRS = allRouteStops
@@ -212,37 +214,36 @@ export const LiveTrackingScreen: React.FC = () => {
     return list;
   }, [runningTrips, trip, liveTripData, shuttleLocations, allRouteStops, stops, shuttles]);
 
-  // Real road pathway coordinates for active route (exactly like Home page)
+  // Real road pathway coordinates for active route (prioritizes database route_coordinates and trims at terminus)
   const activeRoutePolyline = useMemo(() => {
     if (!route) return undefined;
     const routeId = route.route_id;
 
-    if (routeCoordinates && routeCoordinates[routeId] && routeCoordinates[routeId].length > 0) {
-      return routeCoordinates[routeId];
-    }
-
-    const rCoords = route.route_coordinates;
-    if (rCoords) {
-      if (Array.isArray(rCoords) && rCoords.length > 0) return rCoords;
-      if (typeof rCoords === 'string') {
-        try {
-          const parsed = JSON.parse(rCoords);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        } catch {}
-      }
-    }
-
-    const ordered = allRouteStops
+    const orderedStops = allRouteStops
       .filter((rs) => rs.route_id === routeId)
       .sort((a, b) => a.sequence_number - b.sequence_number)
-      .map((rs) => {
-        const s = stops.find((st) => st.stop_id === rs.stop_id);
-        return s ? ([Number(s.latitude), Number(s.longitude)] as [number, number]) : null;
-      })
-      .filter(Boolean) as [number, number][];
+      .map((rs) => stops.find((st) => st.stop_id === rs.stop_id))
+      .filter(Boolean) as any[];
 
-    return ordered.length > 1 ? ordered : undefined;
+    return routeService.getDynamicRouteCoordinates(route, orderedStops, routeCoordinates);
   }, [route, routeCoordinates, allRouteStops, stops]);
+
+  // Dynamic terminus stop and destination coordinates for map marker
+  const destinationCoords = useMemo(() => {
+    if (!route) return undefined;
+    const ordered = allRouteStops
+      .filter((rs) => rs.route_id === route.route_id)
+      .sort((a, b) => a.sequence_number - b.sequence_number)
+      .map((rs) => stops.find((st) => st.stop_id === rs.stop_id))
+      .filter(Boolean);
+    const last = ordered.length > 0 ? ordered[ordered.length - 1] : undefined;
+    if (!last) return undefined;
+    return {
+      latitude: Number(last.latitude),
+      longitude: Number(last.longitude),
+      name: last.stop_name
+    };
+  }, [route, allRouteStops, stops]);
 
   // Stops to render on map (default to all 40 stops across Jaipur, matching Home page)
   const mapStops = useMemo(() => {
@@ -399,6 +400,7 @@ export const LiveTrackingScreen: React.FC = () => {
                 stops={mapStops}
                 studentLocation={studentLocation}
                 activeShuttles={activeShuttlesForMap}
+                destinationCoords={destinationCoords}
                 highlightRouteId={route?.route_id}
                 routeCoordinates={routeCoordinates}
                 activeRoutePolyline={activeRoutePolyline}
@@ -448,7 +450,7 @@ export const LiveTrackingScreen: React.FC = () => {
                 {/* Dominant Large ETA calculated uniformly at 25 km/h */}
                 <div className="text-right">
                   <span className="text-[10px] font-editorial font-bold tracking-widest text-stone-400 uppercase block">
-                    ETA TO {selectedStopId ? (targetStop?.stop_name ? targetStop.stop_name.replace(' (ORIGIN)', '').replace(' (TERMINUS)', '') + ' (YOUR STOP)' : 'YOUR STOP') : (targetStop?.stop_name ? targetStop.stop_name.replace(' (ORIGIN)', '').replace(' (TERMINUS)', '') + ' (NEXT STOP)' : 'NEXT STOP')} (25 KM/H)
+                    ETA TO {targetStop?.stop_name ? targetStop.stop_name.replace(' (ORIGIN)', '').replace(' (TERMINUS)', '') : 'NEXT STOP'} (25 KM/H)
                   </span>
                   <ETA
                     minutes={

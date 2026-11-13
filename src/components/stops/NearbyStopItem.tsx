@@ -181,7 +181,11 @@ export const NearbyStopItem: React.FC<NearbyStopItemProps> = ({
                           {shuttleItem.route.route_name}
                         </h4>
                         <div className="text-[9px] text-stone-500 font-medium">
-                          Destination: <strong className="text-stone-700">JKLU Campus</strong>
+                          Destination: <strong className="text-stone-700">
+                            {shuttleItem.route.route_name.includes('->')
+                              ? shuttleItem.route.route_name.split('->').pop()?.trim()
+                              : (shuttleItem.route.description?.split('->').pop()?.trim() || 'Terminus')}
+                          </strong>
                         </div>
                       </div>
 

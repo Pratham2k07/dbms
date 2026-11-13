@@ -5,8 +5,8 @@ import { ShieldCheck, Lock, Mail, ArrowRight, Eye, EyeOff, CheckCircle2, ArrowLe
 export const AdminLoginScreen: React.FC = () => {
   const { loginUser } = useApp();
 
-  const [email, setEmail] = useState<string>('admin@jklu.edu.in');
-  const [password, setPassword] = useState<string>('admin@jklu');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');

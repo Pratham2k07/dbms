@@ -228,27 +228,29 @@ CREATE INDEX idx_student_locations_student_time ON student_locations (student_id
 
 -- USERS (Password hashes for bcrypt)
 INSERT INTO users (user_id, name, email, password_hash, phone_number, role) VALUES
-  ('USR-STU-001', 'Pratham Lalwani', 'pratham.lalwani@jklu.edu.in', '$2a$10$wE0vP4uA5JmN6g4i9.rX5.zY7G9eX3K3P1Q7vE1Y7H1eW2Q3R4T5Y', '+91 98290 12345', 'student'),
-  ('USR-ADM-001', 'Prof. Anurag Sharma', 'admin@jklu.edu.in', '$2a$10$wE0vP4uA5JmN6g4i9.rX5.zY7G9eX3K3P1Q7vE1Y7H1eW2Q3R4T5Y', '+91 98290 88200', 'admin'),
-  ('DRV-101', 'Ramesh Kumar', 'ramesh.kumar@jklu.edu.in', '$2a$10$wE0vP4uA5JmN6g4i9.rX5.zY7G9eX3K3P1Q7vE1Y7H1eW2Q3R4T5Y', '+91 94140 55210', 'driver'),
-  ('DRV-102', 'Vikram Singh', 'vikram.singh@jklu.edu.in', '$2a$10$wE0vP4uA5JmN6g4i9.rX5.zY7G9eX3K3P1Q7vE1Y7H1eW2Q3R4T5Y', '+91 98281 77341', 'driver'),
-  ('DRV-103', 'Rajesh Meena', 'rajesh.meena@jklu.edu.in', '$2a$10$wE0vP4uA5JmN6g4i9.rX5.zY7G9eX3K3P1Q7vE1Y7H1eW2Q3R4T5Y', '+91 97845 33201', 'driver'),
-  ('DRV-104', 'Devendra Sharma', 'devendra.sharma@jklu.edu.in', '$2a$10$wE0vP4uA5JmN6g4i9.rX5.zY7G9eX3K3P1Q7vE1Y7H1eW2Q3R4T5Y', '+91 96102 99014', 'driver');
+  ('USR-001', 'Prof. Anurag Sharma', 'admin@jklu.edu.in', '$2a$10$wE0vP4uA5JmN6g4i9.rX5.zY7G9eX3K3P1Q7vE1Y7H1eW2Q3R4T5Y', '+91 98290 88200', 'admin'),
+  ('USR-002', 'Ramesh Kumar', 'ramesh.kumar@jklu.edu.in', '$2a$10$wE0vP4uA5JmN6g4i9.rX5.zY7G9eX3K3P1Q7vE1Y7H1eW2Q3R4T5Y', '+91 94140 55210', 'driver'),
+  ('USR-003', 'Vikram Singh', 'vikram.singh@jklu.edu.in', '$2a$10$wE0vP4uA5JmN6g4i9.rX5.zY7G9eX3K3P1Q7vE1Y7H1eW2Q3R4T5Y', '+91 98281 77341', 'driver'),
+  ('USR-004', 'Rajesh Meena', 'rajesh.meena@jklu.edu.in', '$2a$10$wE0vP4uA5JmN6g4i9.rX5.zY7G9eX3K3P1Q7vE1Y7H1eW2Q3R4T5Y', '+91 97845 33201', 'driver'),
+  ('USR-005', 'Devendra Sharma', 'devendra.sharma@jklu.edu.in', '$2a$10$wE0vP4uA5JmN6g4i9.rX5.zY7G9eX3K3P1Q7vE1Y7H1eW2Q3R4T5Y', '+91 96102 99014', 'driver'),
+  ('USR-006', 'Pratham Lalwani', 'pratham.lalwani@jklu.edu.in', '$2a$10$wE0vP4uA5JmN6g4i9.rX5.zY7G9eX3K3P1Q7vE1Y7H1eW2Q3R4T5Y', '+91 98290 12345', 'student'),
+  ('USR-007', 'Pradhuman Thanvi', 'pradhumanthanvi@jklu.edu.in', '$2a$10$wE0vP4uA5JmN6g4i9.rX5.zY7G9eX3K3P1Q7vE1Y7H1eW2Q3R4T5Y', '+91 63754 55266', 'student');
 
 -- STUDENTS
 INSERT INTO students (student_id, roll_no) VALUES
-  ('USR-STU-001', '2024BTECH042');
+  ('USR-006', '2024BTECH042'),
+  ('USR-007', '2025btech092');
 
 -- DRIVERS
 INSERT INTO drivers (driver_id, license_no) VALUES
-  ('DRV-101', 'RJ14-2018-00912'),
-  ('DRV-102', 'RJ14-2016-00482'),
-  ('DRV-103', 'RJ14-2019-01183'),
-  ('DRV-104', 'RJ14-2015-00774');
+  ('USR-002', 'RJ14-2018-00912'),
+  ('USR-003', 'RJ14-2016-00482'),
+  ('USR-004', 'RJ14-2019-01183'),
+  ('USR-005', 'RJ14-2015-00774');
 
 -- ADMINS
 INSERT INTO admins (admin_id, designation, department) VALUES
-  ('USR-ADM-001', 'Head of Campus Transit & Operations Incharge', 'JKLU Transport & Mobility Cell');
+  ('USR-001', 'Head of Campus Transit & Operations Incharge', 'JKLU Transport & Mobility Cell');
 
 -- SHUTTLES
 INSERT INTO shuttles (shuttle_id, registration_number, capacity, status, shuttle_number) VALUES
@@ -302,38 +304,38 @@ INSERT INTO stops (stop_id, stop_name, latitude, longitude, is_destination, desc
 
 -- ROUTES
 INSERT INTO routes (route_id, route_name, total_stops, description, color, status, route_code, assigned_driver_id, assigned_shuttle_id) VALUES
-  ('ROUTE-01', 'JKLU ⟲ MALVIYA NAGAR CIRCUIT', 5, 'JKLU Campus → Malviya Nagar → Airport → DCM → JKLU Campus', '#E8590C', 'ACTIVE', 'R-01', 'DRV-101', 'SHT-01'),
-  ('ROUTE-02', 'JKLU ⟲ MANSAROVAR CIRCUIT', 5, 'JKLU Campus → Mansarovar Metro → Vaishali Nagar → DCM → JKLU Campus', '#2B4C7E', 'ACTIVE', 'R-02', 'DRV-102', 'SHT-02'),
-  ('ROUTE-03', 'JKLU ⟲ RAILWAY STATION CIRCUIT', 5, 'JKLU Campus → Railway Station → Vaishali Nagar → DCM → JKLU Campus', '#D97706', 'ACTIVE', 'R-03', 'DRV-103', 'SHT-03');
+  ('R-01', 'JKLU ⟲ MALVIYA NAGAR CIRCUIT', 5, 'JKLU Campus → Malviya Nagar → Airport → DCM → JKLU Campus', '#E8590C', 'ACTIVE', 'R-01', 'USR-002', 'SHT-01'),
+  ('R-02', 'JKLU ⟲ MANSAROVAR CIRCUIT', 5, 'JKLU Campus → Mansarovar Metro → Vaishali Nagar → DCM → JKLU Campus', '#2B4C7E', 'ACTIVE', 'R-02', 'USR-003', 'SHT-02'),
+  ('R-03', 'JKLU ⟲ RAILWAY STATION CIRCUIT', 5, 'JKLU Campus → Railway Station → Vaishali Nagar → DCM → JKLU Campus', '#D97706', 'ACTIVE', 'R-03', 'USR-004', 'SHT-03');
 
 -- ROUTE_STOPS (Ordered Stop Sequence per Circuit)
 INSERT INTO route_stops (route_id, stop_id, sequence_number, scheduled_arrival, scheduled_departure, cumulative_distance_km) VALUES
   -- Route 01
-  ('ROUTE-01', 'STOP-JKLU-START', 1, '09:45 AM', '09:50 AM', 0.00),
-  ('ROUTE-01', 'STOP-MALVIYA-NAGAR', 2, '10:15 AM', '10:20 AM', 18.50),
-  ('ROUTE-01', 'STOP-AIRPORT', 3, '10:35 AM', '10:40 AM', 23.20),
-  ('ROUTE-01', 'STOP-DCM', 4, '10:55 AM', '10:58 AM', 35.80),
-  ('ROUTE-01', 'STOP-JKLU', 5, '11:15 AM', '11:20 AM', 48.00),
+  ('R-01', 'STOP-JKLU-START', 1, '09:45 AM', '09:50 AM', 0.00),
+  ('R-01', 'STOP-MALVIYA-NAGAR', 2, '10:15 AM', '10:20 AM', 18.50),
+  ('R-01', 'STOP-AIRPORT', 3, '10:35 AM', '10:40 AM', 23.20),
+  ('R-01', 'STOP-DCM', 4, '10:55 AM', '10:58 AM', 35.80),
+  ('R-01', 'STOP-JKLU', 5, '11:15 AM', '11:20 AM', 48.00),
 
   -- Route 02
-  ('ROUTE-02', 'STOP-JKLU-START', 1, '09:30 AM', '09:35 AM', 0.00),
-  ('ROUTE-02', 'STOP-MANSAROVAR', 2, '10:00 AM', '10:05 AM', 15.20),
-  ('ROUTE-02', 'STOP-VAISHALI', 3, '10:20 AM', '10:23 AM', 22.40),
-  ('ROUTE-02', 'STOP-DCM', 4, '10:35 AM', '10:38 AM', 28.10),
-  ('ROUTE-02', 'STOP-JKLU', 5, '10:55 AM', '11:00 AM', 40.50),
+  ('R-02', 'STOP-JKLU-START', 1, '09:30 AM', '09:35 AM', 0.00),
+  ('R-02', 'STOP-MANSAROVAR', 2, '10:00 AM', '10:05 AM', 15.20),
+  ('R-02', 'STOP-VAISHALI', 3, '10:20 AM', '10:23 AM', 22.40),
+  ('R-02', 'STOP-DCM', 4, '10:35 AM', '10:38 AM', 28.10),
+  ('R-02', 'STOP-JKLU', 5, '10:55 AM', '11:00 AM', 40.50),
 
   -- Route 03
-  ('ROUTE-03', 'STOP-JKLU-START', 1, '09:40 AM', '09:45 AM', 0.00),
-  ('ROUTE-03', 'STOP-RAILWAY-STN', 2, '10:10 AM', '10:15 AM', 21.00),
-  ('ROUTE-03', 'STOP-VAISHALI', 3, '10:30 AM', '10:33 AM', 27.50),
-  ('ROUTE-03', 'STOP-DCM', 4, '10:45 AM', '10:48 AM', 33.00),
-  ('ROUTE-03', 'STOP-JKLU', 5, '11:05 AM', '11:10 AM', 45.20);
+  ('R-03', 'STOP-JKLU-START', 1, '09:40 AM', '09:45 AM', 0.00),
+  ('R-03', 'STOP-RAILWAY-STN', 2, '10:10 AM', '10:15 AM', 21.00),
+  ('R-03', 'STOP-VAISHALI', 3, '10:30 AM', '10:33 AM', 27.50),
+  ('R-03', 'STOP-DCM', 4, '10:45 AM', '10:48 AM', 33.00),
+  ('R-03', 'STOP-JKLU', 5, '11:05 AM', '11:10 AM', 45.20);
 
 -- TRIPS
 INSERT INTO trips (trip_id, shuttle_id, route_id, driver_id, start_time, end_time, running_status, capacity_status, speed_kmh) VALUES
-  ('TRIP-01', 'SHT-01', 'ROUTE-01', 'DRV-101', '09:45 AM', NULL, 'SCHEDULED', 'AVAILABLE', 0.00),
-  ('TRIP-02', 'SHT-02', 'ROUTE-02', 'DRV-102', '09:30 AM', NULL, 'SCHEDULED', 'AVAILABLE', 0.00),
-  ('TRIP-03', 'SHT-03', 'ROUTE-03', 'DRV-103', '09:40 AM', NULL, 'SCHEDULED', 'AVAILABLE', 0.00);
+  ('TRIP-01', 'SHT-01', 'R-01', 'USR-002', '09:45 AM', NULL, 'SCHEDULED', 'AVAILABLE', 0.00),
+  ('TRIP-02', 'SHT-02', 'R-02', 'USR-003', '09:30 AM', NULL, 'SCHEDULED', 'AVAILABLE', 0.00),
+  ('TRIP-03', 'SHT-03', 'R-03', 'USR-004', '09:40 AM', NULL, 'SCHEDULED', 'AVAILABLE', 0.00);
 
 -- TRIP_STOPS
 INSERT INTO trip_stops (trip_id, stop_id, estimated_arrival, actual_arrival, actual_departure, arrival_status) VALUES
@@ -363,12 +365,12 @@ INSERT INTO shuttle_locations (shuttle_id, trip_id, latitude, longitude, bearing
 
 -- DRIVER_ASSIGNMENTS
 INSERT INTO driver_assignments (assignment_id, driver_id, route_id, shuttle_id, shift_date, shift_type, status) VALUES
-  ('ASG-001', 'DRV-101', 'ROUTE-01', 'SHT-01', 'Today', 'Morning Shift', 'ACTIVE'),
-  ('ASG-002', 'DRV-102', 'ROUTE-02', 'SHT-02', 'Today', 'Morning Shift', 'ACTIVE'),
-  ('ASG-003', 'DRV-103', 'ROUTE-03', 'SHT-03', 'Today', 'Morning Shift', 'ACTIVE');
+  ('ASG-001', 'USR-002', 'R-01', 'SHT-01', 'Today', 'Morning Shift', 'ACTIVE'),
+  ('ASG-002', 'USR-003', 'R-02', 'SHT-02', 'Today', 'Morning Shift', 'ACTIVE'),
+  ('ASG-003', 'USR-004', 'R-03', 'SHT-03', 'Today', 'Morning Shift', 'ACTIVE');
 
 -- DRIVER_NOTIFICATIONS
 INSERT INTO driver_notifications (notification_id, driver_id, title, message, type, related_route_id) VALUES
-  ('NOTIF-001', 'DRV-101', 'Shift Assignment Ready', 'You are assigned to Route R-01 (Malviya Nagar Circuit) on Shuttle 01.', 'info', 'ROUTE-01'),
-  ('NOTIF-002', 'DRV-102', 'Shift Assignment Ready', 'You are assigned to Route R-02 (Mansarovar Circuit) on Shuttle 02.', 'info', 'ROUTE-02'),
-  ('NOTIF-003', 'DRV-103', 'Shift Assignment Ready', 'You are assigned to Route R-03 (Railway Station Circuit) on Shuttle 03.', 'info', 'ROUTE-03');
+  ('NOTIF-001', 'USR-002', 'Shift Assignment Ready', 'You are assigned to Route R-01 (Malviya Nagar Circuit) on Shuttle 01.', 'info', 'R-01'),
+  ('NOTIF-002', 'USR-003', 'Shift Assignment Ready', 'You are assigned to Route R-02 (Mansarovar Circuit) on Shuttle 02.', 'info', 'R-02'),
+  ('NOTIF-003', 'USR-004', 'Shift Assignment Ready', 'You are assigned to Route R-03 (Railway Station Circuit) on Shuttle 03.', 'info', 'R-03');

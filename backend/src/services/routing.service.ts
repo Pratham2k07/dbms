@@ -71,10 +71,15 @@ export async function getRoadRouteGeometry(
     const parsed = JSON.parse(rawData);
     if (parsed.code === 'Ok' && parsed.routes && parsed.routes.length > 0) {
       const route = parsed.routes[0];
-      // Convert OSRM [lon, lat] -> Leaflet [lat, lon]
-      const coordinates: [number, number][] = route.geometry.coordinates.map(
-        ([lon, lat]: [number, number]) => [Number(lat.toFixed(6)), Number(lon.toFixed(6))]
-      );
+      // Convert OSRM [lon, lat] -> Leaflet [lat, lon] with compact sampling to keep DB lightweight
+      const rawCoords: [number, number][] = route.geometry.coordinates;
+      const step = Math.max(1, Math.floor(rawCoords.length / 100));
+      const coordinates: [number, number][] = [];
+      for (let i = 0; i < rawCoords.length; i++) {
+        if (i === 0 || i === rawCoords.length - 1 || i % step === 0) {
+          coordinates.push([Number(rawCoords[i][1].toFixed(6)), Number(rawCoords[i][0].toFixed(6))]);
+        }
+      }
       const total_distance_km = Number((route.distance / 1000).toFixed(2));
 
       const stopDistances: RouteGeometryResult['stopDistances'] = [];
