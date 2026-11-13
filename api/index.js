@@ -2665,10 +2665,10 @@ if (process.env.NODE_ENV !== "production") {
 app.use((req, _res, next) => {
   const matchedHeader = req.headers["x-matched-path"] || req.headers["x-forwarded-uri"];
   if (matchedHeader && (req.url === "/api/index" || req.url === "/api" || req.url.startsWith("/api/index?"))) {
-    req.url = matchedHeader;
+    req.url = matchedHeader.startsWith("/api") ? matchedHeader : `/api${matchedHeader}`;
   } else if (req.query?.__path && typeof req.query.__path === "string") {
     const rawPath = req.query.__path.startsWith("/") ? req.query.__path : `/${req.query.__path}`;
-    req.url = rawPath;
+    req.url = rawPath.startsWith("/api") ? rawPath : `/api${rawPath}`;
   }
   next();
 });
@@ -2682,25 +2682,26 @@ var healthHandler = (_req, res) => {
 app.get("/health", healthHandler);
 app.get("/api/health", healthHandler);
 app.use("/api", routes_default);
-var possibleDistPaths = [
-  path2.resolve(process.cwd(), "dist"),
-  path2.resolve(process.cwd(), "../dist"),
-  path2.resolve(process.cwd(), "dbms/dist"),
-  path2.resolve(currentDir, "../../dist"),
-  path2.resolve(currentDir, "../dist")
-];
-var distPath = possibleDistPaths.find((p) => fs2.existsSync(p) && fs2.existsSync(path2.join(p, "index.html")));
-if (distPath) {
-  console.log(`[Unified Server] Serving frontend static assets from: ${distPath}`);
-  app.use(express.static(distPath));
-  app.get("*", (req, res, next) => {
-    if (req.url.startsWith("/api") || req.url.startsWith("/socket.io") || req.url === "/health" || req.url === "/api/health") {
-      return next();
-    }
-    res.sendFile(path2.join(distPath, "index.html"));
-  });
-} else {
-  app.use("/", routes_default);
+app.use("/", routes_default);
+if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  const possibleDistPaths = [
+    path2.resolve(process.cwd(), "dist"),
+    path2.resolve(process.cwd(), "../dist"),
+    path2.resolve(process.cwd(), "dbms/dist"),
+    path2.resolve(currentDir, "../../dist"),
+    path2.resolve(currentDir, "../dist")
+  ];
+  const distPath = possibleDistPaths.find((p) => fs2.existsSync(p) && fs2.existsSync(path2.join(p, "index.html")));
+  if (distPath) {
+    console.log(`[Unified Server] Serving frontend static assets from: ${distPath}`);
+    app.use(express.static(distPath));
+    app.get("*", (req, res, next) => {
+      if (req.url.startsWith("/api") || req.url.startsWith("/socket.io") || req.url === "/health" || req.url === "/api/health") {
+        return next();
+      }
+      res.sendFile(path2.join(distPath, "index.html"));
+    });
+  }
 }
 app.use((req, res) => {
   res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.url}` });
