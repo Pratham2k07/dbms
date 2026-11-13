@@ -27,6 +27,7 @@ if (rawUri && rawUri.startsWith('mysql')) {
 
 async function runInit() {
   const isRemote = mysqlHost !== 'localhost' && mysqlHost !== '127.0.0.1';
+  const useSsl = process.env.MYSQL_SSL === 'true' || (process.env.MYSQL_SSL !== 'false' && isRemote);
 
   const defaultSockets = !isRemote ? [
     process.env.MYSQL_SOCKET,
@@ -37,16 +38,12 @@ async function runInit() {
 
   const detectedSocket = defaultSockets.length > 0 ? defaultSockets[0] : undefined;
 
-  const sslOption = isRemote || process.env.MYSQL_SSL === 'true' || process.env.MYSQL_SSL === '1'
-    ? { rejectUnauthorized: false }
-    : undefined;
-
   const connectionConfig: any = {
     ...(detectedSocket ? { socketPath: detectedSocket } : { host: mysqlHost, port: mysqlPort }),
     user: mysqlUser,
     password: mysqlPassword,
     multipleStatements: true,
-    ...(sslOption ? { ssl: sslOption } : {})
+    ...(useSsl ? { ssl: { rejectUnauthorized: false } } : {})
   };
 
   // If remote and database is specified (e.g. defaultdb on Aiven/Railway), preselect it
@@ -54,7 +51,7 @@ async function runInit() {
     connectionConfig.database = mysqlDatabase;
   }
 
-  console.log(`Connecting to MySQL at ${detectedSocket ? `Socket: ${detectedSocket}` : `${mysqlHost}:${mysqlPort}`} as user "${mysqlUser}" (SSL: ${sslOption ? 'ENABLED' : 'DISABLED'})...`);
+  console.log(`Connecting to MySQL at ${detectedSocket ? `Socket: ${detectedSocket}` : `${mysqlHost}:${mysqlPort}`} as user "${mysqlUser}" (SSL: ${useSsl ? 'ENABLED' : 'DISABLED'})...`);
 
   const connection = await mysql.createConnection(connectionConfig);
 

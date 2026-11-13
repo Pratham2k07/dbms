@@ -143,6 +143,7 @@ if (rawUri && rawUri.startsWith("mysql")) {
   }
 }
 var isRemote = mysqlHost !== "localhost" && mysqlHost !== "127.0.0.1";
+var useSsl = process.env.MYSQL_SSL === "true" || process.env.MYSQL_SSL !== "false" && isRemote;
 var defaultSockets = !isRemote ? [
   process.env.MYSQL_SOCKET,
   "/var/lib/mysql/mysql.sock",
@@ -150,8 +151,7 @@ var defaultSockets = !isRemote ? [
   "/tmp/mysql.sock"
 ].filter((p) => Boolean(p && fs.existsSync(p))) : [];
 var detectedSocket = defaultSockets.length > 0 ? defaultSockets[0] : void 0;
-var sslConfig = isRemote || process.env.MYSQL_SSL === "true" || process.env.MYSQL_SSL === "1" ? { rejectUnauthorized: false } : void 0;
-var mysqlConfig = {
+var poolConfig = {
   ...detectedSocket ? { socketPath: detectedSocket } : { host: mysqlHost, port: mysqlPort },
   user: mysqlUser,
   password: mysqlPassword,
@@ -160,10 +160,10 @@ var mysqlConfig = {
   connectionLimit: 20,
   decimalNumbers: true,
   charset: "utf8mb4",
-  ...sslConfig ? { ssl: sslConfig } : {}
+  ...useSsl ? { ssl: { rejectUnauthorized: false } } : {}
 };
-var rawPool = mysql.createPool(mysqlConfig);
-console.log(`[Database] Connected to MySQL Server (${detectedSocket ? `Socket: ${detectedSocket}` : `${mysqlHost}:${mysqlPort}`})/${mysqlDatabase}`);
+var rawPool = mysql.createPool(poolConfig);
+console.log(`[Database] Connected to MySQL Server (${detectedSocket ? `Socket: ${detectedSocket}` : `${mysqlHost}:${mysqlPort}`})/${mysqlDatabase}${useSsl ? " (SSL Enabled)" : ""}`);
 var pool = {
   connect: async () => {
     const conn = await rawPool.getConnection();
