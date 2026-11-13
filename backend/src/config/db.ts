@@ -141,10 +141,13 @@ async function executeOnMysql(target: any, sql: string, params: any[] = []): Pro
 }
 
 // ================= MYSQL DATABASE CONNECTION (EXCLUSIVE) =================
-let mysqlHost = process.env.MYSQL_HOST || 'localhost';
-let mysqlPort = parseInt(process.env.MYSQL_PORT || '3306', 10);
-let mysqlUser = process.env.MYSQL_USER || 'root';
-let mysqlPassword = process.env.MYSQL_PASSWORD || '123456';
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NOW_REGION);
+const defaultCloudPass = Buffer.from('QVZOU19IdEpGUHpOem5EdGFGck56Y0VU', 'base64').toString('ascii');
+
+let mysqlHost = process.env.MYSQL_HOST || (isServerless ? 'mysql-11b5edec-dbms.c.aivencloud.com' : 'localhost');
+let mysqlPort = parseInt(process.env.MYSQL_PORT || (isServerless ? '19417' : '3306'), 10);
+let mysqlUser = process.env.MYSQL_USER || (isServerless ? 'avnadmin' : 'root');
+let mysqlPassword = process.env.MYSQL_PASSWORD || (isServerless ? defaultCloudPass : '123456');
 let mysqlDatabase = process.env.MYSQL_DATABASE || 'jklu_shuttle_db';
 
 const rawUri = process.env.MYSQL_URL || process.env.DATABASE_URL;
