@@ -4,6 +4,7 @@ import cors from "cors";
 import dotenv2 from "dotenv";
 import path2 from "path";
 import fs2 from "fs";
+import { fileURLToPath } from "url";
 
 // backend/src/routes/index.ts
 import { Router as Router8 } from "express";
@@ -2642,6 +2643,7 @@ router8.get("/health", (_req, res) => {
 var routes_default = router8;
 
 // backend/src/app.ts
+var currentDir = typeof __dirname !== "undefined" ? __dirname : path2.dirname(fileURLToPath(import.meta.url));
 dotenv2.config();
 var app = express();
 app.use(
@@ -2684,8 +2686,8 @@ var possibleDistPaths = [
   path2.resolve(process.cwd(), "dist"),
   path2.resolve(process.cwd(), "../dist"),
   path2.resolve(process.cwd(), "dbms/dist"),
-  path2.resolve(__dirname, "../../dist"),
-  path2.resolve(__dirname, "../dist")
+  path2.resolve(currentDir, "../../dist"),
+  path2.resolve(currentDir, "../dist")
 ];
 var distPath = possibleDistPaths.find((p) => fs2.existsSync(p) && fs2.existsSync(path2.join(p, "index.html")));
 if (distPath) {

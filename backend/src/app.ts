@@ -3,7 +3,12 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 import apiRoutes from './routes/index.js';
+
+const currentDir = typeof __dirname !== 'undefined'
+  ? __dirname
+  : path.dirname(fileURLToPath(import.meta.url));
 
 dotenv.config();
 
@@ -61,8 +66,8 @@ const possibleDistPaths = [
   path.resolve(process.cwd(), 'dist'),
   path.resolve(process.cwd(), '../dist'),
   path.resolve(process.cwd(), 'dbms/dist'),
-  path.resolve(__dirname, '../../dist'),
-  path.resolve(__dirname, '../dist')
+  path.resolve(currentDir, '../../dist'),
+  path.resolve(currentDir, '../dist')
 ];
 const distPath = possibleDistPaths.find(p => fs.existsSync(p) && fs.existsSync(path.join(p, 'index.html')));
 
